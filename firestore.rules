@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 앱 설정 - 읽기/쓰기 허용
+    match /app/{document} {
+      allow read, write: if true;
+    }
+    // 유저 - 읽기/쓰기 허용
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+    // 출퇴근 기록 - 읽기/쓰기 허용
+    match /records/{recordId} {
+      allow read, write: if true;
+    }
+    // 연차 기록 - 읽기/쓰기 허용
+    match /leaves/{leaveId} {
+      allow read, write: if true;
+    }
+  }
+}
