@@ -7,6 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      injectRegister: "auto",
       includeAssets: ["icon-192.png", "icon-512.png"],
       manifest: {
         name: "출퇴근 관리",
@@ -25,13 +26,28 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
+        // 앱 실행 시 항상 새 버전 확인
+        skipWaiting: true,
+        clientsClaim: true,
+        // JS/CSS는 캐시 안 함 → 항상 최신 버전
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: "CacheFirst",
             options: { cacheName: "google-fonts-cache" }
+          },
+          {
+            urlPattern: /^https:\/\/.*\.firebaseio\.com\/.*/i,
+            handler: "NetworkOnly"
+          },
+          {
+            urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*/i,
+            handler: "NetworkOnly"
           }
         ]
+      },
+      devOptions: {
+        enabled: false
       }
     })
   ]
