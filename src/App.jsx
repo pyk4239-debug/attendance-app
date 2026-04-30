@@ -74,6 +74,16 @@ function calcOvertimeMin(outI, we) {
   const d = new Date(outI); const [h, m] = we.split(":").map(Number);
   return Math.max(0, (d.getHours() * 60 + d.getMinutes()) - (h * 60 + m));
 }
+// 조기출근 잔업 계산 (출근 기준 이전 출근분)
+function calcEarlyInOvertimeMin(inI, ws) {
+  if (!inI || !ws) return 0;
+  const d = new Date(inI); const [h, m] = ws.split(":").map(Number);
+  return Math.max(0, (h * 60 + m) - (d.getHours() * 60 + d.getMinutes()));
+}
+// 전체 잔업 = 조기출근 잔업 + 퇴근 후 잔업
+function calcTotalOvertimeMin(inI, outI, ws, we) {
+  return calcEarlyInOvertimeMin(inI, ws) + calcOvertimeMin(outI, we);
+}
 function fmtMinutes(min) {
   if (min == null || min === 0) return "-";
   const h = Math.floor(min / 60), m = Math.round(min % 60);
@@ -91,7 +101,7 @@ function calcMonthStats(days, settings) {
       acc.days++;
       const lm = calcLateMin(rec.in, settings.workStart);
       const em = calcEarlyOutMin(rec.out, settings.workEnd);
-      const om = calcOvertimeMin(rec.out, settings.workEnd);
+      const om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
       if (lm > 0) { acc.late++; acc.lateMin += lm; }
       if (em > 0) { acc.early++; acc.earlyMin += em; }
       if (om >= 30) { acc.ot++; acc.otMin += roundTo30(om); }
@@ -126,6 +136,7 @@ function getGPS() {
   });
 }
 function calcDistance(lat1, lng1, lat2, lng2) {
+  if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return null;
   const R = 6371000;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLng = (lat2 - lng1) * Math.PI / 180;
@@ -133,10 +144,13 @@ function calcDistance(lat1, lng1, lat2, lng2) {
   return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 function gpsStatusLabel(gps, settings) {
-  if (!gps) return null;
-  if (!settings.officeLat || !settings.officeLng) return { label: "위치기록", color: "gray" };
-  const dist = calcDistance(gps.lat, gps.lng, settings.officeLat, settings.officeLng);
-  const radius = settings.officeRadius || 200;
+  if (!gps || gps.lat == null || gps.lng == null) return null;
+  const officeLat = settings?.officeLat ?? null;
+  const officeLng = settings?.officeLng ?? null;
+  if (officeLat == null || officeLng == null) return { label: "위치기록", color: "gray" };
+  const dist = calcDistance(gps.lat, gps.lng, Number(officeLat), Number(officeLng));
+  if (dist == null) return { label: "위치기록", color: "gray" };
+  const radius = Number(settings.officeRadius) || 200;
   if (dist <= radius) return { label: `회사 내 (${dist}m)`, color: "green" };
   return { label: `회사 외 (${dist}m)`, color: "red" };
 }
@@ -365,7 +379,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
   const [flash, setFlash] = useState(null);
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
 
-  const today = getToday();
+  const today = now.toISOString().slice(0, 10); // now 기반 → 자정 넘으면 자동 갱신
   const todayRec = records[user.id]?.[today] || {};
   const hasIn = !!todayRec.in, hasOut = !!todayRec.out;
   const outings = todayRec.outing || [];
@@ -478,7 +492,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
           : monthDays.map(([date, rec]) => {
             const lm = calcLateMin(rec.in, settings.workStart);
             const em = calcEarlyOutMin(rec.out, settings.workEnd);
-            const om = calcOvertimeMin(rec.out, settings.workEnd);
+            const om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
             const late = lm > 0, early = em > 0, ot = om >= 30;
             const weekend = isWeekend(date), leave = leaves[user.id]?.[date];
             const isNormal = !late && !early && !ot && !weekend && rec.in && rec.out;
@@ -620,7 +634,7 @@ function MonthTab({ records, leaves, members, settings, onSaveRecord, onSaveLeav
       const header = ["날짜", "요일", "출근", "퇴근", "지각", "지각시간", "조퇴", "조퇴시간", "잔업", "잔업시간", "외출", "연차/반차", "메모"];
       const rows = days.map(([date, rec]) => {
         const dow = new Date(date).toLocaleDateString("ko-KR", { weekday: "short" });
-        const lm = calcLateMin(rec.in, settings.workStart), em = calcEarlyOutMin(rec.out, settings.workEnd), om = calcOvertimeMin(rec.out, settings.workEnd);
+        const lm = calcLateMin(rec.in, settings.workStart), em = calcEarlyOutMin(rec.out, settings.workEnd), om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
         const leave = userLeaves[date];
         return [date, dow, formatTime(rec.in), formatTime(rec.out), lm > 0 ? "O" : "", lm > 0 ? fmtMinutes(lm) : "", em > 0 ? "O" : "", em > 0 ? fmtMinutes(em) : "", om >= 30 ? "O" : "", om >= 30 ? fmtMinutes(roundTo30(om)) : "", (rec.outing || []).length > 0 ? `${(rec.outing || []).length}회` : "", leave ? leave.type : "", rec.note || ""];
       });
@@ -651,7 +665,7 @@ function MonthTab({ records, leaves, members, settings, onSaveRecord, onSaveLeav
         {days.length === 0
           ? <div style={{ textAlign: "center", color: T.muted, padding: 24, fontSize: 14, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>기록 없음</div>
           : days.map(([date, rec]) => {
-            const lm = calcLateMin(rec.in, settings.workStart), em = calcEarlyOutMin(rec.out, settings.workEnd), om = calcOvertimeMin(rec.out, settings.workEnd);
+            const lm = calcLateMin(rec.in, settings.workStart), em = calcEarlyOutMin(rec.out, settings.workEnd), om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
             const late = lm > 0, early = em > 0, ot = om >= 30, weekend = isWeekend(date), leave = userLeaves[date];
             const [, , dd] = date.split("-"), dow = new Date(date).toLocaleDateString("ko-KR", { weekday: "short" });
             const isNormal = !late && !early && !ot && !weekend && rec.in && rec.out;
@@ -959,7 +973,9 @@ function AdminScreen({ users, settings, records, leaves, onSaveRecord, onSaveLea
   const [showSettings, setShowSettings] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
-  const now = new Date(), today = getToday();
+  const [now, setNow] = useState(new Date());
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(t); }, []);
+  const today = now.toISOString().slice(0, 10);
   const members = users.filter(u => u.role === "member");
 
   const handleSaveRecord = async (date, newRec, leaveData) => {
@@ -1003,7 +1019,7 @@ function AdminScreen({ users, settings, records, leaves, onSaveRecord, onSaveLea
             const rec = records[u.id]?.[today] || {};
             const status = !rec.in ? "미출근" : !rec.out ? "근무중" : "퇴근";
             const sColor = { 미출근: "gray", 근무중: "green", 퇴근: "blue" }[status];
-            const lm = calcLateMin(rec.in, settings.workStart), em = calcEarlyOutMin(rec.out, settings.workEnd), om = calcOvertimeMin(rec.out, settings.workEnd);
+            const lm = calcLateMin(rec.in, settings.workStart), em = calcEarlyOutMin(rec.out, settings.workEnd), om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
             const outings = rec.outing || [], isOut = outings.length > 0 && !outings[outings.length - 1].in;
             return (
               <div key={u.id} style={{ background: T.card, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}`, boxShadow: "0 1px 4px #0000000a" }}>
