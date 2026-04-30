@@ -5,10 +5,10 @@ import {
   getDocs, writeBatch
 } from "firebase/firestore";
 
-// PWA 업데이트 감지 → 새 버전 있으면 자동 새로고침
+// 기존 서비스워커 완전 제거
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    window.location.reload();
+  navigator.serviceWorker.getRegistrations().then(registrations => {
+    registrations.forEach(r => r.unregister());
   });
 }
 
