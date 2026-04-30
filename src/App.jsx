@@ -5,6 +5,13 @@ import {
   getDocs, writeBatch
 } from "firebase/firestore";
 
+// PWA 업데이트 감지 → 새 버전 있으면 자동 새로고침
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    window.location.reload();
+  });
+}
+
 // ── 테마 (화이트모드) ──────────────────────────────────────────
 const T = {
   bg: "#f5f6fa", card: "#ffffff", border: "#e8eaf0",
