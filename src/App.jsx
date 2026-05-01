@@ -42,7 +42,8 @@ const DEFAULT_USERS = [
 ];
 const DEFAULT_SETTINGS = {
   workStart: "09:00", workEnd: "18:00",
-  officeLat: null, officeLng: null, officeRadius: 200
+  officeLat: null, officeLng: null, officeRadius: 200,
+  holidays: []
 };
 const MASTER_CODE = "att2026!"; // 관리자 PIN 분실 시 비상 코드
 
@@ -60,6 +61,9 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
 }
 function isWeekend(d) { const w = new Date(d).getDay(); return w === 0 || w === 6; }
+function isHoliday(d, holidays) {
+  return isWeekend(d) || (holidays || []).includes(d);
+}
 function isLate(iso, ws) {
   if (!iso || !ws) return false;
   const d = new Date(iso); const [h, m] = ws.split(":").map(Number);
@@ -116,7 +120,7 @@ function calcMonthStats(days, settings) {
       if (lm > 0) { acc.late++; acc.lateMin += lm; }
       if (em > 0) { acc.early++; acc.earlyMin += em; }
       if (om >= 30) { acc.ot++; acc.otMin += roundTo30(om); }
-      if (isWeekend(date)) acc.holiday++;
+      if (isHoliday(date, settings.holidays)) acc.holiday++;
     }
     return acc;
   }, { days: 0, late: 0, lateMin: 0, early: 0, earlyMin: 0, ot: 0, otMin: 0, holiday: 0 });
@@ -506,7 +510,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
             const em = calcEarlyOutMin(rec.out, settings.workEnd);
             const om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
             const late = lm > 0, early = em > 0, ot = om >= 30;
-            const weekend = isWeekend(date), leave = leaves[user.id]?.[date];
+            const weekend = isHoliday(date, settings.holidays), leave = leaves[user.id]?.[date];
             const isNormal = !late && !early && !ot && !weekend && rec.in && rec.out;
             return (
               <div key={date} style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${T.border}` }}>
@@ -582,11 +586,11 @@ function EditRecordModal({ user, date, rec, settings, userLeaves, onSave, onClos
         </div>
         {inTime && outTime && (
           <div style={{ background: T.bg, borderRadius: 10, padding: "9px 12px", marginBottom: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {!lm && !em && om < 30 && !isWeekend(date) && <Badge label="정상" color="green" />}
+            {!lm && !em && om < 30 && !isHoliday(date, settings.holidays) && <Badge label="정상" color="green" />}
             {lm > 0 && <Badge label={`지각 ${fmtMinutes(lm)}`} color="yellow" />}
             {em > 0 && <Badge label={`조퇴 ${fmtMinutes(em)}`} color="orange" />}
             {om >= 30 && <Badge label={`잔업 ${fmtMinutes(roundTo30(om))}`} color="purple" />}
-            {isWeekend(date) && inTime && <Badge label="휴일근무" color="red" />}
+            {isHoliday(date, settings.holidays) && inTime && <Badge label="휴일근무" color="red" />}
           </div>
         )}
         {outings.map((o, i) => (
@@ -694,7 +698,7 @@ function MonthTab({ records, leaves, members, settings, onSaveRecord, onSaveLeav
           ? <div style={{ textAlign: "center", color: T.muted, padding: 24, fontSize: 14, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>기록 없음</div>
           : days.map(([date, rec]) => {
             const lm = calcLateMin(rec.in, settings.workStart), em = calcEarlyOutMin(rec.out, settings.workEnd), om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
-            const late = lm > 0, early = em > 0, ot = om >= 30, weekend = isWeekend(date), leave = userLeaves[date];
+            const late = lm > 0, early = em > 0, ot = om >= 30, weekend = isHoliday(date, settings.holidays), leave = userLeaves[date];
             const [, , dd] = date.split("-"), dow = new Date(date).toLocaleDateString("ko-KR", { weekday: "short" });
             const isNormal = !late && !early && !ot && !weekend && rec.in && rec.out;
             return (
@@ -863,8 +867,9 @@ function AdminAccountModal({ users, onUpdateUsers, onClose }) {
 
 // ── 설정 모달 ──────────────────────────────────────────────────
 function SettingsModal({ settings, onSave, onClose }) {
-  const [s, setS] = useState({ ...settings });
+  const [s, setS] = useState({ ...settings, holidays: settings.holidays || [] });
   const [gpsMsg, setGpsMsg] = useState("");
+  const [newHoliday, setNewHoliday] = useState("");
   const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 18, fontWeight: 700, boxSizing: "border-box" };
 
   const registerOffice = async () => {
@@ -878,10 +883,23 @@ function SettingsModal({ settings, onSave, onClose }) {
     }
   };
 
+  const addHoliday = () => {
+    if (!newHoliday) return;
+    if (s.holidays.includes(newHoliday)) { setNewHoliday(""); return; }
+    setS(p => ({ ...p, holidays: [...p.holidays, newHoliday].sort() }));
+    setNewHoliday("");
+  };
+
+  const removeHoliday = (date) => {
+    setS(p => ({ ...p, holidays: p.holidays.filter(d => d !== date) }));
+  };
+
   return (
-    <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 24 }}>
-      <div style={{ background: T.card, borderRadius: 20, padding: 26, width: "100%", maxWidth: 320, boxShadow: "0 20px 60px #00000020" }}>
+    <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 16 }}>
+      <div style={{ background: T.card, borderRadius: 20, padding: 22, width: "100%", maxWidth: 340, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px #00000020" }}>
         <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 20 }}>근무 설정</div>
+
+        {/* 출퇴근 기준 */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 13, color: T.green, marginBottom: 6, fontWeight: 700 }}>출근 기준</div>
           <input type="time" value={s.workStart} onChange={e => setS(p => ({ ...p, workStart: e.target.value }))} style={{ ...iStyle, borderColor: T.green + "44" }} />
@@ -890,10 +908,35 @@ function SettingsModal({ settings, onSave, onClose }) {
           <div style={{ fontSize: 13, color: T.blue, marginBottom: 6, fontWeight: 700 }}>퇴근 기준</div>
           <input type="time" value={s.workEnd} onChange={e => setS(p => ({ ...p, workEnd: e.target.value }))} style={{ ...iStyle, borderColor: T.blue + "44" }} />
         </div>
+
+        {/* 공휴일 관리 */}
+        <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: T.text, fontWeight: 700, marginBottom: 4 }}>🗓 공휴일 지정</div>
+          <div style={{ fontSize: 11, color: T.muted, marginBottom: 12, lineHeight: 1.5 }}>
+            토/일 외 공휴일을 직접 등록하세요.<br />등록된 날은 휴일근무로 자동 처리돼요.
+          </div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <input type="date" value={newHoliday} onChange={e => setNewHoliday(e.target.value)}
+              style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box" }} />
+            <button onClick={addHoliday}
+              style={{ background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "10px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>추가</button>
+          </div>
+          {s.holidays.length === 0 ? (
+            <div style={{ fontSize: 12, color: T.muted, textAlign: "center", padding: "8px 0" }}>등록된 공휴일 없음</div>
+          ) : s.holidays.map(date => (
+            <div key={date} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderTop: `1px solid ${T.border}` }}>
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: T.text }}>{formatDate(date)}</span>
+              <button onClick={() => removeHoliday(date)}
+                style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "4px 10px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}>삭제</button>
+            </div>
+          ))}
+        </div>
+
+        {/* 회사 위치 */}
         <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 20 }}>
           <div style={{ fontSize: 13, color: T.text, fontWeight: 700, marginBottom: 4 }}>📍 회사 위치</div>
           <div style={{ fontSize: 11, color: T.muted, marginBottom: 10, lineHeight: 1.5 }}>
-            회사에서 이 버튼을 눌러 위치를 등록하세요.<br />등록 후 팀원 출퇴근 위치를 확인할 수 있어요.
+            회사에서 이 버튼을 눌러 위치를 등록하세요.
           </div>
           {s.officeLat && s.officeLng && (
             <div style={{ fontSize: 11, color: T.green, marginBottom: 8, fontWeight: 600 }}>
@@ -911,6 +954,7 @@ function SettingsModal({ settings, onSave, onClose }) {
             {[50, 100, 150, 200, 300, 500].map(r => <option key={r} value={r}>{r}m</option>)}
           </select>
         </div>
+
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Btn variant="ghost" onClick={onClose}>취소</Btn>
           <Btn variant="admin" onClick={() => onSave(s)}>저장</Btn>
