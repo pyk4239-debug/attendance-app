@@ -625,9 +625,25 @@ function EditRecordModal({ user, date, rec, settings, userLeaves, onSave, onClos
 
 // ── 월별 탭 ────────────────────────────────────────────────────
 function MonthTab({ records, leaves, members, settings, onSaveRecord, onSaveLeave }) {
-  const [selectedMonth, setSelectedMonth] = useState(new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7));
+  const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+  const currentMonth = kstNow.toISOString().slice(0, 7);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [drillUser, setDrillUser] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
+
+  const prevMonth = () => {
+    const [y, m] = selectedMonth.split("-").map(Number);
+    const d = new Date(y, m - 2, 1);
+    setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    setDrillUser(null);
+  };
+  const nextMonth = () => {
+    const [y, m] = selectedMonth.split("-").map(Number);
+    const d = new Date(y, m, 1);
+    const next = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    if (next <= currentMonth) { setSelectedMonth(next); setDrillUser(null); }
+  };
+  const isCurrentMonth = selectedMonth === currentMonth;
 
   const handleSaveRecord = async (date, newRec, leaveData) => {
     await onSaveRecord(editTarget.user.id, date, newRec);
@@ -724,10 +740,12 @@ function MonthTab({ records, leaves, members, settings, onSaveRecord, onSaveLeav
 
   return (
     <div>
-      <select value={selectedMonth} onChange={e => { setSelectedMonth(e.target.value); setDrillUser(null); }}
-        style={{ width: "100%", padding: "11px 16px", borderRadius: 12, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 15, fontWeight: 700, marginBottom: 16, boxSizing: "border-box" }}>
-        {monthOptions.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
-      </select>
+      {/* 월 선택 - 버튼 방식 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <button onClick={prevMonth} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 16px", fontSize: 16, cursor: "pointer", fontWeight: 700, color: T.text }}>‹</button>
+        <div style={{ flex: 1, textAlign: "center", fontSize: 16, fontWeight: 800, color: T.text }}>{monthLabel(selectedMonth)}</div>
+        <button onClick={nextMonth} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 16px", fontSize: 16, cursor: "pointer", fontWeight: 700, color: isCurrentMonth ? T.muted : T.text, opacity: isCurrentMonth ? 0.3 : 1 }}>›</button>
+      </div>
       {members.map(u => {
         const days = Object.entries(records[u.id] || {}).filter(([d]) => d.startsWith(selectedMonth));
         const ms = calcMonthStats(days, settings);
