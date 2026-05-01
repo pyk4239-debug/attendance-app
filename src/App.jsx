@@ -117,9 +117,13 @@ function calcMonthStats(days, settings) {
       const lm = calcLateMin(rec.in, settings.workStart);
       const em = calcEarlyOutMin(rec.out, settings.workEnd);
       const om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
-      if (lm > 0) { acc.late++; acc.lateMin += lm; }
-      if (em > 0) { acc.early++; acc.earlyMin += em; }
-      if (om >= 30) { acc.ot++; acc.otMin += roundTo30(om); }
+      // 확정값 우선, 없으면 자동
+      const finalLate = rec.lateConfirm !== undefined && rec.lateConfirm !== null ? rec.lateConfirm : lm > 0;
+      const finalEarly = rec.earlyConfirm !== undefined && rec.earlyConfirm !== null ? rec.earlyConfirm : em > 0;
+      const finalOt = rec.overtimeConfirm !== undefined && rec.overtimeConfirm !== null ? rec.overtimeConfirm : om >= 30;
+      if (finalLate) { acc.late++; acc.lateMin += lm; }
+      if (finalEarly) { acc.early++; acc.earlyMin += em; }
+      if (finalOt) { acc.ot++; acc.otMin += roundTo30(om); }
       if (isHoliday(date, settings.holidays)) acc.holiday++;
     }
     return acc;
@@ -551,20 +555,63 @@ function EditRecordModal({ user, date, rec, settings, userLeaves, onSave, onClos
   const [leaveType, setLeaveType] = useState(userLeaves?.[date]?.type || "");
   const [leaveHours, setLeaveHours] = useState(userLeaves?.[date]?.hours || 1);
   const [note, setNote] = useState(rec?.note || "");
+
+  // 관리자 확정값 (null이면 자동, true/false면 수동 확정)
+  const [lateConfirm, setLateConfirm] = useState(rec?.lateConfirm ?? null);
+  const [earlyConfirm, setEarlyConfirm] = useState(rec?.earlyConfirm ?? null);
+  const [overtimeConfirm, setOvertimeConfirm] = useState(rec?.overtimeConfirm ?? null);
+
   const times = [];
   for (let h = 0; h < 24; h++) for (let m of [0, 30]) times.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
   const iStyle = { width: "100%", padding: "11px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box", fontFamily: "inherit" };
   const inIso = inTime ? setTimeOnDate(date, inTime) : null;
   const outIso = outTime ? setTimeOnDate(date, outTime) : null;
+  const autoLate = calcLateMin(inIso, settings.workStart) > 0;
+  const autoEarly = calcEarlyOutMin(outIso, settings.workEnd) > 0;
+  const autoOvertime = calcTotalOvertimeMin(inIso, outIso, settings.workStart, settings.workEnd) >= 30;
   const lm = calcLateMin(inIso, settings.workStart);
   const em = calcEarlyOutMin(outIso, settings.workEnd);
-  const om = calcOvertimeMin(outIso, settings.workEnd);
+  const om = calcTotalOvertimeMin(inIso, outIso, settings.workStart, settings.workEnd);
+
+  // 최종 확정값 (관리자가 수동 설정했으면 그걸, 아니면 자동)
+  const finalLate = lateConfirm !== null ? lateConfirm : autoLate;
+  const finalEarly = earlyConfirm !== null ? earlyConfirm : autoEarly;
+  const finalOvertime = overtimeConfirm !== null ? overtimeConfirm : autoOvertime;
+
+  const ToggleBtn = ({ label, auto, confirmed, onToggle, color }) => {
+    const isOn = confirmed !== null ? confirmed : auto;
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: T.bg, borderRadius: 10, marginBottom: 8, border: `1px solid ${T.border}` }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: isOn ? color : T.muted }}>{label}</div>
+          <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
+            자동감지: {auto ? "해당" : "없음"} {confirmed !== null ? "· 수동확정" : ""}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={() => onToggle(true)}
+            style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: isOn ? color : T.border, color: isOn ? "#fff" : T.muted }}>
+            인정
+          </button>
+          <button onClick={() => onToggle(false)}
+            style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: !isOn ? "#6b7280" : T.border, color: !isOn ? "#fff" : T.muted }}>
+            제외
+          </button>
+          {confirmed !== null && (
+            <button onClick={() => onToggle(null)}
+              style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 11, cursor: "pointer", background: "#fff", color: T.muted }}>
+              자동
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const save = async () => {
-    const nr = { ...rec, outing: outings, note };
+    const nr = { ...rec, outing: outings, note, lateConfirm, earlyConfirm, overtimeConfirm };
     if (inTime) nr.in = setTimeOnDate(date, inTime); else delete nr.in;
     if (outTime) nr.out = setTimeOnDate(date, outTime); else delete nr.out;
-    // GPS 데이터는 수정 시 유지
     await onSave(date, nr, leaveType ? { type: leaveType, hours: leaveHours } : null);
   };
 
@@ -573,7 +620,10 @@ function EditRecordModal({ user, date, rec, settings, userLeaves, onSave, onClos
       <div style={{ background: T.card, borderRadius: 20, padding: 22, width: "100%", maxWidth: 340, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px #00000030" }}>
         <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 4 }}>{user.name} — 기록 수정</div>
         <div style={{ fontSize: 12, color: T.muted, marginBottom: 18 }}>{formatDate(date)}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+
+        {/* 실제 출퇴근 시간 */}
+        <div style={{ fontSize: 12, color: T.sub, marginBottom: 8, fontWeight: 700 }}>실제 출퇴근 시간</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
           {[["출근", inTime, setInTime, T.green], ["퇴근", outTime, setOutTime, T.blue]].map(([label, val, setter, color]) => (
             <div key={label}>
               <div style={{ fontSize: 12, color, marginBottom: 5, fontWeight: 700 }}>{label}</div>
@@ -584,15 +634,21 @@ function EditRecordModal({ user, date, rec, settings, userLeaves, onSave, onClos
             </div>
           ))}
         </div>
+
+        {/* 관리자 확정 */}
         {inTime && outTime && (
-          <div style={{ background: T.bg, borderRadius: 10, padding: "9px 12px", marginBottom: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {!lm && !em && om < 30 && !isHoliday(date, settings.holidays) && <Badge label="정상" color="green" />}
-            {lm > 0 && <Badge label={`지각 ${fmtMinutes(lm)}`} color="yellow" />}
-            {em > 0 && <Badge label={`조퇴 ${fmtMinutes(em)}`} color="orange" />}
-            {om >= 30 && <Badge label={`잔업 ${fmtMinutes(roundTo30(om))}`} color="purple" />}
-            {isHoliday(date, settings.holidays) && inTime && <Badge label="휴일근무" color="red" />}
-          </div>
+          <>
+            <div style={{ fontSize: 12, color: T.sub, marginBottom: 8, fontWeight: 700 }}>급여 반영 확정</div>
+            <ToggleBtn label={`지각 ${lm > 0 ? fmtMinutes(lm) : ""}`} auto={autoLate} confirmed={lateConfirm} onToggle={v => setLateConfirm(v)} color={T.yellow} />
+            <ToggleBtn label={`조퇴 ${em > 0 ? fmtMinutes(em) : ""}`} auto={autoEarly} confirmed={earlyConfirm} onToggle={v => setEarlyConfirm(v)} color={T.orange} />
+            <ToggleBtn label={`잔업 ${om >= 30 ? fmtMinutes(roundTo30(om)) : ""}`} auto={autoOvertime} confirmed={overtimeConfirm} onToggle={v => setOvertimeConfirm(v)} color={T.purple} />
+            <div style={{ fontSize: 11, color: T.muted, marginBottom: 12, padding: "6px 10px", background: T.bg, borderRadius: 8 }}>
+              💡 "제외" 선택 시 실제 시간은 보존되고 급여 계산에서만 제외돼요
+            </div>
+          </>
         )}
+
+        {/* 외출 */}
         {outings.map((o, i) => (
           <div key={i} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
             <select value={o.out ? formatTime(o.out) : ""} onChange={e => { const n = [...outings]; n[i] = { ...n[i], out: e.target.value ? setTimeOnDate(date, e.target.value) : null }; setOutings(n); }} style={{ ...iStyle, flex: 1, fontSize: 12 }}>
@@ -606,6 +662,8 @@ function EditRecordModal({ user, date, rec, settings, userLeaves, onSave, onClos
           </div>
         ))}
         <button onClick={() => setOutings([...outings, { out: null, in: null }])} style={{ width: "100%", padding: "8px 0", borderRadius: 10, border: `1px dashed ${T.border}`, background: "none", color: T.muted, fontSize: 12, cursor: "pointer", marginBottom: 12, fontWeight: 600 }}>+ 외출 추가</button>
+
+        {/* 연차 */}
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 12, color: T.purple, marginBottom: 5, fontWeight: 700 }}>연차 / 반차</div>
           <select value={leaveType} onChange={e => setLeaveType(e.target.value)} style={iStyle}>
@@ -614,10 +672,13 @@ function EditRecordModal({ user, date, rec, settings, userLeaves, onSave, onClos
           </select>
           {leaveType === "시간연차" && <select value={leaveHours} onChange={e => setLeaveHours(Number(e.target.value))} style={{ ...iStyle, marginTop: 6 }}>{[1, 2, 3, 4].map(h => <option key={h} value={h}>{h}시간</option>)}</select>}
         </div>
+
+        {/* 메모 */}
         <div style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 12, color: T.muted, marginBottom: 5, fontWeight: 600 }}>메모</div>
           <input value={note} onChange={e => setNote(e.target.value)} placeholder="특이사항" style={iStyle} />
         </div>
+
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Btn variant="ghost" onClick={onClose}>취소</Btn>
           <Btn variant="admin" onClick={save}>저장</Btn>
