@@ -47,7 +47,11 @@ const DEFAULT_SETTINGS = {
 const MASTER_CODE = "att2026!"; // 관리자 PIN 분실 시 비상 코드
 
 // ── 유틸 ──────────────────────────────────────────────────────
-function getToday() { return new Date().toISOString().slice(0, 10); }
+function getToday() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return kst.toISOString().slice(0, 10);
+}
 function formatTime(iso) {
   if (!iso) return "--:--";
   return new Date(iso).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -386,7 +390,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
   const [flash, setFlash] = useState(null);
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
 
-  const today = now.toISOString().slice(0, 10); // now 기반 → 자정 넘으면 자동 갱신
+  const today = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const todayRec = records[user.id]?.[today] || {};
   const hasIn = !!todayRec.in, hasOut = !!todayRec.out;
   const outings = todayRec.outing || [];
@@ -406,7 +410,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
     setFlash(msgs[type]); setTimeout(() => setFlash(null), 2500);
   };
 
-  const thisMonth = now.toISOString().slice(0, 7);
+  const thisMonth = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
   const monthDays = Object.entries(records[user.id] || {}).filter(([d]) => d.startsWith(thisMonth)).sort(([a], [b]) => b.localeCompare(a));
   const ms = calcMonthStats(monthDays, settings);
   const monthLeaves = Object.entries(leaves[user.id] || {}).filter(([d]) => d.startsWith(thisMonth));
@@ -620,7 +624,7 @@ function EditRecordModal({ user, date, rec, settings, userLeaves, onSave, onClos
 
 // ── 월별 탭 ────────────────────────────────────────────────────
 function MonthTab({ records, leaves, members, settings, onSaveRecord, onSaveLeave }) {
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [selectedMonth, setSelectedMonth] = useState(new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7));
   const [drillUser, setDrillUser] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
 
@@ -982,7 +986,7 @@ function AdminScreen({ users, settings, records, leaves, onSaveRecord, onSaveLea
   const [editTarget, setEditTarget] = useState(null);
   const [now, setNow] = useState(new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(t); }, []);
-  const today = now.toISOString().slice(0, 10);
+  const today = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const members = users.filter(u => u.role === "member");
 
   const handleSaveRecord = async (date, newRec, leaveData) => {
