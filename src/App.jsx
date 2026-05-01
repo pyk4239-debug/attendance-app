@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { db } from "./firebase";
+import { db, storage } from "./firebase";
 import {
   doc, onSnapshot, setDoc, getDoc, collection,
-  getDocs, writeBatch
+  getDocs, writeBatch, addDoc, deleteDoc, query, orderBy
 } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
 // 기존 서비스워커 완전 제거
 if ("serviceWorker" in navigator) {
@@ -30,6 +31,11 @@ const T = {
 const COL_USERS    = "users";
 const COL_RECORDS  = "records";
 const COL_LEAVES   = "leaves";
+const COL_NOTICES  = "notices";
+const COL_BOARD    = "board";
+const COL_PAYSLIPS = "payslips";
+const COL_ANNUAL   = "annual";
+const COL_LEAVE_REQ = "leave_requests";
 const DOC_SETTINGS = "app/settings";
 
 // ── 초기 데이터 ────────────────────────────────────────────────
@@ -243,29 +249,29 @@ function AppLoader() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [records, setRecords] = useState({});
   const [leaves, setLeaves] = useState({});
+  const [notices, setNotices] = useState([]);
+  const [board, setBoard] = useState([]);
+  const [payslips, setPayslips] = useState([]);
+  const [annual, setAnnual] = useState({});
+  const [leaveRequests, setLeaveRequests] = useState([]);
 
   useEffect(() => {
-    let unsubUsers, unsubSettings, unsubRecords, unsubLeaves;
+    let unsubs = [];
 
-    // 유저 실시간 구독
-    unsubUsers = onSnapshot(collection(db, COL_USERS), snap => {
-      if (snap.empty) {
-        // 최초 실행 시 기본 유저 등록
-        fbSaveUsers(DEFAULT_USERS);
-        setUsers(DEFAULT_USERS);
-      } else {
-        setUsers(snap.docs.map(d => d.data()));
-      }
-    });
+    // 유저
+    unsubs.push(onSnapshot(collection(db, COL_USERS), snap => {
+      if (snap.empty) { fbSaveUsers(DEFAULT_USERS); setUsers(DEFAULT_USERS); }
+      else setUsers(snap.docs.map(d => d.data()));
+    }));
 
-    // 설정 실시간 구독
-    unsubSettings = onSnapshot(doc(db, "app", "settings"), snap => {
+    // 설정
+    unsubs.push(onSnapshot(doc(db, "app", "settings"), snap => {
       if (snap.exists()) setSettings(snap.data());
       else fbSaveSettings(DEFAULT_SETTINGS);
-    });
+    }));
 
-    // 출퇴근 기록 실시간 구독
-    unsubRecords = onSnapshot(collection(db, COL_RECORDS), snap => {
+    // 출퇴근 기록
+    unsubs.push(onSnapshot(collection(db, COL_RECORDS), snap => {
       const r = {};
       snap.docs.forEach(d => {
         const data = d.data();
@@ -274,10 +280,10 @@ function AppLoader() {
         r[data.userId][data.date] = rest;
       });
       setRecords(r);
-    });
+    }));
 
-    // 연차 기록 실시간 구독
-    unsubLeaves = onSnapshot(collection(db, COL_LEAVES), snap => {
+    // 연차 기록
+    unsubs.push(onSnapshot(collection(db, COL_LEAVES), snap => {
       const l = {};
       snap.docs.forEach(d => {
         const data = d.data();
@@ -287,12 +293,37 @@ function AppLoader() {
         l[data.userId][data.date] = rest;
       });
       setLeaves(l);
-      setReady(true);
-    });
+    }));
 
-    return () => {
-      unsubUsers?.(); unsubSettings?.(); unsubRecords?.(); unsubLeaves?.();
-    };
+    // 공지사항
+    unsubs.push(onSnapshot(query(collection(db, COL_NOTICES), orderBy("createdAt", "desc")), snap => {
+      setNotices(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }));
+
+    // 자유게시판
+    unsubs.push(onSnapshot(query(collection(db, COL_BOARD), orderBy("createdAt", "desc")), snap => {
+      setBoard(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }));
+
+    // 급여명세서
+    unsubs.push(onSnapshot(query(collection(db, COL_PAYSLIPS), orderBy("createdAt", "desc")), snap => {
+      setPayslips(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }));
+
+    // 연차 현황
+    unsubs.push(onSnapshot(collection(db, COL_ANNUAL), snap => {
+      const a = {};
+      snap.docs.forEach(d => { a[d.id] = d.data(); });
+      setAnnual(a);
+    }));
+
+    // 연차 신청
+    unsubs.push(onSnapshot(query(collection(db, COL_LEAVE_REQ), orderBy("createdAt", "desc")), snap => {
+      setLeaveRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setReady(true);
+    }));
+
+    return () => unsubs.forEach(u => u());
   }, []);
 
   if (!ready) return (
@@ -306,6 +337,7 @@ function AppLoader() {
   );
 
   return <App users={users} settings={settings} records={records} leaves={leaves}
+    notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests}
     onSaveUsers={fbSaveUsers} onSaveSettings={fbSaveSettings}
     onSaveRecord={fbSaveRecord} onSaveLeave={fbSaveLeave} />;
 }
@@ -1199,17 +1231,479 @@ function AdminScreen({ users, settings, records, leaves, onSaveRecord, onSaveLea
   );
 }
 
-// ── 메인 App ───────────────────────────────────────────────────
-function App({ users, settings, records, leaves, onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
-  const [user, setUser] = useState(null);
-  if (!user) return <LoginScreen users={users} onLogin={setUser} onUpdateUsers={onSaveUsers} />;
-  if (user.role === "admin") return (
-    <AdminScreen users={users} settings={settings} records={records} leaves={leaves}
-      onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave}
-      onSaveUsers={onSaveUsers} onSaveSettings={onSaveSettings}
-      onLogout={() => setUser(null)} />
+// ── 공지사항 ────────────────────────────────────────────────────
+function NoticeScreen({ user, notices }) {
+  const isAdmin = user.role === "admin";
+  const [showWrite, setShowWrite] = useState(false);
+  const [title, setTitle] = useState(""), [content, setContent] = useState("");
+  const [expanded, setExpanded] = useState(null);
+
+  const submit = async () => {
+    if (!title.trim() || !content.trim()) return;
+    await addDoc(collection(db, COL_NOTICES), {
+      title: title.trim(), content: content.trim(),
+      author: user.name, createdAt: new Date().toISOString()
+    });
+    setTitle(""); setContent(""); setShowWrite(false);
+  };
+
+  const del = async (id) => {
+    await deleteDoc(doc(db, COL_NOTICES, id));
+  };
+
+  const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 };
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>📢 공지사항</div>
+        {isAdmin && <button onClick={() => setShowWrite(!showWrite)} style={{ background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ 작성</button>}
+      </div>
+
+      {showWrite && (
+        <div style={{ background: T.card, borderRadius: 14, padding: 16, marginBottom: 16, border: `1px solid ${T.border}` }}>
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="제목" style={iStyle} />
+          <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="내용" rows={4}
+            style={{ ...iStyle, resize: "none", lineHeight: 1.6 }} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <Btn variant="ghost" onClick={() => setShowWrite(false)}>취소</Btn>
+            <Btn variant="admin" onClick={submit}>등록</Btn>
+          </div>
+        </div>
+      )}
+
+      {notices.length === 0
+        ? <div style={{ textAlign: "center", color: T.muted, padding: 40 }}>공지사항이 없어요</div>
+        : notices.map(n => (
+          <div key={n.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }} onClick={() => setExpanded(expanded === n.id ? null : n.id)}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{n.title}</div>
+                <div style={{ fontSize: 11, color: T.muted, marginTop: 3 }}>{n.author} · {n.createdAt?.slice(0,10)}</div>
+              </div>
+              <span style={{ color: T.muted, fontSize: 14 }}>{expanded === n.id ? "▲" : "▼"}</span>
+            </div>
+            {expanded === n.id && (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+                <div style={{ fontSize: 14, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{n.content}</div>
+                {isAdmin && <button onClick={() => del(n.id)} style={{ marginTop: 10, background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>삭제</button>}
+              </div>
+            )}
+          </div>
+        ))
+      }
+    </div>
   );
-  return <MemberScreen user={user} settings={settings} records={records} leaves={leaves} onSaveRecord={onSaveRecord} onLogout={() => setUser(null)} />;
+}
+
+// ── 자유게시판 ──────────────────────────────────────────────────
+function BoardScreen({ user, board }) {
+  const isAdmin = user.role === "admin";
+  const [showWrite, setShowWrite] = useState(false);
+  const [title, setTitle] = useState(""), [content, setContent] = useState("");
+  const [expanded, setExpanded] = useState(null);
+
+  const submit = async () => {
+    if (!title.trim() || !content.trim()) return;
+    await addDoc(collection(db, COL_BOARD), {
+      title: title.trim(), content: content.trim(),
+      author: user.name, userId: user.id, createdAt: new Date().toISOString()
+    });
+    setTitle(""); setContent(""); setShowWrite(false);
+  };
+
+  const del = async (id) => { await deleteDoc(doc(db, COL_BOARD, id)); };
+
+  const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 };
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>💬 자유게시판</div>
+        <button onClick={() => setShowWrite(!showWrite)} style={{ background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ 글쓰기</button>
+      </div>
+
+      {showWrite && (
+        <div style={{ background: T.card, borderRadius: 14, padding: 16, marginBottom: 16, border: `1px solid ${T.border}` }}>
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="제목" style={iStyle} />
+          <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="내용" rows={4}
+            style={{ ...iStyle, resize: "none", lineHeight: 1.6 }} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <Btn variant="ghost" onClick={() => setShowWrite(false)}>취소</Btn>
+            <Btn variant="primary" onClick={submit}>등록</Btn>
+          </div>
+        </div>
+      )}
+
+      {board.length === 0
+        ? <div style={{ textAlign: "center", color: T.muted, padding: 40 }}>게시글이 없어요</div>
+        : board.map(b => (
+          <div key={b.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }} onClick={() => setExpanded(expanded === b.id ? null : b.id)}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{b.title}</div>
+                <div style={{ fontSize: 11, color: T.muted, marginTop: 3 }}>{b.author} · {b.createdAt?.slice(0,10)}</div>
+              </div>
+              <span style={{ color: T.muted, fontSize: 14 }}>{expanded === b.id ? "▲" : "▼"}</span>
+            </div>
+            {expanded === b.id && (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+                <div style={{ fontSize: 14, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{b.content}</div>
+                {(isAdmin || b.userId === user.id) && (
+                  <button onClick={() => del(b.id)} style={{ marginTop: 10, background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>삭제</button>
+                )}
+              </div>
+            )}
+          </div>
+        ))
+      }
+    </div>
+  );
+}
+
+// ── 급여명세서 ──────────────────────────────────────────────────
+function PayslipScreen({ user, users, payslips }) {
+  const isAdmin = user.role === "admin";
+  const [uploading, setUploading] = useState(false);
+  const [selUser, setSelUser] = useState("");
+  const [selMonth, setSelMonth] = useState(new Date(new Date().getTime() + 9*60*60*1000).toISOString().slice(0,7));
+  const [file, setFile] = useState(null);
+  const [msg, setMsg] = useState("");
+
+  const members = users.filter(u => u.role === "member");
+  const myPayslips = isAdmin ? payslips : payslips.filter(p => p.userId === user.id);
+
+  const upload = async () => {
+    if (!selUser || !file) { setMsg("팀원과 파일을 선택해주세요"); return; }
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `payslips/${selUser}_${selMonth}.${ext}`;
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      await addDoc(collection(db, COL_PAYSLIPS), {
+        userId: selUser, month: selMonth, url, fileName: file.name,
+        uploadedBy: user.name, createdAt: new Date().toISOString()
+      });
+      setMsg("업로드 완료! ✓"); setFile(null);
+      setTimeout(() => setMsg(""), 2000);
+    } catch (e) { setMsg("업로드 실패: " + e.message); }
+    setUploading(false);
+  };
+
+  const del = async (p) => {
+    try { await deleteObject(ref(storage, `payslips/${p.userId}_${p.month}.${p.fileName.split(".").pop()}`)); } catch {}
+    await deleteDoc(doc(db, COL_PAYSLIPS, p.id));
+  };
+
+  const kstMonths = Array.from({length:12},(_,i)=>{
+    const d=new Date(new Date(new Date().getTime()+9*60*60*1000).getFullYear(),new Date(new Date().getTime()+9*60*60*1000).getMonth()-i,1);
+    return new Date(d.getTime()+9*60*60*1000).toISOString().slice(0,7);
+  });
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 16 }}>💰 급여명세서</div>
+
+      {isAdmin && (
+        <div style={{ background: T.card, borderRadius: 14, padding: 16, marginBottom: 16, border: `1px solid ${T.border}` }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 12 }}>명세서 업로드</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+            <select value={selUser} onChange={e => setSelUser(e.target.value)}
+              style={{ padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: selUser ? T.text : T.muted, fontSize: 13, fontWeight: 600 }}>
+              <option value="">팀원 선택</option>
+              {members.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+            <select value={selMonth} onChange={e => setSelMonth(e.target.value)}
+              style={{ padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 13, fontWeight: 600 }}>
+              {kstMonths.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
+            </select>
+          </div>
+          <label style={{ display: "block", padding: "12px 0", borderRadius: 10, border: `2px dashed ${T.border}`, textAlign: "center", fontSize: 13, color: file ? T.green : T.muted, fontWeight: 600, cursor: "pointer", marginBottom: 10 }}>
+            {file ? `✓ ${file.name}` : "📎 파일 선택 (PNG / PDF)"}
+            <input type="file" accept="image/*,.pdf" onChange={e => setFile(e.target.files[0])} style={{ display: "none" }} />
+          </label>
+          {msg && <div style={{ fontSize: 12, color: msg.includes("✓") ? T.green : T.red, marginBottom: 8, fontWeight: 600 }}>{msg}</div>}
+          <Btn variant="admin" onClick={upload} disabled={uploading}>{uploading ? "업로드 중..." : "업로드"}</Btn>
+        </div>
+      )}
+
+      {myPayslips.length === 0
+        ? <div style={{ textAlign: "center", color: T.muted, padding: 40 }}>등록된 명세서가 없어요</div>
+        : myPayslips.map(p => {
+          const member = users.find(u => u.id === p.userId);
+          return (
+            <div key={p.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>
+                  {isAdmin && `${member?.name} · `}{monthLabel(p.month)}
+                </div>
+                <div style={{ fontSize: 11, color: T.muted, marginTop: 3 }}>{p.createdAt?.slice(0,10)} 업로드</div>
+              </div>
+              <a href={p.url} target="_blank" rel="noopener noreferrer"
+                style={{ background: T.blueBg, color: T.blue, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>보기</a>
+              {isAdmin && <button onClick={() => del(p)} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "7px 10px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}>삭제</button>}
+            </div>
+          );
+        })
+      }
+    </div>
+  );
+}
+
+// ── 연차 현황 ────────────────────────────────────────────────────
+function AnnualScreen({ user, users, annual, leaveRequests }) {
+  const isAdmin = user.role === "admin";
+  const members = users.filter(u => u.role === "member");
+  const [editUser, setEditUser] = useState(null);
+  const [total, setTotal] = useState(15);
+  const [used, setUsed] = useState(0);
+  const [showReqForm, setShowReqForm] = useState(false);
+  const [reqDate, setReqDate] = useState("");
+  const [reqType, setReqType] = useState("연차");
+  const [reqNote, setReqNote] = useState("");
+  const [reqMsg, setReqMsg] = useState("");
+
+  const myAnnual = annual[user.id] || { total: 0, used: 0 };
+  const myRemain = (myAnnual.total || 0) - (myAnnual.used || 0);
+  const myRequests = leaveRequests.filter(r => r.userId === user.id);
+
+  const saveAnnual = async (uid) => {
+    await setDoc(doc(db, COL_ANNUAL, uid), { total, used });
+    setEditUser(null);
+  };
+
+  const submitRequest = async () => {
+    if (!reqDate) { setReqMsg("날짜를 선택해주세요"); return; }
+    await addDoc(collection(db, COL_LEAVE_REQ), {
+      userId: user.id, userName: user.name,
+      date: reqDate, type: reqType, note: reqNote,
+      status: "대기", createdAt: new Date().toISOString()
+    });
+    setReqMsg("신청 완료! ✓"); setReqDate(""); setReqNote("");
+    setTimeout(() => { setReqMsg(""); setShowReqForm(false); }, 2000);
+  };
+
+  const updateReqStatus = async (id, status) => {
+    await setDoc(doc(db, COL_LEAVE_REQ, id), { status }, { merge: true });
+  };
+
+  const delReq = async (id) => { await deleteDoc(doc(db, COL_LEAVE_REQ, id)); };
+
+  const statusColor = { "대기": "yellow", "승인": "green", "반려": "red" };
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 16 }}>📅 연차</div>
+
+      {!isAdmin && (
+        <>
+          {/* 내 연차 현황 */}
+          <div style={{ background: T.card, borderRadius: 16, padding: "16px 20px", marginBottom: 16, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 13, color: T.muted, marginBottom: 12, fontWeight: 600 }}>내 연차 현황</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+              {[["총 연차", myAnnual.total||0+"일", T.blue], ["사용", myAnnual.used||0+"일", T.orange], ["잔여", myRemain+"일", T.green]].map(([l,v,c])=>(
+                <StatBox key={l} label={l} value={v} color={c}/>
+              ))}
+            </div>
+          </div>
+
+          {/* 연차 신청 */}
+          <div style={{ background: T.card, borderRadius: 14, padding: 16, marginBottom: 16, border: `1px solid ${T.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showReqForm ? 14 : 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>연차 신청</div>
+              <button onClick={() => setShowReqForm(!showReqForm)} style={{ background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ 신청</button>
+            </div>
+            {showReqForm && (
+              <>
+                <input type="date" value={reqDate} onChange={e => setReqDate(e.target.value)}
+                  style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box", marginBottom: 10 }} />
+                <select value={reqType} onChange={e => setReqType(e.target.value)}
+                  style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box", marginBottom: 10 }}>
+                  {LEAVE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <input value={reqNote} onChange={e => setReqNote(e.target.value)} placeholder="사유 (선택)"
+                  style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", marginBottom: 10, fontFamily: "inherit" }} />
+                {reqMsg && <div style={{ fontSize: 12, color: reqMsg.includes("✓") ? T.green : T.red, marginBottom: 8, fontWeight: 600 }}>{reqMsg}</div>}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <Btn variant="ghost" onClick={() => setShowReqForm(false)}>취소</Btn>
+                  <Btn variant="green" onClick={submitRequest}>신청</Btn>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* 내 신청 내역 */}
+          <div style={{ fontSize: 13, color: T.muted, marginBottom: 10, fontWeight: 600 }}>신청 내역</div>
+          {myRequests.length === 0
+            ? <div style={{ textAlign: "center", color: T.muted, padding: 24, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>신청 내역 없음</div>
+            : myRequests.map(r => (
+              <div key={r.id} style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{r.date} · {r.type}</div>
+                  {r.note && <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{r.note}</div>}
+                </div>
+                <Badge label={r.status} color={statusColor[r.status] || "gray"} />
+              </div>
+            ))
+          }
+        </>
+      )}
+
+      {isAdmin && (
+        <>
+          {/* 팀원별 연차 관리 */}
+          <div style={{ fontSize: 13, color: T.muted, marginBottom: 10, fontWeight: 600 }}>팀원별 연차 현황</div>
+          {members.map(u => {
+            const a = annual[u.id] || { total: 0, used: 0 };
+            const remain = (a.total||0) - (a.used||0);
+            return (
+              <div key={u.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: T.headerBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff" }}>{u.name[0]}</div>
+                  <span style={{ fontWeight: 700, flex: 1, color: T.text }}>{u.name}</span>
+                  <button onClick={() => { setEditUser(u.id); setTotal(a.total||15); setUsed(a.used||0); }}
+                    style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>수정</button>
+                </div>
+                {editUser === u.id ? (
+                  <div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>총 연차</div>
+                        <input type="number" value={total} onChange={e => setTotal(Number(e.target.value))}
+                          style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 16, fontWeight: 700, boxSizing: "border-box", textAlign: "center" }} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>사용</div>
+                        <input type="number" value={used} onChange={e => setUsed(Number(e.target.value))}
+                          style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 16, fontWeight: 700, boxSizing: "border-box", textAlign: "center" }} />
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      <Btn variant="ghost" onClick={() => setEditUser(null)}>취소</Btn>
+                      <Btn variant="admin" onClick={() => saveAnnual(u.id)}>저장</Btn>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
+                    {[["총 연차", a.total||0, T.blue], ["사용", a.used||0, T.orange], ["잔여", remain, T.green]].map(([l,v,c])=>(
+                      <StatBox key={l} label={l} value={v+"일"} color={c}/>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* 연차 신청 목록 */}
+          <div style={{ fontSize: 13, color: T.muted, margin: "16px 0 10px", fontWeight: 600 }}>연차 신청 목록</div>
+          {leaveRequests.length === 0
+            ? <div style={{ textAlign: "center", color: T.muted, padding: 24, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>신청 없음</div>
+            : leaveRequests.map(r => (
+              <div key={r.id} style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${T.border}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: T.text, flex: 1 }}>{r.userName} · {r.date} · {r.type}</div>
+                  <Badge label={r.status} color={statusColor[r.status]||"gray"} />
+                </div>
+                {r.note && <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>📝 {r.note}</div>}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => updateReqStatus(r.id, "승인")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.greenBg, color: T.green, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>승인</button>
+                  <button onClick={() => updateReqStatus(r.id, "반려")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.redBg, color: T.red, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>반려</button>
+                  <button onClick={() => delReq(r.id)} style={{ padding: "7px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, cursor: "pointer" }}>삭제</button>
+                </div>
+              </div>
+            ))
+          }
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── 하단 탭바 ────────────────────────────────────────────────────
+function TabBar({ tab, setTab, isAdmin, leaveRequests }) {
+  const pendingCount = leaveRequests.filter(r => r.status === "대기").length;
+  const tabs = isAdmin
+    ? [["att","🏠","출퇴근"],["notice","📢","공지"],["board","💬","게시판"],["payslip","💰","명세서"],["annual","📅","연차"]]
+    : [["att","🏠","출퇴근"],["notice","📢","공지"],["board","💬","게시판"],["payslip","💰","명세서"],["annual","📅","연차"]];
+  return (
+    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: T.card, borderTop: `1px solid ${T.border}`, display: "flex", zIndex: 50, paddingBottom: "env(safe-area-inset-bottom)" }}>
+      {tabs.map(([key, icon, label]) => (
+        <button key={key} onClick={() => setTab(key)}
+          style={{ flex: 1, padding: "10px 0 8px", border: "none", background: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, position: "relative" }}>
+          <span style={{ fontSize: 20 }}>{icon}</span>
+          <span style={{ fontSize: 10, fontWeight: tab===key?800:500, color: tab===key?T.adminHeader:T.muted }}>{label}</span>
+          {key === "annual" && pendingCount > 0 && isAdmin && (
+            <div style={{ position: "absolute", top: 6, right: "calc(50% - 16px)", background: T.red, color: "#fff", borderRadius: "50%", width: 16, height: 16, fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{pendingCount}</div>
+          )}
+          {tab === key && <div style={{ position: "absolute", bottom: 0, left: "20%", right: "20%", height: 2, background: T.adminHeader, borderRadius: 2 }} />}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── 메인 App ───────────────────────────────────────────────────
+function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
+  const [user, setUser] = useState(null);
+  const [tab, setTab] = useState("att");
+
+  if (!user) return <LoginScreen users={users} onLogin={setUser} onUpdateUsers={onSaveUsers} />;
+
+  const isAdmin = user.role === "admin";
+
+  return (
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 70 }}>
+      {tab === "att" && isAdmin && (
+        <AdminScreen users={users} settings={settings} records={records} leaves={leaves}
+          onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave}
+          onSaveUsers={onSaveUsers} onSaveSettings={onSaveSettings}
+          onLogout={() => { setUser(null); setTab("att"); }} />
+      )}
+      {tab === "att" && !isAdmin && (
+        <MemberScreen user={user} settings={settings} records={records} leaves={leaves}
+          onSaveRecord={onSaveRecord} onLogout={() => { setUser(null); setTab("att"); }} />
+      )}
+      {tab === "notice" && (
+        <>
+          <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
+            <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>공지사항</div>
+          </div>
+          <NoticeScreen user={user} notices={notices} />
+        </>
+      )}
+      {tab === "board" && (
+        <>
+          <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
+            <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>자유게시판</div>
+          </div>
+          <BoardScreen user={user} board={board} />
+        </>
+      )}
+      {tab === "payslip" && (
+        <>
+          <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
+            <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>급여명세서</div>
+          </div>
+          <PayslipScreen user={user} users={users} payslips={payslips} />
+        </>
+      )}
+      {tab === "annual" && (
+        <>
+          <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
+            <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>연차</div>
+          </div>
+          <AnnualScreen user={user} users={users} annual={annual} leaveRequests={leaveRequests} />
+        </>
+      )}
+      <TabBar tab={tab} setTab={setTab} isAdmin={isAdmin} leaveRequests={leaveRequests} />
+    </div>
+  );
 }
 
 export default AppLoader;
