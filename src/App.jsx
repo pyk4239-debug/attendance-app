@@ -130,8 +130,9 @@ function downloadCSV(filename, rows) {
 }
 const LEAVE_TYPES = ["연차", "반차(오전)", "반차(오후)", "시간연차"];
 const monthOptions = Array.from({ length: 12 }, (_, i) => {
-  const d = new Date(new Date().getFullYear(), new Date().getMonth() - i, 1);
-  return d.toISOString().slice(0, 7);
+  const kst = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+  const d = new Date(kst.getFullYear(), kst.getMonth() - i, 1);
+  return new Date(d.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
 });
 const monthLabel = m => { const [y, mo] = m.split("-"); return `${y}년 ${parseInt(mo)}월`; };
 
