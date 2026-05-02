@@ -192,9 +192,17 @@ async function fbSaveLeave(userId, date, leaveData) {
     await setDoc(doc(db, COL_LEAVES, `${userId}_${date}`), { userId, date, deleted: true });
   }
 }
-async function fbSaveUsers(users) {
+async function fbSaveUsers(newUsers, allUsers) {
   const batch = writeBatch(db);
-  users.forEach(u => batch.set(doc(db, COL_USERS, u.id), u));
+  // 새 목록 저장
+  newUsers.forEach(u => batch.set(doc(db, COL_USERS, u.id), u));
+  // 삭제된 팀원 Firebase에서 제거
+  if (allUsers) {
+    const newIds = newUsers.map(u => u.id);
+    allUsers.filter(u => !newIds.includes(u.id)).forEach(u => {
+      batch.delete(doc(db, COL_USERS, u.id));
+    });
+  }
   await batch.commit();
 }
 async function fbSaveSettings(settings) {
@@ -1259,7 +1267,7 @@ function AdminScreen({ users, settings, records, leaves, onSaveRecord, onSaveLea
       {showAccount && <AdminAccountModal users={users} onUpdateUsers={onSaveUsers} onClose={() => setShowAccount(false)} />}
       {editTarget && <EditRecordModal user={editTarget.user} date={editTarget.date} rec={records[editTarget.user.id]?.[editTarget.date] || {}} settings={settings} userLeaves={leaves[editTarget.user.id] || {}} onSave={handleSaveRecord} onClose={() => setEditTarget(null)} />}
       {showSettings && <SettingsModal settings={settings} onSave={async s => { await onSaveSettings(s); setShowSettings(false); }} onClose={() => setShowSettings(false)} />}
-      {showUsers && <UserManageModal users={users} onSave={async u => { await onSaveUsers(u); setShowUsers(false); }} onClose={() => setShowUsers(false)} />}
+      {showUsers && <UserManageModal users={users} onSave={async u => { await fbSaveUsers(u, users); setShowUsers(false); }} onClose={() => setShowUsers(false)} />}
     </div>
   );
 }
