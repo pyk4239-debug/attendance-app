@@ -261,7 +261,12 @@ function AppLoader() {
     // 유저
     unsubs.push(onSnapshot(collection(db, COL_USERS), snap => {
       if (snap.empty) { fbSaveUsers(DEFAULT_USERS); setUsers(DEFAULT_USERS); }
-      else setUsers(snap.docs.map(d => d.data()));
+      else {
+        const all = snap.docs.map(d => d.data());
+        const admin = all.filter(u => u.role === "admin");
+        const members = all.filter(u => u.role === "member").sort((a,b) => (a.createdAt||"").localeCompare(b.createdAt||""));
+        setUsers([...admin, ...members]);
+      }
     }));
 
     // 설정
@@ -775,7 +780,6 @@ function MonthTab({ records, leaves, members, settings, onSaveRecord, onSaveLeav
             <div style={{ fontWeight: 800, fontSize: 17, color: T.text }}>{drillUser.name}</div>
             <div style={{ fontSize: 12, color: T.muted }}>{monthLabel(selectedMonth)}</div>
           </div>
-          <button onClick={handleDownload} style={{ background: T.green, border: "none", color: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>⬇ CSV</button>
         </div>
         {[
           [["출근", ms.days + "일", T.green], ["지각", ms.late + "회", T.yellow], ["지각시간", fmtMinutes(ms.lateMin), T.yellow]],
@@ -838,11 +842,39 @@ function MonthTab({ records, leaves, members, settings, onSaveRecord, onSaveLeav
   return (
     <div>
       {/* 월 선택 - 버튼 방식 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
         <button onClick={prevMonth} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 16px", fontSize: 16, cursor: "pointer", fontWeight: 700, color: T.text }}>‹</button>
         <div style={{ flex: 1, textAlign: "center", fontSize: 16, fontWeight: 800, color: T.text }}>{monthLabel(selectedMonth)}</div>
         <button onClick={nextMonth} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 16px", fontSize: 16, cursor: "pointer", fontWeight: 700, color: isCurrentMonth ? T.muted : T.text, opacity: isCurrentMonth ? 0.3 : 1 }}>›</button>
       </div>
+      {/* 전체 직원 CSV 다운로드 */}
+      <button onClick={() => {
+        const header = ["이름", "날짜", "요일", "출근", "퇴근", "지각", "지각시간", "조퇴", "조퇴시간", "잔업", "잔업시간", "외출", "연차/반차", "메모"];
+        const rows = [];
+        members.forEach(u => {
+          const days = Object.entries(records[u.id] || {}).filter(([d]) => d.startsWith(selectedMonth)).sort(([a],[b])=>a.localeCompare(b));
+          const userLeaves = leaves[u.id] || {};
+          days.forEach(([date, rec]) => {
+            const dow = new Date(date).toLocaleDateString("ko-KR", { weekday: "short" });
+            const lm = calcLateMin(rec.in, settings.workStart);
+            const em = calcEarlyOutMin(rec.out, settings.workEnd);
+            const om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
+            const leave = userLeaves[date];
+            const finalLate = rec.lateConfirm !== undefined && rec.lateConfirm !== null ? rec.lateConfirm : lm > 0;
+            const finalEarly = rec.earlyConfirm !== undefined && rec.earlyConfirm !== null ? rec.earlyConfirm : em > 0;
+            const finalOt = rec.overtimeConfirm !== undefined && rec.overtimeConfirm !== null ? rec.overtimeConfirm : om >= 30;
+            rows.push([u.name, date, dow, formatTime(rec.in), formatTime(rec.out),
+              finalLate?"O":"", finalLate?fmtMinutes(lm):"",
+              finalEarly?"O":"", finalEarly?fmtMinutes(em):"",
+              finalOt?"O":"", finalOt?fmtMinutes(roundTo30(om)):"",
+              (rec.outing||[]).length>0?`${(rec.outing||[]).length}회`:"",
+              leave?leave.type:"", rec.note||""]);
+          });
+        });
+        downloadCSV(`전체직원_${monthLabel(selectedMonth)}_근태.csv`, [header, ...rows]);
+      }} style={{ width: "100%", padding: "11px 0", borderRadius: 12, border: "none", background: T.green, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 14 }}>
+        ⬇ 전체 직원 CSV 다운로드
+      </button>
       {members.map(u => {
         const days = Object.entries(records[u.id] || {}).filter(([d]) => d.startsWith(selectedMonth));
         const ms = calcMonthStats(days, settings);
@@ -1071,7 +1103,8 @@ function UserManageModal({ users, onSave, onClose }) {
     if (!editing.name.trim()) { setErr("이름을 입력해주세요"); return; }
     if (!/^\d{6}$/.test(editing.newPin)) { setErr("PIN은 숫자 6자리"); return; }
     if (editing.newPin !== editing.newPin2) { setErr("PIN이 일치하지 않아요"); return; }
-    const u = { ...editing, pin: editing.newPin }; delete u.newPin; delete u.newPin2;
+    const u = { ...editing, pin: editing.newPin, createdAt: new Date().toISOString() };
+    delete u.newPin; delete u.newPin2;
     setList(l => [...l, u]); setMode("list"); setErr("");
   };
 
@@ -1232,61 +1265,139 @@ function AdminScreen({ users, settings, records, leaves, onSaveRecord, onSaveLea
 }
 
 // ── 공지사항 ────────────────────────────────────────────────────
-function NoticeScreen({ user, notices }) {
+function NoticeScreen({ user, users, notices }) {
   const isAdmin = user.role === "admin";
+  const members = users.filter(u => u.role === "member");
   const [showWrite, setShowWrite] = useState(false);
-  const [title, setTitle] = useState(""), [content, setContent] = useState("");
+  const [editTarget, setEditTarget] = useState(null);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [recipient, setRecipient] = useState("all"); // "all" or userId
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [expanded, setExpanded] = useState(null);
+
+  // 내가 볼 수 있는 공지 필터
+  const visibleNotices = notices.filter(n =>
+    n.recipient === "all" || n.recipient === user.id || user.role === "admin"
+  );
+
+  const resetForm = () => { setTitle(""); setContent(""); setRecipient("all"); setFile(null); setShowWrite(false); setEditTarget(null); };
 
   const submit = async () => {
     if (!title.trim() || !content.trim()) return;
-    await addDoc(collection(db, COL_NOTICES), {
-      title: title.trim(), content: content.trim(),
-      author: user.name, createdAt: new Date().toISOString()
-    });
-    setTitle(""); setContent(""); setShowWrite(false);
+    setUploading(true);
+    let fileUrl = null, fileName = null;
+    if (file) {
+      const path = `notices/${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, file);
+      fileUrl = await getDownloadURL(storageRef);
+      fileName = file.name;
+    }
+    const data = { title: title.trim(), content: content.trim(), recipient, author: user.name, createdAt: new Date().toISOString() };
+    if (fileUrl) { data.fileUrl = fileUrl; data.fileName = fileName; }
+    await addDoc(collection(db, COL_NOTICES), data);
+    resetForm(); setUploading(false);
   };
 
-  const del = async (id) => {
-    await deleteDoc(doc(db, COL_NOTICES, id));
+  const update = async () => {
+    if (!title.trim() || !content.trim()) return;
+    setUploading(true);
+    let fileUrl = editTarget.fileUrl || null, fileName = editTarget.fileName || null;
+    if (file) {
+      const path = `notices/${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, file);
+      fileUrl = await getDownloadURL(storageRef);
+      fileName = file.name;
+    }
+    const data = { title: title.trim(), content: content.trim(), recipient, fileUrl, fileName };
+    await setDoc(doc(db, COL_NOTICES, editTarget.id), data, { merge: true });
+    resetForm(); setUploading(false);
+  };
+
+  const del = async (n) => {
+    if (n.fileUrl) { try { await deleteObject(ref(storage, `notices/${n.fileName}`)); } catch {} }
+    await deleteDoc(doc(db, COL_NOTICES, n.id));
+  };
+
+  const openEdit = (n) => {
+    setEditTarget(n); setTitle(n.title); setContent(n.content);
+    setRecipient(n.recipient || "all"); setFile(null); setShowWrite(true);
   };
 
   const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 };
+
+  const recipientLabel = (r) => {
+    if (r === "all" || !r) return null;
+    const m = members.find(u => u.id === r);
+    return m ? <Badge label={`${m.name}에게`} color="blue" /> : null;
+  };
 
   return (
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>📢 공지사항</div>
-        {isAdmin && <button onClick={() => setShowWrite(!showWrite)} style={{ background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ 작성</button>}
+        {isAdmin && <button onClick={() => { resetForm(); setShowWrite(true); }} style={{ background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ 작성</button>}
       </div>
 
       {showWrite && (
         <div style={{ background: T.card, borderRadius: 14, padding: 16, marginBottom: 16, border: `1px solid ${T.border}` }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 10 }}>{editTarget ? "공지 수정" : "새 공지"}</div>
+          {/* 수신인 */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600 }}>수신인</div>
+            <select value={recipient} onChange={e => setRecipient(e.target.value)} style={{ ...iStyle, marginBottom: 0 }}>
+              <option value="all">모두</option>
+              {members.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="제목" style={iStyle} />
           <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="내용" rows={4}
             style={{ ...iStyle, resize: "none", lineHeight: 1.6 }} />
+          {/* 첨부파일 */}
+          <label style={{ display: "block", padding: "10px 0", borderRadius: 10, border: `2px dashed ${T.border}`, textAlign: "center", fontSize: 12, color: file ? T.green : T.muted, fontWeight: 600, cursor: "pointer", marginBottom: 10 }}>
+            {file ? `✓ ${file.name}` : editTarget?.fileName ? `📎 ${editTarget.fileName} (변경하려면 선택)` : "📎 파일 첨부 (선택)"}
+            <input type="file" onChange={e => setFile(e.target.files[0])} style={{ display: "none" }} />
+          </label>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Btn variant="ghost" onClick={() => setShowWrite(false)}>취소</Btn>
-            <Btn variant="admin" onClick={submit}>등록</Btn>
+            <Btn variant="ghost" onClick={resetForm}>취소</Btn>
+            <Btn variant="admin" onClick={editTarget ? update : submit} disabled={uploading}>{uploading ? "처리중..." : editTarget ? "수정" : "등록"}</Btn>
           </div>
         </div>
       )}
 
-      {notices.length === 0
+      {visibleNotices.length === 0
         ? <div style={{ textAlign: "center", color: T.muted, padding: 40 }}>공지사항이 없어요</div>
-        : notices.map(n => (
+        : visibleNotices.map(n => (
           <div key={n.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }} onClick={() => setExpanded(expanded === n.id ? null : n.id)}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{n.title}</div>
-                <div style={{ fontSize: 11, color: T.muted, marginTop: 3 }}>{n.author} · {n.createdAt?.slice(0,10)}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{n.title}</div>
+                  {recipientLabel(n.recipient)}
+                  {n.fileName && <Badge label="📎" color="gray" />}
+                </div>
+                <div style={{ fontSize: 11, color: T.muted }}>{n.author} · {n.createdAt?.slice(0,10)}</div>
               </div>
               <span style={{ color: T.muted, fontSize: 14 }}>{expanded === n.id ? "▲" : "▼"}</span>
             </div>
             {expanded === n.id && (
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
-                <div style={{ fontSize: 14, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{n.content}</div>
-                {isAdmin && <button onClick={() => del(n.id)} style={{ marginTop: 10, background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>삭제</button>}
+                <div style={{ fontSize: 14, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 10 }}>{n.content}</div>
+                {n.fileUrl && (
+                  <a href={n.fileUrl} target="_blank" rel="noopener noreferrer"
+                    style={{ display: "inline-block", background: T.blueBg, color: T.blue, borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 700, textDecoration: "none", marginBottom: 10 }}>
+                    📎 {n.fileName} 다운로드
+                  </a>
+                )}
+                {isAdmin && (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => openEdit(n)} style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>수정</button>
+                    <button onClick={() => del(n)} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>삭제</button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1489,7 +1600,8 @@ function AnnualScreen({ user, users, annual, leaveRequests }) {
     await setDoc(doc(db, COL_LEAVE_REQ, id), { status }, { merge: true });
   };
 
-  const delReq = async (id) => { await deleteDoc(doc(db, COL_LEAVE_REQ, id)); };
+  const [delConfirm, setDelConfirm] = useState(null);
+  const delReq = async (id) => { await deleteDoc(doc(db, COL_LEAVE_REQ, id)); setDelConfirm(null); };
 
   const statusColor = { "대기": "yellow", "승인": "green", "반려": "red" };
 
@@ -1610,12 +1722,34 @@ function AnnualScreen({ user, users, annual, leaveRequests }) {
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={() => updateReqStatus(r.id, "승인")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.greenBg, color: T.green, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>승인</button>
                   <button onClick={() => updateReqStatus(r.id, "반려")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.redBg, color: T.red, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>반려</button>
-                  <button onClick={() => delReq(r.id)} style={{ padding: "7px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, cursor: "pointer" }}>삭제</button>
+                  <button onClick={() => setDelConfirm(r)} style={{ padding: "7px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, cursor: "pointer" }}>삭제</button>
                 </div>
               </div>
             ))
           }
         </>
+      )}
+
+      {/* 삭제 경고 모달 */}
+      {delConfirm && (
+        <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300, padding: 24 }}>
+          <div style={{ background: T.card, borderRadius: 20, padding: 26, width: "100%", maxWidth: 300, boxShadow: "0 20px 60px #00000020" }}>
+            <div style={{ textAlign: "center", marginBottom: 16 }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
+              <div style={{ fontWeight: 800, fontSize: 16, color: T.text, marginBottom: 8 }}>연차 신청 삭제</div>
+              <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.7 }}>
+                <strong style={{ color: T.text }}>{delConfirm.userName}</strong>님이 신청한<br />
+                <strong style={{ color: T.text }}>{delConfirm.date} · {delConfirm.type}</strong><br />
+                을 삭제할까요?<br />
+                <span style={{ color: T.red, fontSize: 12 }}>팀원에게 별도 안내가 필요해요!</span>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <Btn variant="ghost" onClick={() => setDelConfirm(null)}>취소</Btn>
+              <Btn variant="red" onClick={() => delReq(delConfirm.id)}>삭제</Btn>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1671,7 +1805,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
             <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>공지사항</div>
           </div>
-          <NoticeScreen user={user} notices={notices} />
+          <NoticeScreen user={user} users={users} notices={notices} />
         </>
       )}
       {tab === "board" && (
