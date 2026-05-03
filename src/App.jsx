@@ -1244,7 +1244,7 @@ function AdminAttendance({ users, settings, records, leaves, onSaveRecord, onSav
       <div style={{ background: T.adminHeader, padding: "16px 16px 0" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <button onClick={onBack} style={{ background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer", padding: 0 }}>‹</button>
+            <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
             <div>
               <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📋 근태</div>
@@ -1327,7 +1327,7 @@ function AdminWage({ users, records, settings, onBack }) {
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
       <div style={{ background: "#16a34a", padding: "16px 16px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer", padding: 0 }}>‹</button>
+          <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
           <div>
             <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>💰 임금</div>
@@ -1354,7 +1354,7 @@ function AdminMembers({ users, annual, leaveRequests, onSaveUsers, onBack }) {
       <div style={{ background: "#7c3aed", padding: "16px 16px 20px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <button onClick={onBack} style={{ background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer", padding: 0 }}>‹</button>
+            <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
             <div>
               <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>👥 팀원</div>
@@ -1420,7 +1420,7 @@ function AdminGeneral({ user, users, settings, notices, board, payslips, onSaveS
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
       <div style={{ background: "#ea580c", padding: "16px 16px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer", padding: 0 }}>‹</button>
+          <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
           <div>
             <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>⚙ 일반</div>
