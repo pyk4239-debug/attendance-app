@@ -1175,11 +1175,58 @@ function UserManageModal({ users, onSave, onClose }) {
 }
 
 // ── 관리자 화면 ────────────────────────────────────────────────
-function AdminScreen({ users, settings, records, leaves, onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
+// ── 관리자 대문 ────────────────────────────────────────────────
+function AdminHome({ user, onLogout, onSection }) {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const dateStr = kst.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
+
+  const sections = [
+    { key: "attendance", icon: "📋", label: "근태", desc: "출퇴근 현황 · 월별 기록", color: "#2563eb" },
+    { key: "wage",       icon: "💰", label: "임금", desc: "급여 계산 · 임금대장",   color: "#16a34a" },
+    { key: "members",    icon: "👥", label: "팀원", desc: "직원 정보 · 기초 데이터", color: "#7c3aed" },
+    { key: "general",    icon: "⚙",  label: "일반", desc: "설정 · 공지 · 게시판",   color: "#ea580c" },
+  ];
+
+  return (
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
+      {/* 헤더 */}
+      <div style={{ background: T.adminHeader, padding: "24px 20px 28px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3, marginBottom: 4 }}>ADMIN</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>{user.name}님</div>
+            <div style={{ fontSize: 12, color: "#ffffff50", marginTop: 4 }}>{dateStr}</div>
+          </div>
+          <button onClick={onLogout} style={{ background: "#ffffff18", border: "none", color: "#fff", padding: "8px 16px", borderRadius: 20, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>로그아웃</button>
+        </div>
+      </div>
+
+      {/* 섹션 버튼 */}
+      <div style={{ padding: 20, marginTop: -14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          {sections.map(s => (
+            <button key={s.key} onClick={() => onSection(s.key)}
+              style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 20, padding: "24px 16px", cursor: "pointer", textAlign: "left", boxShadow: "0 2px 12px #0000000d", transition: "transform .1s" }}
+              onMouseDown={e => e.currentTarget.style.transform = "scale(0.97)"}
+              onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
+              onTouchStart={e => e.currentTarget.style.transform = "scale(0.97)"}
+              onTouchEnd={e => e.currentTarget.style.transform = "scale(1)"}>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>{s.icon}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: s.color, marginBottom: 4 }}>{s.label}</div>
+              <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.5 }}>{s.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 관리자 근태 섹션 ───────────────────────────────────────────
+function AdminAttendance({ users, settings, records, leaves, onSaveRecord, onSaveLeave, onSaveSettings, onBack }) {
   const [tab, setTab] = useState("today");
-  const [showAccount, setShowAccount] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showUsers, setShowUsers] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [now, setNow] = useState(new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(t); }, []);
@@ -1193,24 +1240,25 @@ function AdminScreen({ users, settings, records, leaves, onSaveRecord, onSaveLea
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", color: T.text }}>
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
       <div style={{ background: T.adminHeader, padding: "16px 16px 0" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div>
-            <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>근태 현황</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button onClick={onBack} style={{ background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer", padding: 0 }}>‹</button>
+            <div>
+              <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📋 근태</div>
+            </div>
           </div>
-          <button onClick={onLogout} style={{ background: "#ffffff18", border: "none", color: "#fff", padding: "7px 14px", borderRadius: 18, fontSize: 12, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>로그아웃</button>
+          <button onClick={() => setShowSettings(true)} style={{ background: "#ffffff18", border: "none", color: "#fff", padding: "7px 14px", borderRadius: 18, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>⚙ 설정</button>
         </div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          {[["👥 팀원", () => setShowUsers(true)], ["👤 계정", () => setShowAccount(true)], ["⚙ 설정", () => setShowSettings(true)]].map(([label, fn]) => (
-            <button key={label} onClick={fn} style={{ background: "#ffffff14", border: "1px solid #ffffff20", color: "#fff", padding: "7px 14px", borderRadius: 20, fontSize: 12, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>{label}</button>
-          ))}
+        <div style={{ fontSize: 11, color: "#ffffff40", marginBottom: 12 }}>
+          출근 <strong style={{ color: "#4ade80" }}>{settings.workStart}</strong> · 퇴근 <strong style={{ color: "#60a5fa" }}>{settings.workEnd}</strong>
         </div>
-        <div style={{ fontSize: 11, color: "#ffffff40", marginBottom: 12 }}>출근 <strong style={{ color: "#4ade80" }}>{settings.workStart}</strong> · 퇴근 <strong style={{ color: "#60a5fa" }}>{settings.workEnd}</strong></div>
         <div style={{ display: "flex", borderBottom: "1px solid #ffffff18" }}>
           {[["today", "오늘"], ["month", "월별"]].map(([key, label]) => (
-            <button key={key} onClick={() => setTab(key)} style={{ padding: "9px 20px", border: "none", background: "none", color: tab === key ? "#fff" : "#ffffff40", fontWeight: tab === key ? 800 : 400, fontSize: 14, cursor: "pointer", borderBottom: tab === key ? "2px solid #60a5fa" : "2px solid transparent", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+            <button key={key} onClick={() => setTab(key)}
+              style={{ padding: "9px 20px", border: "none", background: "none", color: tab === key ? "#fff" : "#ffffff40", fontWeight: tab === key ? 800 : 400, fontSize: 14, cursor: "pointer", borderBottom: tab === key ? "2px solid #60a5fa" : "2px solid transparent", fontFamily: "inherit" }}>
               {label}
             </button>
           ))}
@@ -1221,7 +1269,7 @@ function AdminScreen({ users, settings, records, leaves, onSaveRecord, onSaveLea
         {tab === "today" && <>
           <div style={{ fontSize: 13, color: T.muted, marginBottom: 12, fontWeight: 600 }}>
             {now.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" })}
-            {isWeekend(today) && <span style={{ marginLeft: 8 }}><Badge label="휴일" color="red" /></span>}
+            {isHoliday(today, settings.holidays) && <span style={{ marginLeft: 8 }}><Badge label="휴일" color="red" /></span>}
           </div>
           {members.map(u => {
             const rec = records[u.id]?.[today] || {};
@@ -1229,6 +1277,8 @@ function AdminScreen({ users, settings, records, leaves, onSaveRecord, onSaveLea
             const sColor = { 미출근: "gray", 근무중: "green", 퇴근: "blue" }[status];
             const lm = calcLateMin(rec.in, settings.workStart), em = calcEarlyOutMin(rec.out, settings.workEnd), om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
             const outings = rec.outing || [], isOut = outings.length > 0 && !outings[outings.length - 1].in;
+            const finalLate = rec.lateConfirm !== undefined && rec.lateConfirm !== null ? rec.lateConfirm : lm > 0;
+            const finalEarly = rec.earlyConfirm !== undefined && rec.earlyConfirm !== null ? rec.earlyConfirm : em > 0;
             return (
               <div key={u.id} style={{ background: T.card, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}`, boxShadow: "0 1px 4px #0000000a" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
@@ -1236,9 +1286,9 @@ function AdminScreen({ users, settings, records, leaves, onSaveRecord, onSaveLea
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: 15, color: T.text }}>{u.name}</div>
                     <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>
-                      {rec.in && <span style={{ color: lm > 0 ? T.yellow : T.green, fontWeight: 600 }}>{formatTime(rec.in)}</span>}
+                      {rec.in && <span style={{ color: finalLate ? T.yellow : T.green, fontWeight: 600 }}>{formatTime(rec.in)}</span>}
                       {rec.in && rec.out && <span style={{ color: T.muted }}> → </span>}
-                      {rec.out && <span style={{ color: em > 0 ? T.orange : T.blue, fontWeight: 600 }}>{formatTime(rec.out)}</span>}
+                      {rec.out && <span style={{ color: finalEarly ? T.orange : T.blue, fontWeight: 600 }}>{formatTime(rec.out)}</span>}
                     </div>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
@@ -1247,12 +1297,12 @@ function AdminScreen({ users, settings, records, leaves, onSaveRecord, onSaveLea
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                  {lm > 0 && rec.in && <Badge label={`지각 ${fmtMinutes(lm)}`} color="yellow" />}
-                  {em > 0 && rec.out && <Badge label={`조퇴 ${fmtMinutes(em)}`} color="orange" />}
+                  {finalLate && rec.in && <Badge label={`지각 ${fmtMinutes(lm)}`} color="yellow" />}
+                  {finalEarly && rec.out && <Badge label={`조퇴 ${fmtMinutes(em)}`} color="orange" />}
                   {isOut && <Badge label="외출중" color="blue" />}
                   {outings.filter(o => o.in).length > 0 && <Badge label={`외출 ${outings.filter(o => o.in).length}회`} color="gray" />}
                   {om >= 30 && <Badge label={`잔업 ${fmtMinutes(roundTo30(om))}`} color="purple" />}
-                  {isWeekend(today) && rec.in && <Badge label="휴일근무" color="red" />}
+                  {isHoliday(today, settings.holidays) && rec.in && <Badge label="휴일근무" color="red" />}
                   {rec.note && <Badge label={`📝 ${rec.note}`} color="gray" />}
                   {rec.inGps && (() => { const s = gpsStatusLabel(rec.inGps, settings); return s ? <Badge label={`출근 ${s.label}`} color={s.color} /> : null; })()}
                   {rec.outGps && (() => { const s = gpsStatusLabel(rec.outGps, settings); return s ? <Badge label={`퇴근 ${s.label}`} color={s.color} /> : null; })()}
@@ -1264,12 +1314,171 @@ function AdminScreen({ users, settings, records, leaves, onSaveRecord, onSaveLea
         {tab === "month" && <MonthTab records={records} leaves={leaves} members={members} settings={settings} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} />}
       </div>
 
-      {showAccount && <AdminAccountModal users={users} onUpdateUsers={onSaveUsers} onClose={() => setShowAccount(false)} />}
       {editTarget && <EditRecordModal user={editTarget.user} date={editTarget.date} rec={records[editTarget.user.id]?.[editTarget.date] || {}} settings={settings} userLeaves={leaves[editTarget.user.id] || {}} onSave={handleSaveRecord} onClose={() => setEditTarget(null)} />}
       {showSettings && <SettingsModal settings={settings} onSave={async s => { await onSaveSettings(s); setShowSettings(false); }} onClose={() => setShowSettings(false)} />}
-      {showUsers && <UserManageModal users={users} onSave={async u => { await fbSaveUsers(u, users); setShowUsers(false); }} onClose={() => setShowUsers(false)} />}
     </div>
   );
+}
+
+// ── 관리자 임금 섹션 (추후 개발) ──────────────────────────────
+function AdminWage({ users, records, settings, onBack }) {
+  const members = users.filter(u => u.role === "member");
+  return (
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
+      <div style={{ background: "#16a34a", padding: "16px 16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer", padding: 0 }}>‹</button>
+          <div>
+            <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>💰 임금</div>
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: 40, textAlign: "center" }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🚧</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: T.text, marginBottom: 8 }}>개발 중</div>
+        <div style={{ fontSize: 14, color: T.muted }}>임금 계산 기능을 준비 중이에요</div>
+      </div>
+    </div>
+  );
+}
+
+// ── 관리자 팀원 섹션 ───────────────────────────────────────────
+function AdminMembers({ users, annual, leaveRequests, onSaveUsers, onBack }) {
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [showAccount, setShowAccount] = useState(false);
+  const members = users.filter(u => u.role === "member");
+
+  return (
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
+      <div style={{ background: "#7c3aed", padding: "16px 16px 20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button onClick={onBack} style={{ background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer", padding: 0 }}>‹</button>
+            <div>
+              <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>👥 팀원</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setShowAccount(true)} style={{ background: "#ffffff18", border: "none", color: "#fff", padding: "7px 14px", borderRadius: 18, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>👤 내 계정</button>
+            <button onClick={() => setShowUserModal(true)} style={{ background: "#ffffff18", border: "none", color: "#fff", padding: "7px 14px", borderRadius: 18, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>+ 관리</button>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: 16 }}>
+        {members.map(u => {
+          const a = annual[u.id] || { total: 0, used: 0 };
+          const remain = (a.total || 0) - (a.used || 0);
+          const pending = leaveRequests.filter(r => r.userId === u.id && r.status === "대기").length;
+          return (
+            <div key={u.id} style={{ background: T.card, borderRadius: 16, padding: "16px", marginBottom: 12, border: `1px solid ${T.border}`, boxShadow: "0 1px 4px #0000000a" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                <div style={{ width: 44, height: 44, borderRadius: "50%", background: T.adminHeader, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: "#fff" }}>{u.name[0]}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: T.text }}>{u.name}</div>
+                  <div style={{ fontSize: 12, color: T.muted }}>PIN 본인 관리</div>
+                </div>
+                {pending > 0 && <Badge label={`연차신청 ${pending}건`} color="yellow" />}
+              </div>
+              {/* 연차 현황 */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
+                {[["총 연차", a.total || 0, T.blue], ["사용", a.used || 0, T.orange], ["잔여", remain, T.green]].map(([l, v, c]) => (
+                  <StatBox key={l} label={l} value={v + "일"} color={c} />
+                ))}
+              </div>
+              {/* 임금 기초 데이터 — 추후 추가 */}
+              <div style={{ marginTop: 10, padding: "8px 12px", background: T.bg, borderRadius: 8, fontSize: 11, color: T.muted, textAlign: "center" }}>
+                임금 기초 데이터 (개발 예정)
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {showUserModal && <UserManageModal users={users} onSave={async u => { await fbSaveUsers(u, users); setShowUserModal(false); }} onClose={() => setShowUserModal(false)} />}
+      {showAccount && <AdminAccountModal users={users} onUpdateUsers={onSaveUsers} onClose={() => setShowAccount(false)} />}
+    </div>
+  );
+}
+
+// ── 관리자 일반 섹션 ───────────────────────────────────────────
+function AdminGeneral({ user, users, settings, notices, board, payslips, onSaveSettings, onSaveUsers, onBack }) {
+  const [subMenu, setSubMenu] = useState(null);
+
+  const menus = [
+    { key: "settings", icon: "⚙", label: "근무 설정", desc: "출퇴근 기준 · GPS · 공휴일" },
+    { key: "notice",   icon: "📢", label: "공지사항",  desc: `전체 ${notices.length}건` },
+    { key: "board",    icon: "💬", label: "자유게시판", desc: `전체 ${board.length}건` },
+    { key: "payslip",  icon: "💰", label: "급여명세서", desc: `전체 ${payslips.length}건` },
+  ];
+
+  if (subMenu === "settings") return <SettingsModal settings={settings} onSave={async s => { await onSaveSettings(s); setSubMenu(null); }} onClose={() => setSubMenu(null)} />;
+
+  return (
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
+      <div style={{ background: "#ea580c", padding: "16px 16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer", padding: 0 }}>‹</button>
+          <div>
+            <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>⚙ 일반</div>
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: 16 }}>
+        {menus.map(m => (
+          <button key={m.key} onClick={() => setSubMenu(m.key)}
+            style={{ width: "100%", background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, padding: "16px", marginBottom: 10, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 1px 4px #0000000a" }}>
+            <div style={{ fontSize: 28 }}>{m.icon}</div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: T.text }}>{m.label}</div>
+              <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{m.desc}</div>
+            </div>
+            <div style={{ marginLeft: "auto", color: T.muted, fontSize: 18 }}>›</div>
+          </button>
+        ))}
+      </div>
+      {/* 서브메뉴 */}
+      {subMenu === "notice" && (
+        <div style={{ position: "fixed", inset: 0, background: T.bg, zIndex: 100, overflowY: "auto" }}>
+          <div style={{ background: T.adminHeader, padding: "16px 16px 14px" }}>
+            <button onClick={() => setSubMenu(null)} style={{ background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer" }}>‹</button>
+          </div>
+          <NoticeScreen user={user} users={users} notices={notices} />
+        </div>
+      )}
+      {subMenu === "board" && (
+        <div style={{ position: "fixed", inset: 0, background: T.bg, zIndex: 100, overflowY: "auto" }}>
+          <div style={{ background: T.adminHeader, padding: "16px 16px 14px" }}>
+            <button onClick={() => setSubMenu(null)} style={{ background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer" }}>‹</button>
+          </div>
+          <BoardScreen user={user} board={board} />
+        </div>
+      )}
+      {subMenu === "payslip" && (
+        <div style={{ position: "fixed", inset: 0, background: T.bg, zIndex: 100, overflowY: "auto" }}>
+          <div style={{ background: T.adminHeader, padding: "16px 16px 14px" }}>
+            <button onClick={() => setSubMenu(null)} style={{ background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer" }}>‹</button>
+          </div>
+          <PayslipScreen user={user} users={users} payslips={payslips} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 관리자 화면 (라우터) ───────────────────────────────────────
+function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
+  const [section, setSection] = useState(null);
+
+  if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={setSection} />;
+  if (section === "attendance") return <AdminAttendance users={users} settings={settings} records={records} leaves={leaves} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={() => setSection(null)} />;
+  if (section === "wage") return <AdminWage users={users} records={records} settings={settings} onBack={() => setSection(null)} />;
+  if (section === "members") return <AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
+  if (section === "general") return <AdminGeneral user={user} users={users} settings={settings} notices={notices} board={board} payslips={payslips} onSaveSettings={onSaveSettings} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
+  return null;
 }
 
 // ── 공지사항 ────────────────────────────────────────────────────
@@ -1795,15 +2004,19 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
 
   const isAdmin = user.role === "admin";
 
+  // 관리자는 대문+섹션 구조 (탭바 없음)
+  if (isAdmin) return (
+    <AdminScreen user={user} users={users} settings={settings} records={records} leaves={leaves}
+      notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests}
+      onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave}
+      onSaveUsers={onSaveUsers} onSaveSettings={onSaveSettings}
+      onLogout={() => { setUser(null); setTab("att"); }} />
+  );
+
+  // 팀원은 탭바 구조
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 70 }}>
-      {tab === "att" && isAdmin && (
-        <AdminScreen users={users} settings={settings} records={records} leaves={leaves}
-          onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave}
-          onSaveUsers={onSaveUsers} onSaveSettings={onSaveSettings}
-          onLogout={() => { setUser(null); setTab("att"); }} />
-      )}
-      {tab === "att" && !isAdmin && (
+      {tab === "att" && (
         <MemberScreen user={user} settings={settings} records={records} leaves={leaves}
           onSaveRecord={onSaveRecord} onLogout={() => { setUser(null); setTab("att"); }} />
       )}
