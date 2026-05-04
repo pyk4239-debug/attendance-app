@@ -36,6 +36,7 @@ const COL_BOARD    = "board";
 const COL_PAYSLIPS = "payslips";
 const COL_ANNUAL   = "annual";
 const COL_LEAVE_REQ = "leave_requests";
+const COL_MEMBER_INFO = "member_info"; // 팀원 임금 기초 데이터
 const DOC_SETTINGS = "app/settings";
 
 // ── 초기 데이터 ────────────────────────────────────────────────
@@ -262,6 +263,7 @@ function AppLoader() {
   const [payslips, setPayslips] = useState([]);
   const [annual, setAnnual] = useState({});
   const [leaveRequests, setLeaveRequests] = useState([]);
+  const [memberInfo, setMemberInfo] = useState({});
 
   useEffect(() => {
     let unsubs = [];
@@ -333,6 +335,13 @@ function AppLoader() {
     // 연차 신청
     unsubs.push(onSnapshot(query(collection(db, COL_LEAVE_REQ), orderBy("createdAt", "desc")), snap => {
       setLeaveRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }));
+
+    // 팀원 기초 데이터
+    unsubs.push(onSnapshot(collection(db, COL_MEMBER_INFO), snap => {
+      const m = {};
+      snap.docs.forEach(d => { m[d.id] = d.data(); });
+      setMemberInfo(m);
       setReady(true);
     }));
 
@@ -350,7 +359,7 @@ function AppLoader() {
   );
 
   return <App users={users} settings={settings} records={records} leaves={leaves}
-    notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests}
+    notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo}
     onSaveUsers={fbSaveUsers} onSaveSettings={fbSaveSettings}
     onSaveRecord={fbSaveRecord} onSaveLeave={fbSaveLeave} />;
 }
@@ -1343,11 +1352,100 @@ function AdminWage({ users, records, settings, onBack }) {
   );
 }
 
+// ── 팀원 기초 데이터 편집 모달 ────────────────────────────────
+function MemberInfoModal({ user, info, onSave, onClose }) {
+  const BANKS = ["국민","신한","우리","하나","농협","기업","카카오","토스","새마을","우체국","SC제일","씨티","광주","전북","제주","경남","부산","대구","수협"];
+  const [d, setD] = useState({
+    empNo: "", ssn: "", joinDate: "", bank: "", account: "",
+    hourlyWage: "", employType: "정규직", weeklyHours: 40, insurance: true,
+    ...info
+  });
+  const iStyle = { width: "100%", padding: "11px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box", fontFamily: "inherit" };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 16 }}>
+      <div style={{ background: T.card, borderRadius: 20, padding: 22, width: "100%", maxWidth: 340, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px #00000030" }}>
+        <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 4 }}>{user.name} — 기초 데이터</div>
+        <div style={{ fontSize: 12, color: T.muted, marginBottom: 18 }}>임금 계산에 사용되는 정보예요</div>
+
+        {[
+          ["사번", "empNo", "text", "사번 입력"],
+          ["주민등록번호", "ssn", "text", "000000-0000000"],
+          ["입사일", "joinDate", "date", ""],
+        ].map(([label, key, type, placeholder]) => (
+          <div key={key} style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: T.sub, marginBottom: 5, fontWeight: 600 }}>{label}</div>
+            <input type={type} value={d[key]} onChange={e => setD(p => ({ ...p, [key]: e.target.value }))}
+              placeholder={placeholder} style={iStyle} />
+          </div>
+        ))}
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: T.sub, marginBottom: 5, fontWeight: 600 }}>은행</div>
+          <select value={d.bank} onChange={e => setD(p => ({ ...p, bank: e.target.value }))} style={iStyle}>
+            <option value="">선택</option>
+            {BANKS.map(b => <option key={b} value={b}>{b}은행</option>)}
+          </select>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: T.sub, marginBottom: 5, fontWeight: 600 }}>계좌번호</div>
+          <input value={d.account} onChange={e => setD(p => ({ ...p, account: e.target.value }))}
+            placeholder="계좌번호 입력" style={iStyle} />
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: T.sub, marginBottom: 5, fontWeight: 600 }}>시급 (원)</div>
+          <input type="number" value={d.hourlyWage} onChange={e => setD(p => ({ ...p, hourlyWage: e.target.value }))}
+            placeholder="시급 입력" style={iStyle} />
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: T.sub, marginBottom: 5, fontWeight: 600 }}>고용형태</div>
+          <select value={d.employType} onChange={e => setD(p => ({ ...p, employType: e.target.value }))} style={iStyle}>
+            {["정규직", "계약직", "파트타임"].map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: T.sub, marginBottom: 5, fontWeight: 600 }}>소정근로시간 (주)</div>
+          <select value={d.weeklyHours} onChange={e => setD(p => ({ ...p, weeklyHours: Number(e.target.value) }))} style={iStyle}>
+            {[40, 35, 30, 25, 20, 15].map(h => <option key={h} value={h}>주 {h}시간</option>)}
+          </select>
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 12, color: T.sub, marginBottom: 8, fontWeight: 600 }}>4대보험</div>
+          <div style={{ display: "flex", gap: 10 }}>
+            {[["적용", true], ["미적용", false]].map(([label, val]) => (
+              <button key={label} onClick={() => setD(p => ({ ...p, insurance: val }))}
+                style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", background: d.insurance === val ? T.adminHeader : T.bg, color: d.insurance === val ? "#fff" : T.muted }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <Btn variant="ghost" onClick={onClose}>취소</Btn>
+          <Btn variant="admin" onClick={() => onSave(d)}>저장</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 관리자 팀원 섹션 ───────────────────────────────────────────
-function AdminMembers({ users, annual, leaveRequests, onSaveUsers, onBack }) {
+function AdminMembers({ users, annual, leaveRequests, memberInfo, onSaveUsers, onBack }) {
   const [showUserModal, setShowUserModal] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
+  const [editInfo, setEditInfo] = useState(null); // { user }
   const members = users.filter(u => u.role === "member");
+
+  const saveInfo = async (userId, data) => {
+    await setDoc(doc(db, COL_MEMBER_INFO, userId), data);
+    setEditInfo(null);
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
@@ -1372,31 +1470,62 @@ function AdminMembers({ users, annual, leaveRequests, onSaveUsers, onBack }) {
           const a = annual[u.id] || { total: 0, used: 0 };
           const remain = (a.total || 0) - (a.used || 0);
           const pending = leaveRequests.filter(r => r.userId === u.id && r.status === "대기").length;
+          const info = memberInfo[u.id] || {};
+
           return (
-            <div key={u.id} style={{ background: T.card, borderRadius: 16, padding: "16px", marginBottom: 12, border: `1px solid ${T.border}`, boxShadow: "0 1px 4px #0000000a" }}>
+            <div key={u.id} style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 14, border: `1px solid ${T.border}`, boxShadow: "0 1px 4px #0000000a" }}>
+              {/* 이름 + 버튼 */}
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                <div style={{ width: 44, height: 44, borderRadius: "50%", background: T.adminHeader, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: "#fff" }}>{u.name[0]}</div>
+                <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: "#fff" }}>{u.name[0]}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 800, fontSize: 16, color: T.text }}>{u.name}</div>
-                  <div style={{ fontSize: 12, color: T.muted }}>PIN 본인 관리</div>
+                  <div style={{ fontSize: 12, color: T.muted }}>
+                    {info.empNo && `사번 ${info.empNo} · `}{info.employType || ""}
+                  </div>
                 </div>
-                {pending > 0 && <Badge label={`연차신청 ${pending}건`} color="yellow" />}
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                  {pending > 0 && <Badge label={`연차신청 ${pending}건`} color="yellow" />}
+                  <button onClick={() => setEditInfo({ user: u })}
+                    style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>기초데이터</button>
+                </div>
               </div>
+
+              {/* 기초 데이터 요약 */}
+              {info.joinDate || info.hourlyWage || info.bank ? (
+                <div style={{ background: T.bg, borderRadius: 10, padding: "10px 14px", marginBottom: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  {info.joinDate && <div style={{ fontSize: 11 }}><span style={{ color: T.muted }}>입사일 </span><span style={{ fontWeight: 600, color: T.text }}>{info.joinDate}</span></div>}
+                  {info.hourlyWage && <div style={{ fontSize: 11 }}><span style={{ color: T.muted }}>시급 </span><span style={{ fontWeight: 600, color: T.text }}>{Number(info.hourlyWage).toLocaleString()}원</span></div>}
+                  {info.bank && <div style={{ fontSize: 11 }}><span style={{ color: T.muted }}>은행 </span><span style={{ fontWeight: 600, color: T.text }}>{info.bank}은행</span></div>}
+                  {info.account && <div style={{ fontSize: 11 }}><span style={{ color: T.muted }}>계좌 </span><span style={{ fontWeight: 600, color: T.text }}>{info.account}</span></div>}
+                  {info.weeklyHours && <div style={{ fontSize: 11 }}><span style={{ color: T.muted }}>소정 </span><span style={{ fontWeight: 600, color: T.text }}>주 {info.weeklyHours}시간</span></div>}
+                  {info.insurance !== undefined && <div style={{ fontSize: 11 }}><span style={{ color: T.muted }}>4대보험 </span><span style={{ fontWeight: 600, color: info.insurance ? T.green : T.red }}>{info.insurance ? "적용" : "미적용"}</span></div>}
+                </div>
+              ) : (
+                <div style={{ background: T.bg, borderRadius: 10, padding: "10px 14px", marginBottom: 10, fontSize: 12, color: T.muted, textAlign: "center" }}>
+                  기초 데이터 미입력 — 우측 버튼을 눌러 입력해주세요
+                </div>
+              )}
+
               {/* 연차 현황 */}
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 6, fontWeight: 600 }}>연차 현황</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
                 {[["총 연차", a.total || 0, T.blue], ["사용", a.used || 0, T.orange], ["잔여", remain, T.green]].map(([l, v, c]) => (
                   <StatBox key={l} label={l} value={v + "일"} color={c} />
                 ))}
-              </div>
-              {/* 임금 기초 데이터 — 추후 추가 */}
-              <div style={{ marginTop: 10, padding: "8px 12px", background: T.bg, borderRadius: 8, fontSize: 11, color: T.muted, textAlign: "center" }}>
-                임금 기초 데이터 (개발 예정)
               </div>
             </div>
           );
         })}
       </div>
 
+      {editInfo && (
+        <MemberInfoModal
+          user={editInfo.user}
+          info={memberInfo[editInfo.user.id] || {}}
+          onSave={data => saveInfo(editInfo.user.id, data)}
+          onClose={() => setEditInfo(null)}
+        />
+      )}
       {showUserModal && <UserManageModal users={users} onSave={async u => { await fbSaveUsers(u, users); setShowUserModal(false); }} onClose={() => setShowUserModal(false)} />}
       {showAccount && <AdminAccountModal users={users} onUpdateUsers={onSaveUsers} onClose={() => setShowAccount(false)} />}
     </div>
@@ -1476,7 +1605,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={setSection} />;
   if (section === "attendance") return <AdminAttendance users={users} settings={settings} records={records} leaves={leaves} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={() => setSection(null)} />;
   if (section === "wage") return <AdminWage users={users} records={records} settings={settings} onBack={() => setSection(null)} />;
-  if (section === "members") return <AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
+  if (section === "members") return <AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
   if (section === "general") return <AdminGeneral user={user} users={users} settings={settings} notices={notices} board={board} payslips={payslips} onSaveSettings={onSaveSettings} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
   return null;
 }
@@ -1996,7 +2125,7 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests }) {
 }
 
 // ── 메인 App ───────────────────────────────────────────────────
-function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
+function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("att");
 
@@ -2007,7 +2136,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
   // 관리자는 대문+섹션 구조 (탭바 없음)
   if (isAdmin) return (
     <AdminScreen user={user} users={users} settings={settings} records={records} leaves={leaves}
-      notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests}
+      notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo}
       onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave}
       onSaveUsers={onSaveUsers} onSaveSettings={onSaveSettings}
       onLogout={() => { setUser(null); setTab("att"); }} />
