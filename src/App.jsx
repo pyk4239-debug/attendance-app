@@ -342,8 +342,10 @@ function AppLoader() {
       const m = {};
       snap.docs.forEach(d => { m[d.id] = d.data(); });
       setMemberInfo(m);
-      setReady(true);
     }));
+
+    // 모든 구독 완료 후 ready
+    setTimeout(() => setReady(true), 500);
 
     return () => unsubs.forEach(u => u());
   }, []);
@@ -1436,7 +1438,7 @@ function MemberInfoModal({ user, info, onSave, onClose }) {
 }
 
 // ── 관리자 팀원 섹션 ───────────────────────────────────────────
-function AdminMembers({ users, annual, leaveRequests, memberInfo, onSaveUsers, onBack }) {
+function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUsers, onBack }) {
   const [showUserModal, setShowUserModal] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
   const [editInfo, setEditInfo] = useState(null); // { user }
