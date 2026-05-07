@@ -117,14 +117,13 @@ function setTimeOnDate(date, time) {
   const [h, m] = time.split(":").map(Number);
   d.setHours(h, m, 0, 0); return d.toISOString();
 }
-function calcMonthStats(days, settings) {
-  return days.reduce((acc, [date, rec]) => {
+function calcMonthStats(days, settings, userLeaves, leaveRequests) {
+  const stats = days.reduce((acc, [date, rec]) => {
     if (rec.in) {
       acc.days++;
       const lm = calcLateMin(rec.in, settings.workStart);
       const em = calcEarlyOutMin(rec.out, settings.workEnd);
       const om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
-      // 확정값 우선, 없으면 자동
       const finalLate = rec.lateConfirm !== undefined && rec.lateConfirm !== null ? rec.lateConfirm : lm > 0;
       const finalEarly = rec.earlyConfirm !== undefined && rec.earlyConfirm !== null ? rec.earlyConfirm : em > 0;
       const finalOt = rec.overtimeConfirm !== undefined && rec.overtimeConfirm !== null ? rec.overtimeConfirm : om >= 30;
@@ -134,7 +133,26 @@ function calcMonthStats(days, settings) {
       if (isHoliday(date, settings.holidays)) acc.holiday++;
     }
     return acc;
-  }, { days: 0, late: 0, lateMin: 0, early: 0, earlyMin: 0, ot: 0, otMin: 0, holiday: 0 });
+  }, { days: 0, late: 0, lateMin: 0, early: 0, earlyMin: 0, ot: 0, otMin: 0, holiday: 0, annualDays: 0, halfDays: 0 });
+
+  // 승인된 연차/반차를 출근일수에 포함
+  if (leaveRequests) {
+    const month = days[0]?.[0]?.slice(0, 7);
+    leaveRequests.filter(r => r.status === "승인" && r.date?.startsWith(month || "")).forEach(r => {
+      if (r.type === "연차") { stats.days++; stats.annualDays++; }
+      else if (r.type?.includes("반차")) { stats.days += 0.5; stats.halfDays++; }
+    });
+  }
+  // 관리자가 직접 입력한 연차 기록도 포함
+  if (userLeaves) {
+    Object.entries(userLeaves).forEach(([date, l]) => {
+      if (!days.find(([d]) => d === date)) { // 출근 기록 없는 날만
+        if (l.type === "연차") { stats.days++; stats.annualDays++; }
+        else if (l.type?.includes("반차")) { stats.days += 0.5; stats.halfDays++; }
+      }
+    });
+  }
+  return stats;
 }
 function downloadCSV(filename, rows) {
   const csv = rows.map(r => r.map(c => '"' + (String(c || "").replace(/"/g, '""')) + '"').join(",")).join("\n");
@@ -172,11 +190,11 @@ function calcDistance(lat1, lng1, lat2, lng2) {
 }
 function gpsStatusLabel(gps, settings) {
   if (!gps || gps.lat == null || gps.lng == null) return null;
-  const officeLat = settings?.officeLat ?? null;
-  const officeLng = settings?.officeLng ?? null;
-  if (officeLat == null || officeLng == null) return { label: "위치기록", color: "gray" };
-  const dist = calcDistance(gps.lat, gps.lng, Number(officeLat), Number(officeLng));
-  if (dist == null) return { label: "위치기록", color: "gray" };
+  const officeLat = settings?.officeLat != null ? Number(settings.officeLat) : null;
+  const officeLng = settings?.officeLng != null ? Number(settings.officeLng) : null;
+  if (!officeLat || !officeLng || isNaN(officeLat) || isNaN(officeLng)) return { label: "위치기록", color: "gray" };
+  const dist = calcDistance(Number(gps.lat), Number(gps.lng), officeLat, officeLng);
+  if (dist == null || isNaN(dist)) return { label: "위치기록", color: "gray" };
   const radius = Number(settings.officeRadius) || 200;
   if (dist <= radius) return { label: `회사 내 (${dist}m)`, color: "green" };
   return { label: `회사 외 (${dist}m)`, color: "red" };
@@ -477,7 +495,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
 
   const thisMonth = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
   const monthDays = Object.entries(records[user.id] || {}).filter(([d]) => d.startsWith(thisMonth)).sort(([a], [b]) => b.localeCompare(a));
-  const ms = calcMonthStats(monthDays, settings);
+  const ms = calcMonthStats(monthDays, settings, leaves[user.id] || {}, null);
   const monthLeaves = Object.entries(leaves[user.id] || {}).filter(([d]) => d.startsWith(thisMonth));
   const annualCount = monthLeaves.filter(([, l]) => l.type === "연차").length;
   const lateToday = isLate(todayRec.in, settings.workStart);
@@ -776,7 +794,7 @@ function MonthTab({ records, leaves, members, settings, onSaveRecord, onSaveLeav
     const days = Object.entries(records[drillUser.id] || {}).filter(([d]) => d.startsWith(selectedMonth)).sort(([a], [b]) => a.localeCompare(b));
     const userLeaves = leaves[drillUser.id] || {};
     const mLeaves = Object.entries(userLeaves).filter(([d]) => d.startsWith(selectedMonth));
-    const ms = calcMonthStats(days, settings);
+    const ms = calcMonthStats(days, settings, userLeaves, null);
     ms.annual = mLeaves.filter(([, l]) => l.type === "연차").length;
 
     const handleDownload = () => {
@@ -896,7 +914,7 @@ function MonthTab({ records, leaves, members, settings, onSaveRecord, onSaveLeav
       </button>
       {members.map(u => {
         const days = Object.entries(records[u.id] || {}).filter(([d]) => d.startsWith(selectedMonth));
-        const ms = calcMonthStats(days, settings);
+        const ms = calcMonthStats(days, settings, leaves[u.id] || {}, null);
         return (
           <div key={u.id} style={{ background: T.card, borderRadius: 16, padding: "14px 16px", marginBottom: 12, border: `1px solid ${T.border}`, boxShadow: "0 1px 4px #0000000a" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
@@ -1441,12 +1459,20 @@ function MemberInfoModal({ user, info, onSave, onClose }) {
 function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUsers, onBack }) {
   const [showUserModal, setShowUserModal] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
-  const [editInfo, setEditInfo] = useState(null); // { user }
+  const [editInfo, setEditInfo] = useState(null);
+  const [editAnnual, setEditAnnual] = useState(null);
   const members = users.filter(u => u.role === "member");
 
   const saveInfo = async (userId, data) => {
     await setDoc(doc(db, COL_MEMBER_INFO, userId), data);
     setEditInfo(null);
+  };
+
+  const saveAnnual = async () => {
+    await setDoc(doc(db, COL_ANNUAL, editAnnual.userId), {
+      total: Number(editAnnual.total), used: Number(editAnnual.used)
+    });
+    setEditAnnual(null);
   };
 
   return (
@@ -1509,7 +1535,11 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
               )}
 
               {/* 연차 현황 */}
-              <div style={{ fontSize: 11, color: T.muted, marginBottom: 6, fontWeight: 600 }}>연차 현황</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <div style={{ fontSize: 11, color: T.muted, fontWeight: 600 }}>연차 현황</div>
+                <button onClick={() => setEditAnnual({ userId: u.id, total: a.total||0, used: a.used||0 })}
+                  style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "3px 10px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>수정</button>
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
                 {[["총 연차", a.total || 0, T.blue], ["사용", a.used || 0, T.orange], ["잔여", remain, T.green]].map(([l, v, c]) => (
                   <StatBox key={l} label={l} value={v + "일"} color={c} />
@@ -1521,12 +1551,32 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
       </div>
 
       {editInfo && (
-        <MemberInfoModal
-          user={editInfo.user}
-          info={memberInfo[editInfo.user.id] || {}}
-          onSave={data => saveInfo(editInfo.user.id, data)}
-          onClose={() => setEditInfo(null)}
-        />
+        <MemberInfoModal user={editInfo.user} info={memberInfo[editInfo.user.id] || {}}
+          onSave={data => saveInfo(editInfo.user.id, data)} onClose={() => setEditInfo(null)} />
+      )}
+      {/* 연차 수정 모달 */}
+      {editAnnual && (
+        <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 24 }}>
+          <div style={{ background: T.card, borderRadius: 20, padding: 26, width: "100%", maxWidth: 300, boxShadow: "0 20px 60px #00000020" }}>
+            <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 20 }}>연차 수정</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
+              <div>
+                <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600 }}>총 연차</div>
+                <input type="number" value={editAnnual.total} onChange={e => setEditAnnual(p => ({ ...p, total: e.target.value }))}
+                  style={{ width: "100%", padding: "12px 0", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 22, fontWeight: 800, boxSizing: "border-box", textAlign: "center" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600 }}>사용</div>
+                <input type="number" value={editAnnual.used} onChange={e => setEditAnnual(p => ({ ...p, used: e.target.value }))}
+                  style={{ width: "100%", padding: "12px 0", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 22, fontWeight: 800, boxSizing: "border-box", textAlign: "center" }} />
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <Btn variant="ghost" onClick={() => setEditAnnual(null)}>취소</Btn>
+              <Btn variant="admin" onClick={saveAnnual}>저장</Btn>
+            </div>
+          </div>
+        </div>
       )}
       {showUserModal && <UserManageModal users={users} onSave={async u => { await fbSaveUsers(u, users); setShowUserModal(false); }} onClose={() => setShowUserModal(false)} />}
       {showAccount && <AdminAccountModal users={users} onUpdateUsers={onSaveUsers} onClose={() => setShowAccount(false)} />}
