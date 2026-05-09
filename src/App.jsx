@@ -1461,6 +1461,7 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
   const [showAccount, setShowAccount] = useState(false);
   const [editInfo, setEditInfo] = useState(null);
   const [editAnnual, setEditAnnual] = useState(null);
+  const [delConfirm, setDelConfirm] = useState(null);
   const members = users.filter(u => u.role === "member");
 
   const saveInfo = async (userId, data) => {
@@ -1550,7 +1551,54 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
         })}
       </div>
 
-      {editInfo && (
+      {/* 연차 신청 목록 */}
+      <div style={{ fontSize: 13, color: T.muted, margin: "16px 0 10px", fontWeight: 600 }}>연차 신청 목록</div>
+      {leaveRequests.length === 0
+        ? <div style={{ textAlign: "center", color: T.muted, padding: 24, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>신청 없음</div>
+        : leaveRequests.map(r => {
+          const statusColor = { "대기": "yellow", "승인": "green", "반려": "red" };
+          return (
+            <div key={r.id} style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${T.border}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: T.text, flex: 1 }}>{r.userName} · {r.date} · {r.type}</div>
+                <Badge label={r.status} color={statusColor[r.status] || "gray"} />
+              </div>
+              {r.note && <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>📝 {r.note}</div>}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "승인" }, { merge: true })}
+                  style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.greenBg, color: T.green, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>승인</button>
+                <button onClick={() => setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true })}
+                  style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.redBg, color: T.red, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>반려</button>
+                <button onClick={() => setDelConfirm(r)}
+                  style={{ padding: "7px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, cursor: "pointer" }}>삭제</button>
+              </div>
+            </div>
+          );
+        })
+      }
+    </div>
+
+    {/* 삭제 경고 모달 */}
+    {delConfirm && (
+      <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300, padding: 24 }}>
+        <div style={{ background: T.card, borderRadius: 20, padding: 26, width: "100%", maxWidth: 300, boxShadow: "0 20px 60px #00000020" }}>
+          <div style={{ textAlign: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
+            <div style={{ fontWeight: 800, fontSize: 16, color: T.text, marginBottom: 8 }}>연차 신청 삭제</div>
+            <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.7 }}>
+              <strong style={{ color: T.text }}>{delConfirm.userName}</strong>님의<br />
+              <strong style={{ color: T.text }}>{delConfirm.date} · {delConfirm.type}</strong><br />
+              신청을 삭제할까요?<br />
+              <span style={{ color: T.red, fontSize: 12 }}>팀원에게 별도 안내가 필요해요!</span>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <Btn variant="ghost" onClick={() => setDelConfirm(null)}>취소</Btn>
+            <Btn variant="red" onClick={async () => { await deleteDoc(doc(db, COL_LEAVE_REQ, delConfirm.id)); setDelConfirm(null); }}>삭제</Btn>
+          </div>
+        </div>
+      </div>
+    )}
         <MemberInfoModal user={editInfo.user} info={memberInfo[editInfo.user.id] || {}}
           onSave={data => saveInfo(editInfo.user.id, data)} onClose={() => setEditInfo(null)} />
       )}
