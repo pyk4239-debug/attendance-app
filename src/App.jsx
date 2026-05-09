@@ -117,7 +117,7 @@ function setTimeOnDate(date, time) {
   const [h, m] = time.split(":").map(Number);
   d.setHours(h, m, 0, 0); return d.toISOString();
 }
-function calcMonthStats(days, settings, userLeaves, leaveRequests) {
+function calcMonthStats(days, settings, userLeaves, leaveRequests, userId) {
   const stats = days.reduce((acc, [date, rec]) => {
     if (rec.in) {
       acc.days++;
@@ -136,21 +136,26 @@ function calcMonthStats(days, settings, userLeaves, leaveRequests) {
   }, { days: 0, late: 0, lateMin: 0, early: 0, earlyMin: 0, ot: 0, otMin: 0, holiday: 0, annualDays: 0, halfDays: 0 });
 
   // 승인된 연차/반차를 출근일수에 포함
-  if (leaveRequests) {
-    const month = days[0]?.[0]?.slice(0, 7);
-    leaveRequests.filter(r => r.status === "승인" && r.date?.startsWith(month || "")).forEach(r => {
-      if (r.type === "연차") { stats.days++; stats.annualDays++; }
-      else if (r.type?.includes("반차")) { stats.days += 0.5; stats.halfDays++; }
-    });
+  if (leaveRequests && userId) {
+    const month = days[0]?.[0]?.slice(0, 7) || "";
+    leaveRequests
+      .filter(r => r.status === "승인" && r.userId === userId && (!month || r.date?.startsWith(month)))
+      .forEach(r => {
+        if (r.type === "연차") { stats.days++; stats.annualDays++; }
+        else if (r.type?.includes("반차")) { stats.days += 0.5; stats.halfDays++; }
+      });
   }
-  // 관리자가 직접 입력한 연차 기록도 포함
+  // 관리자가 직접 입력한 연차 기록도 포함 (출근 기록 없는 날만)
   if (userLeaves) {
-    Object.entries(userLeaves).forEach(([date, l]) => {
-      if (!days.find(([d]) => d === date)) { // 출근 기록 없는 날만
-        if (l.type === "연차") { stats.days++; stats.annualDays++; }
-        else if (l.type?.includes("반차")) { stats.days += 0.5; stats.halfDays++; }
-      }
-    });
+    const month = days[0]?.[0]?.slice(0, 7) || "";
+    Object.entries(userLeaves)
+      .filter(([date]) => !month || date.startsWith(month))
+      .forEach(([date, l]) => {
+        if (!days.find(([d]) => d === date)) {
+          if (l.type === "연차") { stats.days++; stats.annualDays++; }
+          else if (l.type?.includes("반차")) { stats.days += 0.5; stats.halfDays++; }
+        }
+      });
   }
   return stats;
 }
@@ -501,7 +506,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
 
   const thisMonth = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
   const monthDays = Object.entries(records[user.id] || {}).filter(([d]) => d.startsWith(thisMonth)).sort(([a], [b]) => b.localeCompare(a));
-  const ms = calcMonthStats(monthDays, settings, leaves[user.id] || {}, null);
+  const ms = calcMonthStats(monthDays, settings, leaves[user.id] || {}, null, user.id);
   const monthLeaves = Object.entries(leaves[user.id] || {}).filter(([d]) => d.startsWith(thisMonth));
   const annualCount = monthLeaves.filter(([, l]) => l.type === "연차").length;
   const lateToday = isLate(todayRec.in, settings.workStart);
@@ -641,8 +646,6 @@ function EditRecordModal({ user, date, rec, settings, userLeaves, onSave, onClos
   const [earlyConfirm, setEarlyConfirm] = useState(rec?.earlyConfirm ?? null);
   const [overtimeConfirm, setOvertimeConfirm] = useState(rec?.overtimeConfirm ?? null);
 
-  const times = [];
-  for (let h = 0; h < 24; h++) for (let m of [0, 30]) times.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
   const iStyle = { width: "100%", padding: "11px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box", fontFamily: "inherit" };
   const inIso = inTime ? setTimeOnDate(date, inTime) : null;
   const outIso = outTime ? setTimeOnDate(date, outTime) : null;
@@ -707,10 +710,8 @@ function EditRecordModal({ user, date, rec, settings, userLeaves, onSave, onClos
           {[["출근", inTime, setInTime, T.green], ["퇴근", outTime, setOutTime, T.blue]].map(([label, val, setter, color]) => (
             <div key={label}>
               <div style={{ fontSize: 12, color, marginBottom: 5, fontWeight: 700 }}>{label}</div>
-              <select value={val} onChange={e => setter(e.target.value)} style={{ ...iStyle, color: val ? color : T.muted }}>
-                <option value="">-</option>
-                {times.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <input type="time" value={val} onChange={e => setter(e.target.value)}
+                style={{ ...iStyle, color: val ? color : T.muted, fontSize: 16 }} />
             </div>
           ))}
         </div>
@@ -731,14 +732,15 @@ function EditRecordModal({ user, date, rec, settings, userLeaves, onSave, onClos
         {/* 외출 */}
         {outings.map((o, i) => (
           <div key={i} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
-            <select value={o.out ? formatTime(o.out) : ""} onChange={e => { const n = [...outings]; n[i] = { ...n[i], out: e.target.value ? setTimeOnDate(date, e.target.value) : null }; setOutings(n); }} style={{ ...iStyle, flex: 1, fontSize: 12 }}>
-              <option value="">외출</option>{times.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
+            <input type="time" value={o.out ? formatTime(o.out) : ""}
+              onChange={e => { const n=[...outings]; n[i]={...n[i],out:e.target.value?setTimeOnDate(date,e.target.value):null}; setOutings(n); }}
+              placeholder="외출" style={{ ...iStyle, flex: 1, fontSize: 13 }} />
             <span style={{ color: T.muted, fontSize: 12 }}>→</span>
-            <select value={o.in ? formatTime(o.in) : ""} onChange={e => { const n = [...outings]; n[i] = { ...n[i], in: e.target.value ? setTimeOnDate(date, e.target.value) : null }; setOutings(n); }} style={{ ...iStyle, flex: 1, fontSize: 12 }}>
-              <option value="">복귀</option>{times.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <button onClick={() => setOutings(outings.filter((_, ii) => ii !== i))} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "8px 10px", cursor: "pointer", fontWeight: 700 }}>✕</button>
+            <input type="time" value={o.in ? formatTime(o.in) : ""}
+              onChange={e => { const n=[...outings]; n[i]={...n[i],in:e.target.value?setTimeOnDate(date,e.target.value):null}; setOutings(n); }}
+              placeholder="복귀" style={{ ...iStyle, flex: 1, fontSize: 13 }} />
+            <button onClick={() => setOutings(outings.filter((_, ii) => ii !== i))}
+              style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "8px 10px", cursor: "pointer", fontWeight: 700 }}>✕</button>
           </div>
         ))}
         <button onClick={() => setOutings([...outings, { out: null, in: null }])} style={{ width: "100%", padding: "8px 0", borderRadius: 10, border: `1px dashed ${T.border}`, background: "none", color: T.muted, fontSize: 12, cursor: "pointer", marginBottom: 12, fontWeight: 600 }}>+ 외출 추가</button>
@@ -769,7 +771,7 @@ function EditRecordModal({ user, date, rec, settings, userLeaves, onSave, onClos
 }
 
 // ── 월별 탭 ────────────────────────────────────────────────────
-function MonthTab({ records, leaves, members, settings, onSaveRecord, onSaveLeave }) {
+function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRecord, onSaveLeave }) {
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const currentMonth = kstNow.toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
@@ -800,7 +802,7 @@ function MonthTab({ records, leaves, members, settings, onSaveRecord, onSaveLeav
     const days = Object.entries(records[drillUser.id] || {}).filter(([d]) => d.startsWith(selectedMonth)).sort(([a], [b]) => a.localeCompare(b));
     const userLeaves = leaves[drillUser.id] || {};
     const mLeaves = Object.entries(userLeaves).filter(([d]) => d.startsWith(selectedMonth));
-    const ms = calcMonthStats(days, settings, userLeaves, null);
+    const ms = calcMonthStats(days, settings, userLeaves, leaveRequests, drillUser.id);
     ms.annual = mLeaves.filter(([, l]) => l.type === "연차").length;
 
     const handleDownload = () => {
@@ -920,7 +922,7 @@ function MonthTab({ records, leaves, members, settings, onSaveRecord, onSaveLeav
       </button>
       {members.map(u => {
         const days = Object.entries(records[u.id] || {}).filter(([d]) => d.startsWith(selectedMonth));
-        const ms = calcMonthStats(days, settings, leaves[u.id] || {}, null);
+        const ms = calcMonthStats(days, settings, leaves[u.id] || {}, leaveRequests, u.id);
         return (
           <div key={u.id} style={{ background: T.card, borderRadius: 16, padding: "14px 16px", marginBottom: 12, border: `1px solid ${T.border}`, boxShadow: "0 1px 4px #0000000a" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
@@ -1259,7 +1261,7 @@ function AdminHome({ user, onLogout, onSection }) {
 }
 
 // ── 관리자 근태 섹션 ───────────────────────────────────────────
-function AdminAttendance({ users, settings, records, leaves, onSaveRecord, onSaveLeave, onSaveSettings, onBack }) {
+function AdminAttendance({ users, settings, records, leaves, leaveRequests, onSaveRecord, onSaveLeave, onSaveSettings, onBack }) {
   const [tab, setTab] = useState("today");
   const [showSettings, setShowSettings] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
@@ -1346,7 +1348,7 @@ function AdminAttendance({ users, settings, records, leaves, onSaveRecord, onSav
             );
           })}
         </>}
-        {tab === "month" && <MonthTab records={records} leaves={leaves} members={members} settings={settings} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} />}
+        {tab === "month" && <MonthTab records={records} leaves={leaves} members={members} settings={settings} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} />}
       </div>
 
       {editTarget && <EditRecordModal user={editTarget.user} date={editTarget.date} rec={records[editTarget.user.id]?.[editTarget.date] || {}} settings={settings} userLeaves={leaves[editTarget.user.id] || {}} onSave={handleSaveRecord} onClose={() => setEditTarget(null)} />}
@@ -1709,7 +1711,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   const [section, setSection] = useState(null);
 
   if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={setSection} />;
-  if (section === "attendance") return <AdminAttendance users={users} settings={settings} records={records} leaves={leaves} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={() => setSection(null)} />;
+  if (section === "attendance") return <AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={() => setSection(null)} />;
   if (section === "wage") return <AdminWage users={users} records={records} settings={settings} onBack={() => setSection(null)} />;
   if (section === "members") return <AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
   if (section === "general") return <AdminGeneral user={user} users={users} settings={settings} notices={notices} board={board} payslips={payslips} onSaveSettings={onSaveSettings} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
