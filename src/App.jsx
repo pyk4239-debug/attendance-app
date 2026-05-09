@@ -142,7 +142,10 @@ function calcMonthStats(days, settings, userLeaves, leaveRequests, userId) {
       .filter(r => r.status === "승인" && r.userId === userId && (!month || r.date?.startsWith(month)))
       .forEach(r => {
         if (r.type === "연차") { stats.days++; stats.annualDays++; }
-        else if (r.type?.includes("반차")) { stats.days += 0.5; stats.halfDays++; }
+        // 반차는 출근 기록 없는 날만 +1 (출근 기록 있으면 이미 카운트됨)
+        else if (r.type?.includes("반차")) {
+          if (!days.find(([d]) => d === r.date)) { stats.days++; }
+        }
       });
   }
   // 관리자가 직접 입력한 연차 기록도 포함 (출근 기록 없는 날만)
@@ -153,7 +156,7 @@ function calcMonthStats(days, settings, userLeaves, leaveRequests, userId) {
       .forEach(([date, l]) => {
         if (!days.find(([d]) => d === date)) {
           if (l.type === "연차") { stats.days++; stats.annualDays++; }
-          else if (l.type?.includes("반차")) { stats.days += 0.5; stats.halfDays++; }
+          else if (l.type?.includes("반차")) { stats.days++; }
         }
       });
   }
