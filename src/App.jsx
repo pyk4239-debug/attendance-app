@@ -806,7 +806,17 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
     const userLeaves = leaves[drillUser.id] || {};
     const mLeaves = Object.entries(userLeaves).filter(([d]) => d.startsWith(selectedMonth));
     const ms = calcMonthStats(days, settings, userLeaves, leaveRequests, drillUser.id);
-    ms.annual = mLeaves.filter(([, l]) => l.type === "연차").length;
+    // 연차 집계 = 관리자 입력 연차 + 승인된 연차 신청
+    const adminAnnual = mLeaves.filter(([, l]) => l.type === "연차").length;
+    const reqAnnual = leaveRequests
+      ? leaveRequests.filter(r => r.userId === drillUser.id && r.status === "승인" && r.type === "연차" && r.date?.startsWith(selectedMonth)).length
+      : 0;
+    const adminHalf = mLeaves.filter(([, l]) => l.type?.includes("반차")).length;
+    const reqHalf = leaveRequests
+      ? leaveRequests.filter(r => r.userId === drillUser.id && r.status === "승인" && r.type?.includes("반차") && r.date?.startsWith(selectedMonth)).length
+      : 0;
+    ms.annual = adminAnnual + reqAnnual;
+    ms.half = adminHalf + reqHalf;
 
     const handleDownload = () => {
       const header = ["날짜", "요일", "출근", "퇴근", "지각", "지각시간", "조퇴", "조퇴시간", "잔업", "잔업시간", "외출", "연차/반차", "메모"];
@@ -832,7 +842,7 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
         {[
           [["출근", ms.days + "일", T.green], ["지각", ms.late + "회", T.yellow], ["지각시간", fmtMinutes(ms.lateMin), T.yellow]],
           [["휴일", ms.holiday + "일", T.red], ["잔업", ms.ot + "일", T.purple], ["잔업시간", fmtMinutes(ms.otMin), T.purple]],
-          [["연차", ms.annual + "일", "#7c3aed"], ["조퇴", ms.early + "회", T.orange], ["조퇴시간", fmtMinutes(ms.earlyMin), T.orange]],
+          [["연차", ms.annual + "일", "#7c3aed"], ["반차", (ms.half||0) + "회", "#7c3aed"], ["조퇴", ms.early + "회", T.orange]],
         ].map((row, ri) => (
           <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: ri < 2 ? 6 : 12 }}>
             {row.map(([l, v, c]) => <StatBox key={l} label={l} value={v} color={c} />)}
