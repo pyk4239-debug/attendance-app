@@ -1555,34 +1555,33 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
             </div>
           );
         })}
-      </div>
 
-      {/* 연차 신청 목록 */}
-      <div style={{ fontSize: 13, color: T.muted, margin: "16px 0 10px", fontWeight: 600 }}>연차 신청 목록</div>
-      {leaveRequests.length === 0
-        ? <div style={{ textAlign: "center", color: T.muted, padding: 24, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>신청 없음</div>
-        : leaveRequests.map(r => {
-          const statusColor = { "대기": "yellow", "승인": "green", "반려": "red" };
-          return (
-            <div key={r.id} style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${T.border}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                <div style={{ fontWeight: 700, fontSize: 13, color: T.text, flex: 1 }}>{r.userName} · {r.date} · {r.type}</div>
-                <Badge label={r.status} color={statusColor[r.status] || "gray"} />
+        {/* 연차 신청 목록 */}
+        <div style={{ fontSize: 13, color: T.muted, margin: "16px 0 10px", fontWeight: 600 }}>연차 신청 목록</div>
+        {leaveRequests.length === 0
+          ? <div style={{ textAlign: "center", color: T.muted, padding: 24, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>신청 없음</div>
+          : leaveRequests.map(r => {
+            const statusColor = { "대기": "yellow", "승인": "green", "반려": "red" };
+            return (
+              <div key={r.id} style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${T.border}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: T.text, flex: 1 }}>{r.userName} · {r.date} · {r.type}</div>
+                  <Badge label={r.status} color={statusColor[r.status] || "gray"} />
+                </div>
+                {r.note && <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>📝 {r.note}</div>}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "승인" }, { merge: true })}
+                    style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.greenBg, color: T.green, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>승인</button>
+                  <button onClick={() => setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true })}
+                    style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.redBg, color: T.red, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>반려</button>
+                  <button onClick={() => setDelConfirm(r)}
+                    style={{ padding: "7px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, cursor: "pointer" }}>삭제</button>
+                </div>
               </div>
-              {r.note && <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>📝 {r.note}</div>}
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "승인" }, { merge: true })}
-                  style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.greenBg, color: T.green, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>승인</button>
-                <button onClick={() => setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true })}
-                  style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.redBg, color: T.red, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>반려</button>
-                <button onClick={() => setDelConfirm(r)}
-                  style={{ padding: "7px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, cursor: "pointer" }}>삭제</button>
-              </div>
-            </div>
-          );
-        })
-      }
-    </div>
+            );
+          })
+        }
+      </div>
 
     {/* 삭제 경고 모달 */}
     {delConfirm && (
