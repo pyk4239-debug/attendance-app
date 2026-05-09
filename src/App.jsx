@@ -299,8 +299,14 @@ function AppLoader() {
 
     // 설정
     unsubs.push(onSnapshot(doc(db, "app", "settings"), snap => {
-      if (snap.exists()) setSettings(snap.data());
-      else fbSaveSettings(DEFAULT_SETTINGS);
+      if (snap.exists()) {
+        const s = snap.data();
+        // GPS 좌표 숫자 보장
+        if (s.officeLat != null) s.officeLat = Number(s.officeLat);
+        if (s.officeLng != null) s.officeLng = Number(s.officeLng);
+        if (s.officeRadius != null) s.officeRadius = Number(s.officeRadius);
+        setSettings(s);
+      } else fbSaveSettings(DEFAULT_SETTINGS);
     }));
 
     // 출퇴근 기록
@@ -1599,6 +1605,7 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
         </div>
       </div>
     )}
+      {editInfo && (
         <MemberInfoModal user={editInfo.user} info={memberInfo[editInfo.user.id] || {}}
           onSave={data => saveInfo(editInfo.user.id, data)} onClose={() => setEditInfo(null)} />
       )}
