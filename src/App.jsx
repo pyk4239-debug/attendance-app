@@ -133,19 +133,21 @@ function calcMonthStats(days, settings, userLeaves, leaveRequests, userId) {
       if (isHoliday(date, settings.holidays)) acc.holiday++;
     }
     return acc;
-  }, { days: 0, late: 0, lateMin: 0, early: 0, earlyMin: 0, ot: 0, otMin: 0, holiday: 0, annualDays: 0, halfDays: 0 });
+  }, { days: 0, late: 0, lateMin: 0, early: 0, earlyMin: 0, ot: 0, otMin: 0, holiday: 0, annualDays: 0 });
 
-  // 승인된 연차/반차 - leaves에 저장된 것만 집계 (승인 시 자동 저장됨)
-  // leaveRequests는 집계에 사용하지 않음 (중복 방지)
-  // 관리자가 직접 입력한 연차 기록도 포함 (출근 기록 없는 날만)
+  // leaves 기반 연차/반차 집계 (출근 기록 없는 날만 출근일수에 추가)
   if (userLeaves) {
     const month = days[0]?.[0]?.slice(0, 7) || "";
     Object.entries(userLeaves)
       .filter(([date]) => !month || date.startsWith(month))
       .forEach(([date, l]) => {
-        if (!days.find(([d]) => d === date)) {
-          if (l.type === "연차") { stats.days++; stats.annualDays++; }
-          else if (l.type?.includes("반차")) { stats.days++; stats.halfDays++; }
+        const hasRecord = !!days.find(([d]) => d === date);
+        if (l.type === "연차") {
+          stats.annualDays++;
+          if (!hasRecord) stats.days++; // 출근 기록 없는 날만 출근일수 추가
+        } else if (l.type?.includes("반차")) {
+          stats.annualDays += 0.5;
+          if (!hasRecord) stats.days++; // 반차도 출근 1일로 처리
         }
       });
   }
@@ -574,7 +576,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
           {[
             [["출근", ms.days + "일", T.green], ["지각", ms.late + "회", T.yellow], ["지각시간", fmtMinutes(ms.lateMin), T.yellow]],
             [["휴일", ms.holiday + "일", T.red], ["잔업", ms.ot + "일", T.purple], ["잔업시간", fmtMinutes(ms.otMin), T.purple]],
-            [["연차", annualCount + "일", "#7c3aed"], ["조퇴", ms.early + "회", T.orange], ["조퇴시간", fmtMinutes(ms.earlyMin), T.orange]],
+            [["연차", ms.annualDays > 0 ? ms.annualDays + "일" : "0일", "#7c3aed"], ["조퇴", ms.early + "회", T.orange], ["조퇴시간", fmtMinutes(ms.earlyMin), T.orange]],
           ].map((row, ri) => (
             <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: ri < 2 ? 6 : 0 }}>
               {row.map(([l, v, c]) => <StatBox key={l} label={l} value={v} color={c} />)}
@@ -795,9 +797,6 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
     const userLeaves = leaves[drillUser.id] || {};
     const mLeaves = Object.entries(userLeaves).filter(([d]) => d.startsWith(selectedMonth));
     const ms = calcMonthStats(days, settings, userLeaves, leaveRequests, drillUser.id);
-    // 연차/반차 집계 - leaves만 사용 (승인 시 자동 저장됨)
-    ms.annual = mLeaves.filter(([, l]) => l.type === "연차").length;
-    ms.half = mLeaves.filter(([, l]) => l.type?.includes("반차")).length;
 
     const handleDownload = () => {
       const header = ["날짜", "요일", "출근", "퇴근", "지각", "지각시간", "조퇴", "조퇴시간", "잔업", "잔업시간", "외출", "연차/반차", "메모"];
@@ -823,7 +822,7 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
         {[
           [["출근", ms.days + "일", T.green], ["지각", ms.late + "회", T.yellow], ["지각시간", fmtMinutes(ms.lateMin), T.yellow]],
           [["휴일", ms.holiday + "일", T.red], ["잔업", ms.ot + "일", T.purple], ["잔업시간", fmtMinutes(ms.otMin), T.purple]],
-          [["연차", ms.annual + "일", "#7c3aed"], ["반차", (ms.half||0) + "회", "#7c3aed"], ["조퇴", ms.early + "회", T.orange]],
+          [["연차", ms.annualDays > 0 ? ms.annualDays + "일" : "0일", "#7c3aed"], ["조퇴", ms.early + "회", T.orange], ["조퇴시간", fmtMinutes(ms.earlyMin), T.orange]],
         ].map((row, ri) => (
           <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: ri < 2 ? 6 : 12 }}>
             {row.map(([l, v, c]) => <StatBox key={l} label={l} value={v} color={c} />)}
