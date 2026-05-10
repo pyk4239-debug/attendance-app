@@ -324,7 +324,8 @@ function AppLoader() {
       const l = {};
       snap.docs.forEach(d => {
         const data = d.data();
-        if (data.deleted) return;
+        if (data.deleted === true) return; // deleted:true 면 무시
+        if (!data.type) return; // type 없으면 무시 (잘못된 데이터)
         if (!l[data.userId]) l[data.userId] = {};
         const { userId, date, ...rest } = data;
         l[data.userId][data.date] = rest;
@@ -1577,8 +1578,10 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={async () => {
                     await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "승인" }, { merge: true });
-                    // leaves에 자동 저장 (집계 단일화)
-                    await setDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`), { userId: r.userId, date: r.date, type: r.type, hours: r.hours || null });
+                    // leaves에 완전히 새로 저장 (deleted 필드 없이)
+                    const leaveData = { userId: r.userId, date: r.date, type: r.type };
+                    if (r.hours) leaveData.hours = r.hours;
+                    await setDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`), leaveData);
                   }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.greenBg, color: T.green, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>승인</button>
                   <button onClick={async () => {
                     await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true });
