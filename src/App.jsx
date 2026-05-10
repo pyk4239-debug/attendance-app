@@ -135,19 +135,8 @@ function calcMonthStats(days, settings, userLeaves, leaveRequests, userId) {
     return acc;
   }, { days: 0, late: 0, lateMin: 0, early: 0, earlyMin: 0, ot: 0, otMin: 0, holiday: 0, annualDays: 0, halfDays: 0 });
 
-  // 승인된 연차/반차를 출근일수에 포함
-  if (leaveRequests && userId) {
-    const month = days[0]?.[0]?.slice(0, 7) || "";
-    leaveRequests
-      .filter(r => r.status === "승인" && r.userId === userId && (!month || r.date?.startsWith(month)))
-      .forEach(r => {
-        if (r.type === "연차") { stats.days++; stats.annualDays++; }
-        // 반차는 출근 기록 없는 날만 +1 (출근 기록 있으면 이미 카운트됨)
-        else if (r.type?.includes("반차")) {
-          if (!days.find(([d]) => d === r.date)) { stats.days++; }
-        }
-      });
-  }
+  // 승인된 연차/반차 - leaves에 저장된 것만 집계 (승인 시 자동 저장됨)
+  // leaveRequests는 집계에 사용하지 않음 (중복 방지)
   // 관리자가 직접 입력한 연차 기록도 포함 (출근 기록 없는 날만)
   if (userLeaves) {
     const month = days[0]?.[0]?.slice(0, 7) || "";
@@ -156,7 +145,7 @@ function calcMonthStats(days, settings, userLeaves, leaveRequests, userId) {
       .forEach(([date, l]) => {
         if (!days.find(([d]) => d === date)) {
           if (l.type === "연차") { stats.days++; stats.annualDays++; }
-          else if (l.type?.includes("반차")) { stats.days++; }
+          else if (l.type?.includes("반차")) { stats.days++; stats.halfDays++; }
         }
       });
   }
@@ -806,17 +795,9 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
     const userLeaves = leaves[drillUser.id] || {};
     const mLeaves = Object.entries(userLeaves).filter(([d]) => d.startsWith(selectedMonth));
     const ms = calcMonthStats(days, settings, userLeaves, leaveRequests, drillUser.id);
-    // 연차 집계 = 관리자 입력 연차 + 승인된 연차 신청
-    const adminAnnual = mLeaves.filter(([, l]) => l.type === "연차").length;
-    const reqAnnual = leaveRequests
-      ? leaveRequests.filter(r => r.userId === drillUser.id && r.status === "승인" && r.type === "연차" && r.date?.startsWith(selectedMonth)).length
-      : 0;
-    const adminHalf = mLeaves.filter(([, l]) => l.type?.includes("반차")).length;
-    const reqHalf = leaveRequests
-      ? leaveRequests.filter(r => r.userId === drillUser.id && r.status === "승인" && r.type?.includes("반차") && r.date?.startsWith(selectedMonth)).length
-      : 0;
-    ms.annual = adminAnnual + reqAnnual;
-    ms.half = adminHalf + reqHalf;
+    // 연차/반차 집계 - leaves만 사용 (승인 시 자동 저장됨)
+    ms.annual = mLeaves.filter(([, l]) => l.type === "연차").length;
+    ms.half = mLeaves.filter(([, l]) => l.type?.includes("반차")).length;
 
     const handleDownload = () => {
       const header = ["날짜", "요일", "출근", "퇴근", "지각", "지각시간", "조퇴", "조퇴시간", "잔업", "잔업시간", "외출", "연차/반차", "메모"];
@@ -849,15 +830,20 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
           </div>
         ))}
         <div style={{ fontSize: 12, color: T.muted, marginBottom: 10, fontWeight: 600 }}>날짜별 상세</div>
-        {days.length === 0
-          ? <div style={{ textAlign: "center", color: T.muted, padding: 24, fontSize: 14, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>기록 없음</div>
-          : days.map(([date, rec]) => {
+        {(() => {
+          // 출근 기록 + 연차만 있는 날짜 합치기
+          const leaveDates = Object.entries(userLeaves)
+            .filter(([date]) => date.startsWith(selectedMonth) && !days.find(([d]) => d === date))
+            .map(([date, l]) => [date, { in: null, out: null, leaveOnly: true }]);
+          const allDays = [...days, ...leaveDates].sort(([a], [b]) => a.localeCompare(b));
+          if (allDays.length === 0) return <div style={{ textAlign: "center", color: T.muted, padding: 24, fontSize: 14, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>기록 없음</div>;
+          return allDays.map(([date, rec]) => {
             const lm = calcLateMin(rec.in, settings.workStart), em = calcEarlyOutMin(rec.out, settings.workEnd), om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
             const late = lm > 0, early = em > 0, ot = om >= 30, weekend = isHoliday(date, settings.holidays), leave = userLeaves[date];
             const [, , dd] = date.split("-"), dow = new Date(date).toLocaleDateString("ko-KR", { weekday: "short" });
-            const isNormal = !late && !early && !ot && !weekend && rec.in && rec.out;
+            const isNormal = !late && !early && !ot && !weekend && rec.in && rec.out && !leave;
             return (
-              <div key={date} style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${T.border}` }}>
+              <div key={date} style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${leave && !rec.in ? T.purpleBg : T.border}` }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ minWidth: 36, textAlign: "center" }}>
                     <div style={{ fontSize: 17, fontWeight: 800, color: weekend ? T.red : T.text }}>{parseInt(dd)}</div>
@@ -865,12 +851,16 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
                   </div>
                   <div style={{ width: 1, height: 34, background: T.border }} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: late ? T.yellow : T.green }}>{formatTime(rec.in)}</span>
-                      <span style={{ fontSize: 11, color: T.muted }}>→</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: early ? T.orange : T.blue }}>{formatTime(rec.out)}</span>
-                      {isNormal && <span style={{ marginLeft: "auto", fontSize: 11, color: T.muted }}>정상</span>}
-                    </div>
+                    {rec.in ? (
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: late ? T.yellow : T.green }}>{formatTime(rec.in)}</span>
+                        <span style={{ fontSize: 11, color: T.muted }}>→</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: early ? T.orange : T.blue }}>{formatTime(rec.out)}</span>
+                        {isNormal && <span style={{ marginLeft: "auto", fontSize: 11, color: T.muted }}>정상</span>}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 13, color: T.purple, fontWeight: 700, marginBottom: 4 }}>출근 기록 없음</div>
+                    )}
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                       {late && <Badge label={`지각 ${fmtMinutes(lm)}`} color="yellow" />}
                       {early && <Badge label={`조퇴 ${fmtMinutes(em)}`} color="orange" />}
@@ -885,8 +875,8 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
                 </div>
               </div>
             );
-          })
-        }
+          });
+        })()}
         {editTarget && (
           <EditRecordModal user={editTarget.user} date={editTarget.date}
             rec={records[editTarget.user.id]?.[editTarget.date] || {}}
@@ -1585,10 +1575,16 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
                 </div>
                 {r.note && <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>📝 {r.note}</div>}
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "승인" }, { merge: true })}
-                    style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.greenBg, color: T.green, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>승인</button>
-                  <button onClick={() => setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true })}
-                    style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.redBg, color: T.red, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>반려</button>
+                  <button onClick={async () => {
+                    await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "승인" }, { merge: true });
+                    // leaves에 자동 저장 (집계 단일화)
+                    await setDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`), { userId: r.userId, date: r.date, type: r.type, hours: r.hours || null });
+                  }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.greenBg, color: T.green, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>승인</button>
+                  <button onClick={async () => {
+                    await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true });
+                    // 기존에 승인됐다가 반려 시 leaves에서 삭제
+                    await setDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`), { userId: r.userId, date: r.date, deleted: true });
+                  }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.redBg, color: T.red, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>반려</button>
                   <button onClick={() => setDelConfirm(r)}
                     style={{ padding: "7px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, cursor: "pointer" }}>삭제</button>
                 </div>
