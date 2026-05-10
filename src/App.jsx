@@ -117,7 +117,7 @@ function setTimeOnDate(date, time) {
   const [h, m] = time.split(":").map(Number);
   d.setHours(h, m, 0, 0); return d.toISOString();
 }
-function calcMonthStats(days, settings, userLeaves, leaveRequests, userId) {
+function calcMonthStats(days, settings, userLeaves, leaveRequests, userId, month) {
   const stats = days.reduce((acc, [date, rec]) => {
     if (rec.in) {
       acc.days++;
@@ -135,16 +135,15 @@ function calcMonthStats(days, settings, userLeaves, leaveRequests, userId) {
     return acc;
   }, { days: 0, late: 0, lateMin: 0, early: 0, earlyMin: 0, ot: 0, otMin: 0, holiday: 0, annualDays: 0 });
 
-  // leaves 기반 연차/반차 집계 (출근 기록 없는 날만 출근일수에 추가)
+  // leaves 기반 연차/반차 집계
   if (userLeaves) {
-    const month = days[0]?.[0]?.slice(0, 7) || "";
     Object.entries(userLeaves)
       .filter(([date]) => !month || date.startsWith(month))
       .forEach(([date, l]) => {
         const hasRecord = !!days.find(([d]) => d === date);
         if (l.type === "연차") {
           stats.annualDays++;
-          if (!hasRecord) stats.days++; // 출근 기록 없는 날만 출근일수 추가
+          if (!hasRecord) stats.days++; // 출근 기록 없는 연차일도 출근일수에 포함
         } else if (l.type?.includes("반차")) {
           stats.annualDays += 0.5;
           if (!hasRecord) stats.days++; // 반차도 출근 1일로 처리
@@ -500,7 +499,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
 
   const thisMonth = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
   const monthDays = Object.entries(records[user.id] || {}).filter(([d]) => d.startsWith(thisMonth)).sort(([a], [b]) => b.localeCompare(a));
-  const ms = calcMonthStats(monthDays, settings, leaves[user.id] || {}, null, user.id);
+  const ms = calcMonthStats(monthDays, settings, leaves[user.id] || {}, null, user.id, thisMonth);
   const monthLeaves = Object.entries(leaves[user.id] || {}).filter(([d]) => d.startsWith(thisMonth));
   const annualCount = monthLeaves.filter(([, l]) => l.type === "연차").length;
   const lateToday = isLate(todayRec.in, settings.workStart);
@@ -796,7 +795,7 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
     const days = Object.entries(records[drillUser.id] || {}).filter(([d]) => d.startsWith(selectedMonth)).sort(([a], [b]) => a.localeCompare(b));
     const userLeaves = leaves[drillUser.id] || {};
     const mLeaves = Object.entries(userLeaves).filter(([d]) => d.startsWith(selectedMonth));
-    const ms = calcMonthStats(days, settings, userLeaves, leaveRequests, drillUser.id);
+    const ms = calcMonthStats(days, settings, userLeaves, leaveRequests, drillUser.id, selectedMonth);
 
     const handleDownload = () => {
       const header = ["날짜", "요일", "출근", "퇴근", "지각", "지각시간", "조퇴", "조퇴시간", "잔업", "잔업시간", "외출", "연차/반차", "메모"];
@@ -924,7 +923,7 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
       </button>
       {members.map(u => {
         const days = Object.entries(records[u.id] || {}).filter(([d]) => d.startsWith(selectedMonth));
-        const ms = calcMonthStats(days, settings, leaves[u.id] || {}, leaveRequests, u.id);
+        const ms = calcMonthStats(days, settings, leaves[u.id] || {}, leaveRequests, u.id, selectedMonth);
         return (
           <div key={u.id} style={{ background: T.card, borderRadius: 16, padding: "14px 16px", marginBottom: 12, border: `1px solid ${T.border}`, boxShadow: "0 1px 4px #0000000a" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
