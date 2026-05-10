@@ -140,13 +140,14 @@ function calcMonthStats(days, settings, userLeaves, leaveRequests, userId, month
     Object.entries(userLeaves)
       .filter(([date]) => !month || date.startsWith(month))
       .forEach(([date, l]) => {
-        const hasRecord = !!days.find(([d]) => d === date);
+        const dayRec = days.find(([d]) => d === date);
+        const hasClockIn = !!(dayRec && dayRec[1]?.in); // 실제 출근 기록 있는지
         if (l.type === "연차") {
           stats.annualDays++;
-          if (!hasRecord) stats.days++; // 출근 기록 없는 연차일도 출근일수에 포함
+          if (!hasClockIn) stats.days++; // 출근 찍은 기록 없는 연차일만 출근일수 추가
         } else if (l.type?.includes("반차")) {
           stats.annualDays += 0.5;
-          if (!hasRecord) stats.days++; // 반차도 출근 1일로 처리
+          if (!hasClockIn) stats.days++; // 반차도 출근 기록 없으면 출근 1일로
         }
       });
   }
