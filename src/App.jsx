@@ -203,12 +203,16 @@ function calcDistance(lat1, lng1, lat2, lng2) {
 }
 function gpsStatusLabel(gps, settings) {
   if (!gps || gps.lat == null || gps.lng == null) return null;
-  if (Math.abs(gps.lat) < 0.001 && Math.abs(gps.lng) < 0.001) return null;
-  const officeLat = settings?.officeLat != null ? Number(settings.officeLat) : null;
-  const officeLng = settings?.officeLng != null ? Number(settings.officeLng) : null;
-  if (!officeLat || !officeLng || isNaN(officeLat) || isNaN(officeLng)) return { label: "위치기록", color: "gray" };
-  const dist = calcDistance(Number(gps.lat), Number(gps.lng), officeLat, officeLng);
-  if (dist == null || isNaN(dist)) return { label: "위치기록", color: "gray" };
+  const lat = Number(gps.lat);
+  const lng = Number(gps.lng);
+  if (isNaN(lat) || isNaN(lng)) return null;
+  if (Math.abs(lat) < 0.001 && Math.abs(lng) < 0.001) return null;
+  if (!settings) return { label: "위치기록", color: "gray" };
+  const officeLat = Number(settings.officeLat);
+  const officeLng = Number(settings.officeLng);
+  if (!settings.officeLat || !settings.officeLng || isNaN(officeLat) || isNaN(officeLng)) return { label: "위치기록", color: "gray" };
+  const dist = calcDistance(lat, lng, officeLat, officeLng);
+  if (dist == null || isNaN(dist) || dist > 100000) return { label: "위치기록", color: "gray" }; // 100km 이상이면 오류로 판단
   const radius = Number(settings.officeRadius) || 200;
   if (dist <= radius) return { label: `회사 내 (${dist}m)`, color: "green" };
   return { label: `회사 외 (${dist}m)`, color: "red" };
@@ -311,8 +315,13 @@ function AppLoader() {
 
     // 설정
     unsubs.push(onSnapshot(doc(db, "app", "settings"), snap => {
-      if (snap.exists()) setSettings(snap.data());
-      else fbSaveSettings(DEFAULT_SETTINGS);
+      if (snap.exists()) {
+        const s = snap.data();
+        if (s.officeLat != null) s.officeLat = Number(s.officeLat);
+        if (s.officeLng != null) s.officeLng = Number(s.officeLng);
+        if (s.officeRadius != null) s.officeRadius = Number(s.officeRadius);
+        setSettings(s);
+      } else fbSaveSettings(DEFAULT_SETTINGS);
     }));
 
     // 출퇴근 기록
