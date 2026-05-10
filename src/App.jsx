@@ -499,9 +499,9 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
 
   const thisMonth = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
   const monthDays = Object.entries(records[user.id] || {}).filter(([d]) => d.startsWith(thisMonth)).sort(([a], [b]) => b.localeCompare(a));
-  const ms = calcMonthStats(monthDays, settings, leaves[user.id] || {}, null, user.id, thisMonth);
   const monthLeaves = Object.entries(leaves[user.id] || {}).filter(([d]) => d.startsWith(thisMonth));
-  const annualCount = monthLeaves.filter(([, l]) => l.type === "연차").length;
+  const monthLeavesObj = Object.fromEntries(monthLeaves); // 월 필터된 연차만
+  const ms = calcMonthStats(monthDays, settings, monthLeavesObj, null, user.id, thisMonth);
   const lateToday = isLate(todayRec.in, settings.workStart);
   const earlyToday = isEarlyOut(todayRec.out, settings.workEnd);
 
@@ -795,7 +795,8 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
     const days = Object.entries(records[drillUser.id] || {}).filter(([d]) => d.startsWith(selectedMonth)).sort(([a], [b]) => a.localeCompare(b));
     const userLeaves = leaves[drillUser.id] || {};
     const mLeaves = Object.entries(userLeaves).filter(([d]) => d.startsWith(selectedMonth));
-    const ms = calcMonthStats(days, settings, userLeaves, leaveRequests, drillUser.id, selectedMonth);
+    const mLeavesObj = Object.fromEntries(mLeaves); // 월 필터된 연차만
+    const ms = calcMonthStats(days, settings, mLeavesObj, leaveRequests, drillUser.id, selectedMonth);
 
     const handleDownload = () => {
       const header = ["날짜", "요일", "출근", "퇴근", "지각", "지각시간", "조퇴", "조퇴시간", "잔업", "잔업시간", "외출", "연차/반차", "메모"];
@@ -923,7 +924,8 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
       </button>
       {members.map(u => {
         const days = Object.entries(records[u.id] || {}).filter(([d]) => d.startsWith(selectedMonth));
-        const ms = calcMonthStats(days, settings, leaves[u.id] || {}, leaveRequests, u.id, selectedMonth);
+        const uLeavesObj = Object.fromEntries(Object.entries(leaves[u.id] || {}).filter(([d]) => d.startsWith(selectedMonth)));
+        const ms = calcMonthStats(days, settings, uLeavesObj, leaveRequests, u.id, selectedMonth);
         return (
           <div key={u.id} style={{ background: T.card, borderRadius: 16, padding: "14px 16px", marginBottom: 12, border: `1px solid ${T.border}`, boxShadow: "0 1px 4px #0000000a" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
