@@ -1580,8 +1580,8 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
                   }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.greenBg, color: T.green, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>승인</button>
                   <button onClick={async () => {
                     await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true });
-                    // 기존에 승인됐다가 반려 시 leaves에서 삭제
-                    await setDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`), { userId: r.userId, date: r.date, deleted: true });
+                    // 반려 시 leaves에서 완전 삭제
+                    try { await deleteDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`)); } catch(e) {}
                   }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.redBg, color: T.red, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>반려</button>
                   <button onClick={() => setDelConfirm(r)}
                     style={{ padding: "7px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, cursor: "pointer" }}>삭제</button>
