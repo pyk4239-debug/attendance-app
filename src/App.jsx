@@ -189,6 +189,8 @@ function calcDistance(lat1, lng1, lat2, lng2) {
 }
 function gpsStatusLabel(gps, settings) {
   if (!gps || gps.lat == null || gps.lng == null) return null;
+  if (gps.lat === 0 && gps.lng === 0) return null; // 0,0은 무효
+  if (Math.abs(gps.lat) < 0.001 && Math.abs(gps.lng) < 0.001) return null; // 거의 0에 가까우면 무효
   const officeLat = settings?.officeLat != null ? Number(settings.officeLat) : null;
   const officeLng = settings?.officeLng != null ? Number(settings.officeLng) : null;
   if (!officeLat || !officeLng || isNaN(officeLat) || isNaN(officeLng)) return { label: "위치기록", color: "gray" };
@@ -488,7 +490,11 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
   const punch = async type => {
     const iso = new Date().toISOString();
     let gps = null;
-    try { gps = await getGPS(); } catch (e) { }
+    try {
+      const g = await getGPS();
+      // lat/lng이 0에 가까우면 무효 처리
+      if (g && (Math.abs(g.lat) > 0.001 || Math.abs(g.lng) > 0.001)) gps = g;
+    } catch (e) { }
     let newRec = { ...todayRec };
     if (type === "in") newRec = { ...newRec, in: iso, inGps: gps };
     else if (type === "out") newRec = { ...newRec, out: iso, outGps: gps };
