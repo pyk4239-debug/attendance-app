@@ -172,11 +172,25 @@ const monthLabel = m => { const [y, mo] = m.split("-"); return `${y}년 ${parseI
 function getGPS() {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) { reject(new Error("GPS 미지원")); return; }
-    navigator.geolocation.getCurrentPosition(
-      p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, acc: Math.round(p.coords.accuracy) }),
-      e => reject(e),
-      { timeout: 8000, maximumAge: 0, enableHighAccuracy: true }
-    );
+    let attempts = 0;
+    const tryGet = () => {
+      navigator.geolocation.getCurrentPosition(
+        p => {
+          const lat = p.coords.latitude;
+          const lng = p.coords.longitude;
+          // 0,0 이거나 유효하지 않으면 재시도 (최대 3회)
+          if ((Math.abs(lat) < 0.001 && Math.abs(lng) < 0.001) && attempts < 3) {
+            attempts++;
+            setTimeout(tryGet, 1000);
+          } else {
+            resolve({ lat, lng, acc: Math.round(p.coords.accuracy) });
+          }
+        },
+        e => reject(e),
+        { timeout: 10000, maximumAge: 0, enableHighAccuracy: true }
+      );
+    };
+    tryGet();
   });
 }
 function calcDistance(lat1, lng1, lat2, lng2) {
@@ -189,8 +203,7 @@ function calcDistance(lat1, lng1, lat2, lng2) {
 }
 function gpsStatusLabel(gps, settings) {
   if (!gps || gps.lat == null || gps.lng == null) return null;
-  if (gps.lat === 0 && gps.lng === 0) return null; // 0,0은 무효
-  if (Math.abs(gps.lat) < 0.001 && Math.abs(gps.lng) < 0.001) return null; // 거의 0에 가까우면 무효
+  if (Math.abs(gps.lat) < 0.001 && Math.abs(gps.lng) < 0.001) return null;
   const officeLat = settings?.officeLat != null ? Number(settings.officeLat) : null;
   const officeLng = settings?.officeLng != null ? Number(settings.officeLng) : null;
   if (!officeLat || !officeLng || isNaN(officeLat) || isNaN(officeLng)) return { label: "위치기록", color: "gray" };
@@ -200,8 +213,6 @@ function gpsStatusLabel(gps, settings) {
   if (dist <= radius) return { label: `회사 내 (${dist}m)`, color: "green" };
   return { label: `회사 외 (${dist}m)`, color: "red" };
 }
-
-// ── Firebase CRUD ──────────────────────────────────────────────
 async function fbSaveRecord(userId, date, rec) {
   await setDoc(doc(db, COL_RECORDS, `${userId}_${date}`), { userId, date, ...rec });
 }
@@ -300,14 +311,8 @@ function AppLoader() {
 
     // 설정
     unsubs.push(onSnapshot(doc(db, "app", "settings"), snap => {
-      if (snap.exists()) {
-        const s = snap.data();
-        // GPS 좌표 숫자 보장
-        if (s.officeLat != null) s.officeLat = Number(s.officeLat);
-        if (s.officeLng != null) s.officeLng = Number(s.officeLng);
-        if (s.officeRadius != null) s.officeRadius = Number(s.officeRadius);
-        setSettings(s);
-      } else fbSaveSettings(DEFAULT_SETTINGS);
+      if (snap.exists()) setSettings(snap.data());
+      else fbSaveSettings(DEFAULT_SETTINGS);
     }));
 
     // 출퇴근 기록
@@ -490,11 +495,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
   const punch = async type => {
     const iso = new Date().toISOString();
     let gps = null;
-    try {
-      const g = await getGPS();
-      // lat/lng이 0에 가까우면 무효 처리
-      if (g && (Math.abs(g.lat) > 0.001 || Math.abs(g.lng) > 0.001)) gps = g;
-    } catch (e) { }
+    try { gps = await getGPS(); } catch (e) { }
     let newRec = { ...todayRec };
     if (type === "in") newRec = { ...newRec, in: iso, inGps: gps };
     else if (type === "out") newRec = { ...newRec, out: iso, outGps: gps };
@@ -1080,7 +1081,6 @@ function SettingsModal({ settings, onSave, onClose }) {
       <div style={{ background: T.card, borderRadius: 20, padding: 22, width: "100%", maxWidth: 340, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px #00000020" }}>
         <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 20 }}>근무 설정</div>
 
-        {/* 출퇴근 기준 */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 13, color: T.green, marginBottom: 6, fontWeight: 700 }}>출근 기준</div>
           <input type="time" value={s.workStart} onChange={e => setS(p => ({ ...p, workStart: e.target.value }))} style={{ ...iStyle, borderColor: T.green + "44" }} />
@@ -1091,7 +1091,7 @@ function SettingsModal({ settings, onSave, onClose }) {
         </div>
 
         {/* 공휴일 관리 */}
-        <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
+        <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 20 }}>
           <div style={{ fontSize: 13, color: T.text, fontWeight: 700, marginBottom: 4 }}>🗓 공휴일 지정</div>
           <div style={{ fontSize: 11, color: T.muted, marginBottom: 12, lineHeight: 1.5 }}>
             토/일 외 공휴일을 직접 등록하세요.<br />등록된 날은 휴일근무로 자동 처리돼요.
@@ -1121,7 +1121,7 @@ function SettingsModal({ settings, onSave, onClose }) {
           </div>
           {s.officeLat && s.officeLng && (
             <div style={{ fontSize: 11, color: T.green, marginBottom: 8, fontWeight: 600 }}>
-              ✓ 위치 등록됨 ({s.officeLat.toFixed(5)}, {s.officeLng.toFixed(5)})
+              ✓ 위치 등록됨 ({Number(s.officeLat).toFixed(5)}, {Number(s.officeLng).toFixed(5)})
             </div>
           )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
