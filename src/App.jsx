@@ -97,23 +97,23 @@ function calcEarlyOutMin(outI, we) {
 // 반차 고려 지각/조퇴 기준 계산
 function calcLateMinWithLeave(inI, ws, leave, settings) {
   if (!inI || !ws) return 0;
-  // 오후 반차: 출근 기준 = 점심 종료 시간
-  if (leave?.type === "반차(오후)") {
+  // 오전 반차: 출근 기준 = 점심 종료 시간 (오전에 쉬고 점심 후 출근)
+  if (leave?.type === "반차(오전)") {
     const lunchEnd = settings?.lunchEnd || "13:00";
     return calcLateMin(inI, lunchEnd);
   }
   return calcLateMin(inI, ws);
 }
 function calcEarlyOutMinWithLeave(outI, we, inI, ws, leave, settings) {
-  if (!outI || !we) return 0;
-  // 오전 반차: 퇴근 기준 = 출근시간 + 반근무시간
-  if (leave?.type === "반차(오전)") {
-    const lunchStart = settings?.lunchStart || "12:00";
-    // 오전 반차 퇴근 기준 = 점심 시작 시간
-    const [h, m] = lunchStart.split(":").map(Number);
-    const d = new Date(outI);
-    return Math.max(0, (h * 60 + m) - (d.getHours() * 60 + d.getMinutes()));
+  if (!outI) return 0;
+  // 오후 반차: 퇴근 기준 = 출근시간 + 4시간 (오후에 쉬고 점심 전 퇴근)
+  if (leave?.type === "반차(오후)" && inI) {
+    const inD = new Date(inI);
+    const halfEnd = new Date(inD.getTime() + 4 * 60 * 60 * 1000); // 출근 + 4시간
+    const outD = new Date(outI);
+    return Math.max(0, (halfEnd.getHours() * 60 + halfEnd.getMinutes()) - (outD.getHours() * 60 + outD.getMinutes()));
   }
+  if (!we) return 0;
   return calcEarlyOutMin(outI, we);
 }
 function calcOvertimeMin(outI, we) {
