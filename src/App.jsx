@@ -50,6 +50,7 @@ const DEFAULT_USERS = [
 ];
 const DEFAULT_SETTINGS = {
   workStart: "09:00", workEnd: "18:00",
+  lunchStart: "12:00", lunchEnd: "13:00",
   officeLat: null, officeLng: null, officeRadius: 200,
   holidays: []
 };
@@ -92,6 +93,29 @@ function calcEarlyOutMin(outI, we) {
   const d = new Date(outI); const [h, m] = we.split(":").map(Number);
   return Math.max(0, (h * 60 + m) - (d.getHours() * 60 + d.getMinutes()));
 }
+
+// 반차 고려 지각/조퇴 기준 계산
+function calcLateMinWithLeave(inI, ws, leave, settings) {
+  if (!inI || !ws) return 0;
+  // 오후 반차: 출근 기준 = 점심 종료 시간
+  if (leave?.type === "반차(오후)") {
+    const lunchEnd = settings?.lunchEnd || "13:00";
+    return calcLateMin(inI, lunchEnd);
+  }
+  return calcLateMin(inI, ws);
+}
+function calcEarlyOutMinWithLeave(outI, we, inI, ws, leave, settings) {
+  if (!outI || !we) return 0;
+  // 오전 반차: 퇴근 기준 = 출근시간 + 반근무시간
+  if (leave?.type === "반차(오전)") {
+    const lunchStart = settings?.lunchStart || "12:00";
+    // 오전 반차 퇴근 기준 = 점심 시작 시간
+    const [h, m] = lunchStart.split(":").map(Number);
+    const d = new Date(outI);
+    return Math.max(0, (h * 60 + m) - (d.getHours() * 60 + d.getMinutes()));
+  }
+  return calcEarlyOutMin(outI, we);
+}
 function calcOvertimeMin(outI, we) {
   if (!outI || !we) return 0;
   const d = new Date(outI); const [h, m] = we.split(":").map(Number);
@@ -122,8 +146,9 @@ function calcMonthStats(days, settings, userLeaves, leaveRequests, userId, month
   const stats = days.reduce((acc, [date, rec]) => {
     if (rec.in) {
       acc.days++;
-      const lm = calcLateMin(rec.in, settings.workStart);
-      const em = calcEarlyOutMin(rec.out, settings.workEnd);
+      const leave = userLeaves?.[date];
+      const lm = calcLateMinWithLeave(rec.in, settings.workStart, leave, settings);
+      const em = calcEarlyOutMinWithLeave(rec.out, settings.workEnd, rec.in, settings.workStart, leave, settings);
       const om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
       const finalLate = rec.lateConfirm !== undefined && rec.lateConfirm !== null ? rec.lateConfirm : lm > 0;
       const finalEarly = rec.earlyConfirm !== undefined && rec.earlyConfirm !== null ? rec.earlyConfirm : em > 0;
@@ -614,11 +639,12 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
         {monthDays.length === 0
           ? <div style={{ textAlign: "center", color: T.muted, padding: 30, fontSize: 14, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>기록 없음</div>
           : monthDays.map(([date, rec]) => {
-            const lm = calcLateMin(rec.in, settings.workStart);
-            const em = calcEarlyOutMin(rec.out, settings.workEnd);
+            const leave = leaves[user.id]?.[date];
+            const lm = calcLateMinWithLeave(rec.in, settings.workStart, leave, settings);
+            const em = calcEarlyOutMinWithLeave(rec.out, settings.workEnd, rec.in, settings.workStart, leave, settings);
             const om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
             const late = lm > 0, early = em > 0, ot = om >= 30;
-            const weekend = isHoliday(date, settings.holidays), leave = leaves[user.id]?.[date];
+            const weekend = isHoliday(date, settings.holidays);
             const isNormal = !late && !early && !ot && !weekend && rec.in && rec.out;
             return (
               <div key={date} style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${T.border}` }}>
@@ -865,8 +891,11 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
           const allDays = [...days, ...leaveDates].sort(([a], [b]) => a.localeCompare(b));
           if (allDays.length === 0) return <div style={{ textAlign: "center", color: T.muted, padding: 24, fontSize: 14, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>기록 없음</div>;
           return allDays.map(([date, rec]) => {
-            const lm = calcLateMin(rec.in, settings.workStart), em = calcEarlyOutMin(rec.out, settings.workEnd), om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
-            const late = lm > 0, early = em > 0, ot = om >= 30, weekend = isHoliday(date, settings.holidays), leave = userLeaves[date];
+            const leave = userLeaves[date];
+            const lm = calcLateMinWithLeave(rec.in, settings.workStart, leave, settings);
+            const em = calcEarlyOutMinWithLeave(rec.out, settings.workEnd, rec.in, settings.workStart, leave, settings);
+            const om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
+            const late = lm > 0, early = em > 0, ot = om >= 30, weekend = isHoliday(date, settings.holidays);
             const [, , dd] = date.split("-"), dow = new Date(date).toLocaleDateString("ko-KR", { weekday: "short" });
             const isNormal = !late && !early && !ot && !weekend && rec.in && rec.out && !leave;
             return (
@@ -1104,9 +1133,26 @@ function SettingsModal({ settings, onSave, onClose }) {
           <div style={{ fontSize: 13, color: T.green, marginBottom: 6, fontWeight: 700 }}>출근 기준</div>
           <input type="time" value={s.workStart} onChange={e => setS(p => ({ ...p, workStart: e.target.value }))} style={{ ...iStyle, borderColor: T.green + "44" }} />
         </div>
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 13, color: T.blue, marginBottom: 6, fontWeight: 700 }}>퇴근 기준</div>
           <input type="time" value={s.workEnd} onChange={e => setS(p => ({ ...p, workEnd: e.target.value }))} style={{ ...iStyle, borderColor: T.blue + "44" }} />
+        </div>
+        {/* 점심시간 */}
+        <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: T.text, fontWeight: 700, marginBottom: 4 }}>🍱 점심시간</div>
+          <div style={{ fontSize: 11, color: T.muted, marginBottom: 12 }}>반차 기준 계산에 사용돼요</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 12, color: T.muted, marginBottom: 5, fontWeight: 600 }}>시작</div>
+              <input type="time" value={s.lunchStart || "12:00"} onChange={e => setS(p => ({ ...p, lunchStart: e.target.value }))}
+                style={{ ...iStyle, fontSize: 16 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: T.muted, marginBottom: 5, fontWeight: 600 }}>종료</div>
+              <input type="time" value={s.lunchEnd || "13:00"} onChange={e => setS(p => ({ ...p, lunchEnd: e.target.value }))}
+                style={{ ...iStyle, fontSize: 16 }} />
+            </div>
+          </div>
         </div>
 
         {/* 공휴일 관리 */}
@@ -1342,7 +1388,10 @@ function AdminAttendance({ users, settings, records, leaves, leaveRequests, onSa
             const rec = records[u.id]?.[today] || {};
             const status = !rec.in ? "미출근" : !rec.out ? "근무중" : "퇴근";
             const sColor = { 미출근: "gray", 근무중: "green", 퇴근: "blue" }[status];
-            const lm = calcLateMin(rec.in, settings.workStart), em = calcEarlyOutMin(rec.out, settings.workEnd), om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
+            const todayLeave = (leaves[u.id] || {})[today];
+            const lm = calcLateMinWithLeave(rec.in, settings.workStart, todayLeave, settings);
+            const em = calcEarlyOutMinWithLeave(rec.out, settings.workEnd, rec.in, settings.workStart, todayLeave, settings);
+            const om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
             const outings = rec.outing || [], isOut = outings.length > 0 && !outings[outings.length - 1].in;
             const finalLate = rec.lateConfirm !== undefined && rec.lateConfirm !== null ? rec.lateConfirm : lm > 0;
             const finalEarly = rec.earlyConfirm !== undefined && rec.earlyConfirm !== null ? rec.earlyConfirm : em > 0;
