@@ -1707,7 +1707,7 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
 }
 
 // ── 관리자 일반 섹션 ───────────────────────────────────────────
-function AdminGeneral({ user, users, settings, notices, board, payslips, onSaveSettings, onSaveUsers, onBack }) {
+function AdminGeneral({ user, users, settings, notices, board, payslips, reads, onSaveSettings, onSaveUsers, onBack }) {
   const [subMenu, setSubMenu] = useState(null);
 
   const menus = [
@@ -1780,7 +1780,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "attendance") return <AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={() => setSection(null)} />;
   if (section === "wage") return <AdminWage users={users} records={records} settings={settings} onBack={() => setSection(null)} />;
   if (section === "members") return <AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
-  if (section === "general") return <AdminGeneral user={user} users={users} settings={settings} notices={notices} board={board} payslips={payslips} onSaveSettings={onSaveSettings} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
+  if (section === "general") return <AdminGeneral user={user} users={users} settings={settings} notices={notices} board={board} payslips={payslips} reads={reads} onSaveSettings={onSaveSettings} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
   return null;
 }
 
