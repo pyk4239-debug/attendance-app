@@ -541,6 +541,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
             {now.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" })}
           </div>
           <div style={{ fontSize: 11, color: "#ffffff35", marginTop: 5 }}>출근 {settings.workStart} · 퇴근 {settings.workEnd}</div>
+          <div style={{ fontSize: 10, color: "#ffffff30", marginTop: 2 }}>GPS: {String(settings.officeLat)} / {String(settings.officeLng)}</div>
         </div>
       </div>
 
