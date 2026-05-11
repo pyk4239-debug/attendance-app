@@ -1557,12 +1557,23 @@ function LeaveRequestItem({ r, statusColor, setDelConfirm }) {
     });
   };
 
+  const updateAnnualUsed = async (delta) => {
+    const annualRef = doc(db, COL_ANNUAL, r.userId);
+    const snap = await getDoc(annualRef);
+    const current = snap.exists() ? snap.data() : { total: 0, used: 0 };
+    const newUsed = Math.max(0, Number(current.used || 0) + delta);
+    await setDoc(annualRef, { ...current, used: newUsed });
+  };
+
   const handleApprove = async () => {
     setProcessing("승인");
     await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "승인" }, { merge: true });
     const leaveData = { userId: r.userId, date: r.date, type: r.type };
     if (r.hours) leaveData.hours = r.hours;
     await setDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`), leaveData);
+    // 연차 자동 차감
+    const delta = r.type?.includes("반차") ? 0.5 : 1;
+    await updateAnnualUsed(delta);
     await sendNotice("승인");
     setProcessing(null); setDone("승인");
     setTimeout(() => setDone(null), 2000);
@@ -1570,6 +1581,11 @@ function LeaveRequestItem({ r, statusColor, setDelConfirm }) {
 
   const handleReject = async () => {
     setProcessing("반려");
+    // 이전에 승인됐던 건이면 복구
+    if (r.status === "승인") {
+      const delta = r.type?.includes("반차") ? -0.5 : -1;
+      await updateAnnualUsed(delta);
+    }
     await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true });
     try { await deleteDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`)); } catch(e) {}
     await sendNotice("반려");
@@ -1587,6 +1603,17 @@ function LeaveRequestItem({ r, statusColor, setDelConfirm }) {
       {done ? (
         <div style={{ textAlign: "center", padding: "8px 0", fontSize: 13, fontWeight: 700, color: done === "승인" ? T.green : T.red }}>
           {done === "승인" ? "✓ 승인 완료!" : "✓ 반려 완료!"}
+        </div>
+      ) : r.status === "승인" ? (
+        // 이미 승인된 건 - 반려/삭제만 가능
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ flex: 1, padding: "9px 0", borderRadius: 8, background: T.greenBg, color: T.green, fontSize: 12, fontWeight: 700, textAlign: "center", opacity: 0.4 }}>승인됨</div>
+          <button onClick={handleReject} disabled={!!processing}
+            style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: processing === "반려" ? T.red : T.redBg, color: processing === "반려" ? "#fff" : T.red, fontSize: 12, fontWeight: 700, cursor: processing ? "not-allowed" : "pointer", transition: "all 0.15s" }}>
+            {processing === "반려" ? "처리중..." : "반려"}
+          </button>
+          <button onClick={() => setDelConfirm(r)}
+            style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, cursor: "pointer" }}>삭제</button>
         </div>
       ) : (
         <div style={{ display: "flex", gap: 8 }}>
