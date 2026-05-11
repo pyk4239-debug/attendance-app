@@ -1773,7 +1773,7 @@ function AdminGeneral({ user, users, settings, notices, board, payslips, reads, 
 }
 
 // ── 관리자 화면 (라우터) ───────────────────────────────────────
-function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
+function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
   const [section, setSection] = useState(null);
 
   if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={setSection} />;
@@ -2364,7 +2364,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
   // 관리자는 대문+섹션 구조 (탭바 없음)
   if (isAdmin) return (
     <AdminScreen user={user} users={users} settings={settings} records={records} leaves={leaves}
-      notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo}
+      notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} reads={reads}
       onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave}
       onSaveUsers={onSaveUsers} onSaveSettings={onSaveSettings}
       onLogout={() => { setUser(null); setTab("att"); }} />
