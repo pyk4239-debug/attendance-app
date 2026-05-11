@@ -194,11 +194,12 @@ function getGPS() {
   });
 }
 function calcDistance(lat1, lng1, lat2, lng2) {
-  if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return null;
+  const a1 = Number(lat1), o1 = Number(lng1), a2 = Number(lat2), o2 = Number(lng2);
+  if (isNaN(a1) || isNaN(o1) || isNaN(a2) || isNaN(o2)) return null;
   const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lat2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  const dLat = (a2 - a1) * Math.PI / 180;
+  const dLng = (o2 - o1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(a1 * Math.PI / 180) * Math.cos(a2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
   return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 function gpsStatusLabel(gps, settings) {
@@ -210,10 +211,9 @@ function gpsStatusLabel(gps, settings) {
   if (!settings) return { label: "설정없음", color: "gray" };
   const officeLat = Number(settings.officeLat);
   const officeLng = Number(settings.officeLng);
-  if (!settings.officeLat || !settings.officeLng || isNaN(officeLat) || isNaN(officeLng)) return { label: `회사위치미등록(${settings.officeLat})`, color: "gray" };
+  if (!settings.officeLat || !settings.officeLng || isNaN(officeLat) || isNaN(officeLng)) return { label: `회사위치미등록`, color: "gray" };
   const dist = calcDistance(lat, lng, officeLat, officeLng);
   if (dist == null || isNaN(dist)) return { label: "계산오류", color: "gray" };
-  if (dist > 100000) return { label: `오류${dist}m`, color: "gray" };
   const radius = Number(settings.officeRadius) || 200;
   if (dist <= radius) return { label: `회사 내 (${dist}m)`, color: "green" };
   return { label: `회사 외 (${dist}m)`, color: "red" };
