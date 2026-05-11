@@ -207,12 +207,13 @@ function gpsStatusLabel(gps, settings) {
   const lng = Number(gps.lng);
   if (isNaN(lat) || isNaN(lng)) return null;
   if (Math.abs(lat) < 0.001 && Math.abs(lng) < 0.001) return null;
-  if (!settings) return { label: "위치기록", color: "gray" };
+  if (!settings) return { label: "설정없음", color: "gray" };
   const officeLat = Number(settings.officeLat);
   const officeLng = Number(settings.officeLng);
-  if (!settings.officeLat || !settings.officeLng || isNaN(officeLat) || isNaN(officeLng)) return { label: "위치기록", color: "gray" };
+  if (!settings.officeLat || !settings.officeLng || isNaN(officeLat) || isNaN(officeLng)) return { label: `회사위치미등록(${settings.officeLat})`, color: "gray" };
   const dist = calcDistance(lat, lng, officeLat, officeLng);
-  if (dist == null || isNaN(dist) || dist > 100000) return { label: "위치기록", color: "gray" }; // 100km 이상이면 오류로 판단
+  if (dist == null || isNaN(dist)) return { label: "계산오류", color: "gray" };
+  if (dist > 100000) return { label: `오류${dist}m`, color: "gray" };
   const radius = Number(settings.officeRadius) || 200;
   if (dist <= radius) return { label: `회사 내 (${dist}m)`, color: "green" };
   return { label: `회사 외 (${dist}m)`, color: "red" };
