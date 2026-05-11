@@ -1499,12 +1499,22 @@ function LeaveRequestItem({ r, statusColor, setDelConfirm }) {
   const [processing, setProcessing] = useState(null);
   const [done, setDone] = useState(null);
 
+  const sendNotice = async (status) => {
+    const title = `📅 연차 신청 ${status} 안내`;
+    const content = `${r.date} ${r.type} 신청이 ${status}되었습니다.${r.note ? `\n신청 사유: ${r.note}` : ""}`;
+    await addDoc(collection(db, COL_NOTICES), {
+      title, content, recipient: r.userId,
+      author: "관리자", createdAt: new Date().toISOString(), auto: true
+    });
+  };
+
   const handleApprove = async () => {
     setProcessing("승인");
     await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "승인" }, { merge: true });
     const leaveData = { userId: r.userId, date: r.date, type: r.type };
     if (r.hours) leaveData.hours = r.hours;
     await setDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`), leaveData);
+    await sendNotice("승인");
     setProcessing(null); setDone("승인");
     setTimeout(() => setDone(null), 2000);
   };
@@ -1513,6 +1523,7 @@ function LeaveRequestItem({ r, statusColor, setDelConfirm }) {
     setProcessing("반려");
     await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true });
     try { await deleteDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`)); } catch(e) {}
+    await sendNotice("반려");
     setProcessing(null); setDone("반려");
     setTimeout(() => setDone(null), 2000);
   };
@@ -1662,12 +1673,21 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
               <strong style={{ color: T.text }}>{delConfirm.userName}</strong>님의<br />
               <strong style={{ color: T.text }}>{delConfirm.date} · {delConfirm.type}</strong><br />
               신청을 삭제할까요?<br />
-              <span style={{ color: T.red, fontSize: 12 }}>팀원에게 별도 안내가 필요해요!</span>
+              <span style={{ color: T.blue, fontSize: 12 }}>팀원에게 자동으로 공지가 발송돼요</span>
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <Btn variant="ghost" onClick={() => setDelConfirm(null)}>취소</Btn>
-            <Btn variant="red" onClick={async () => { await deleteDoc(doc(db, COL_LEAVE_REQ, delConfirm.id)); setDelConfirm(null); }}>삭제</Btn>
+            <Btn variant="red" onClick={async () => {
+              await deleteDoc(doc(db, COL_LEAVE_REQ, delConfirm.id));
+              await addDoc(collection(db, COL_NOTICES), {
+                title: "📅 연차 신청 삭제 안내",
+                content: `${delConfirm.date} ${delConfirm.type} 신청이 삭제되었습니다.\n문의사항은 관리자에게 연락해주세요.`,
+                recipient: delConfirm.userId, author: "관리자",
+                createdAt: new Date().toISOString(), auto: true
+              });
+              setDelConfirm(null);
+            }}>삭제 + 공지</Btn>
           </div>
         </div>
       </div>
@@ -2297,12 +2317,20 @@ function AnnualScreen({ user, users, annual, leaveRequests }) {
                 <strong style={{ color: T.text }}>{delConfirm.userName}</strong>님이 신청한<br />
                 <strong style={{ color: T.text }}>{delConfirm.date} · {delConfirm.type}</strong><br />
                 을 삭제할까요?<br />
-                <span style={{ color: T.red, fontSize: 12 }}>팀원에게 별도 안내가 필요해요!</span>
+                <span style={{ color: T.blue, fontSize: 12 }}>팀원에게 자동으로 공지가 발송돼요</span>
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <Btn variant="ghost" onClick={() => setDelConfirm(null)}>취소</Btn>
-              <Btn variant="red" onClick={() => delReq(delConfirm.id)}>삭제</Btn>
+              <Btn variant="red" onClick={async () => {
+                await delReq(delConfirm.id);
+                await addDoc(collection(db, COL_NOTICES), {
+                  title: "📅 연차 신청 삭제 안내",
+                  content: `${delConfirm.date} ${delConfirm.type} 신청이 삭제되었습니다.\n문의사항은 관리자에게 연락해주세요.`,
+                  recipient: delConfirm.userId, author: "관리자",
+                  createdAt: new Date().toISOString(), auto: true
+                });
+              }}>삭제 + 공지</Btn>
             </div>
           </div>
         </div>
