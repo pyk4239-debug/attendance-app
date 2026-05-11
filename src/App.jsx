@@ -36,7 +36,8 @@ const COL_BOARD    = "board";
 const COL_PAYSLIPS = "payslips";
 const COL_ANNUAL   = "annual";
 const COL_LEAVE_REQ = "leave_requests";
-const COL_MEMBER_INFO = "member_info"; // 팀원 임금 기초 데이터
+const COL_MEMBER_INFO = "member_info";
+const COL_READS = "reads"; // 읽음 기록
 const DOC_SETTINGS = "app/settings";
 
 // ── 초기 데이터 ────────────────────────────────────────────────
@@ -299,6 +300,7 @@ function AppLoader() {
   const [annual, setAnnual] = useState({});
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [memberInfo, setMemberInfo] = useState({});
+  const [reads, setReads] = useState({});
 
   useEffect(() => {
     let unsubs = [];
@@ -385,8 +387,13 @@ function AppLoader() {
       setMemberInfo(m);
     }));
 
-    // 모든 구독 완료 후 ready
-    setTimeout(() => setReady(true), 500);
+    // reads 구독
+    unsubs.push(onSnapshot(collection(db, COL_READS), snap => {
+      const r = {};
+      snap.docs.forEach(d => { r[d.id] = d.data(); });
+      setReads(r);
+      setReady(true);
+    }));
 
     return () => unsubs.forEach(u => u());
   }, []);
@@ -402,7 +409,7 @@ function AppLoader() {
   );
 
   return <App users={users} settings={settings} records={records} leaves={leaves}
-    notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo}
+    notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} reads={reads}
     onSaveUsers={fbSaveUsers} onSaveSettings={fbSaveSettings}
     onSaveRecord={fbSaveRecord} onSaveLeave={fbSaveLeave} />;
 }
@@ -1587,29 +1594,52 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
           ? <div style={{ textAlign: "center", color: T.muted, padding: 24, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>신청 없음</div>
           : leaveRequests.map(r => {
             const statusColor = { "대기": "yellow", "승인": "green", "반려": "red" };
+            const [processing, setProcessing] = useState(null); // null | "승인" | "반려"
+            const [done, setDone] = useState(null);
+
+            const handleApprove = async () => {
+              setProcessing("승인");
+              await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "승인" }, { merge: true });
+              const leaveData = { userId: r.userId, date: r.date, type: r.type };
+              if (r.hours) leaveData.hours = r.hours;
+              await setDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`), leaveData);
+              setProcessing(null); setDone("승인");
+              setTimeout(() => setDone(null), 2000);
+            };
+
+            const handleReject = async () => {
+              setProcessing("반려");
+              await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true });
+              try { await deleteDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`)); } catch(e) {}
+              setProcessing(null); setDone("반려");
+              setTimeout(() => setDone(null), 2000);
+            };
+
             return (
-              <div key={r.id} style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${T.border}` }}>
+              <div key={r.id} style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${done ? (done === "승인" ? T.green : T.red) : T.border}`, transition: "border 0.3s" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                   <div style={{ fontWeight: 700, fontSize: 13, color: T.text, flex: 1 }}>{r.userName} · {r.date} · {r.type}</div>
-                  <Badge label={r.status} color={statusColor[r.status] || "gray"} />
+                  <Badge label={done || r.status} color={statusColor[done || r.status] || "gray"} />
                 </div>
                 {r.note && <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>📝 {r.note}</div>}
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={async () => {
-                    await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "승인" }, { merge: true });
-                    // leaves에 완전히 새로 저장 (deleted 필드 없이)
-                    const leaveData = { userId: r.userId, date: r.date, type: r.type };
-                    if (r.hours) leaveData.hours = r.hours;
-                    await setDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`), leaveData);
-                  }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.greenBg, color: T.green, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>승인</button>
-                  <button onClick={async () => {
-                    await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true });
-                    // 반려 시 leaves에서 완전 삭제
-                    try { await deleteDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`)); } catch(e) {}
-                  }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.redBg, color: T.red, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>반려</button>
-                  <button onClick={() => setDelConfirm(r)}
-                    style={{ padding: "7px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, cursor: "pointer" }}>삭제</button>
-                </div>
+                {done ? (
+                  <div style={{ textAlign: "center", padding: "8px 0", fontSize: 13, fontWeight: 700, color: done === "승인" ? T.green : T.red }}>
+                    {done === "승인" ? "✓ 승인 완료!" : "✓ 반려 완료!"}
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={handleApprove} disabled={!!processing}
+                      style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: processing === "승인" ? T.green : T.greenBg, color: processing === "승인" ? "#fff" : T.green, fontSize: 12, fontWeight: 700, cursor: processing ? "not-allowed" : "pointer", transition: "all 0.15s" }}>
+                      {processing === "승인" ? "처리중..." : "승인"}
+                    </button>
+                    <button onClick={handleReject} disabled={!!processing}
+                      style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: processing === "반려" ? T.red : T.redBg, color: processing === "반려" ? "#fff" : T.red, fontSize: 12, fontWeight: 700, cursor: processing ? "not-allowed" : "pointer", transition: "all 0.15s" }}>
+                      {processing === "반려" ? "처리중..." : "반려"}
+                    </button>
+                    <button onClick={() => setDelConfirm(r)}
+                      style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, cursor: "pointer" }}>삭제</button>
+                  </div>
+                )}
               </div>
             );
           })
@@ -1714,7 +1744,7 @@ function AdminGeneral({ user, users, settings, notices, board, payslips, onSaveS
           <div style={{ background: T.adminHeader, padding: "16px 16px 14px" }}>
             <button onClick={() => setSubMenu(null)} style={{ background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer" }}>‹</button>
           </div>
-          <NoticeScreen user={user} users={users} notices={notices} />
+          <NoticeScreen user={user} users={users} notices={notices} reads={reads} />
         </div>
       )}
       {subMenu === "board" && (
@@ -1722,7 +1752,7 @@ function AdminGeneral({ user, users, settings, notices, board, payslips, onSaveS
           <div style={{ background: T.adminHeader, padding: "16px 16px 14px" }}>
             <button onClick={() => setSubMenu(null)} style={{ background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer" }}>‹</button>
           </div>
-          <BoardScreen user={user} board={board} />
+          <BoardScreen user={user} board={board} reads={reads} />
         </div>
       )}
       {subMenu === "payslip" && (
@@ -1730,7 +1760,7 @@ function AdminGeneral({ user, users, settings, notices, board, payslips, onSaveS
           <div style={{ background: T.adminHeader, padding: "16px 16px 14px" }}>
             <button onClick={() => setSubMenu(null)} style={{ background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer" }}>‹</button>
           </div>
-          <PayslipScreen user={user} users={users} payslips={payslips} />
+          <PayslipScreen user={user} users={users} payslips={payslips} reads={reads} />
         </div>
       )}
     </div>
@@ -1750,7 +1780,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
 }
 
 // ── 공지사항 ────────────────────────────────────────────────────
-function NoticeScreen({ user, users, notices }) {
+function NoticeScreen({ user, users, notices, reads }) {
   const isAdmin = user.role === "admin";
   const members = users.filter(u => u.role === "member");
   const [showWrite, setShowWrite] = useState(false);
@@ -1768,6 +1798,18 @@ function NoticeScreen({ user, users, notices }) {
   );
 
   const resetForm = () => { setTitle(""); setContent(""); setRecipient("all"); setFile(null); setShowWrite(false); setEditTarget(null); };
+
+  const markRead = async (id) => {
+    const key = `${user.id}_notice_${id}`;
+    if (!reads[key]) await setDoc(doc(db, COL_READS, key), { userId: user.id, type: "notice", docId: id, readAt: new Date().toISOString() });
+  };
+
+  const toggleExpanded = (id) => {
+    setExpanded(expanded === id ? null : id);
+    if (expanded !== id) markRead(id);
+  };
+
+  const isUnread = (n) => !isAdmin && !reads[`${user.id}_notice_${n.id}`];
 
   const submit = async () => {
     if (!title.trim() || !content.trim()) return;
@@ -1856,11 +1898,12 @@ function NoticeScreen({ user, users, notices }) {
       {visibleNotices.length === 0
         ? <div style={{ textAlign: "center", color: T.muted, padding: 40 }}>공지사항이 없어요</div>
         : visibleNotices.map(n => (
-          <div key={n.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}` }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }} onClick={() => setExpanded(expanded === n.id ? null : n.id)}>
+          <div key={n.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${isUnread(n) ? T.blue : T.border}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }} onClick={() => toggleExpanded(n.id)}>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{n.title}</div>
+                  {isUnread(n) && <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.blue, flexShrink: 0 }} />}
+                  <div style={{ fontWeight: isUnread(n) ? 800 : 700, fontSize: 14, color: T.text }}>{n.title}</div>
                   {recipientLabel(n.recipient)}
                   {n.fileName && <Badge label="📎" color="gray" />}
                 </div>
@@ -1893,7 +1936,7 @@ function NoticeScreen({ user, users, notices }) {
 }
 
 // ── 자유게시판 ──────────────────────────────────────────────────
-function BoardScreen({ user, board }) {
+function BoardScreen({ user, board, reads }) {
   const isAdmin = user.role === "admin";
   const [showWrite, setShowWrite] = useState(false);
   const [title, setTitle] = useState(""), [content, setContent] = useState("");
@@ -1909,6 +1952,18 @@ function BoardScreen({ user, board }) {
   };
 
   const del = async (id) => { await deleteDoc(doc(db, COL_BOARD, id)); };
+
+  const markRead = async (id) => {
+    const key = `${user.id}_board_${id}`;
+    if (!reads[key]) await setDoc(doc(db, COL_READS, key), { userId: user.id, type: "board", docId: id, readAt: new Date().toISOString() });
+  };
+
+  const toggleExpanded = (id) => {
+    setExpanded(expanded === id ? null : id);
+    if (expanded !== id) markRead(id);
+  };
+
+  const isUnread = (b) => !isAdmin && !reads[`${user.id}_board_${b.id}`] && b.userId !== user.id;
 
   const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 };
 
@@ -1934,11 +1989,14 @@ function BoardScreen({ user, board }) {
       {board.length === 0
         ? <div style={{ textAlign: "center", color: T.muted, padding: 40 }}>게시글이 없어요</div>
         : board.map(b => (
-          <div key={b.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}` }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }} onClick={() => setExpanded(expanded === b.id ? null : b.id)}>
+          <div key={b.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${isUnread(b) ? T.blue : T.border}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }} onClick={() => toggleExpanded(b.id)}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{b.title}</div>
-                <div style={{ fontSize: 11, color: T.muted, marginTop: 3 }}>{b.author} · {b.createdAt?.slice(0,10)}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                  {isUnread(b) && <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.blue, flexShrink: 0 }} />}
+                  <div style={{ fontWeight: isUnread(b) ? 800 : 700, fontSize: 14, color: T.text }}>{b.title}</div>
+                </div>
+                <div style={{ fontSize: 11, color: T.muted }}>{b.author} · {b.createdAt?.slice(0,10)}</div>
               </div>
               <span style={{ color: T.muted, fontSize: 14 }}>{expanded === b.id ? "▲" : "▼"}</span>
             </div>
@@ -1958,7 +2016,7 @@ function BoardScreen({ user, board }) {
 }
 
 // ── 급여명세서 ──────────────────────────────────────────────────
-function PayslipScreen({ user, users, payslips }) {
+function PayslipScreen({ user, users, payslips, reads }) {
   const isAdmin = user.role === "admin";
   const [uploading, setUploading] = useState(false);
   const [selUser, setSelUser] = useState("");
@@ -2029,16 +2087,24 @@ function PayslipScreen({ user, users, payslips }) {
         ? <div style={{ textAlign: "center", color: T.muted, padding: 40 }}>등록된 명세서가 없어요</div>
         : myPayslips.map(p => {
           const member = users.find(u => u.id === p.userId);
+          const isUnread = !isAdmin && !reads?.[`${user.id}_payslip_${p.id}`];
+          const markRead = async () => {
+            const key = `${user.id}_payslip_${p.id}`;
+            if (!reads?.[key]) await setDoc(doc(db, COL_READS, key), { userId: user.id, type: "payslip", docId: p.id, readAt: new Date().toISOString() });
+          };
           return (
-            <div key={p.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 12 }}>
+            <div key={p.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${isUnread ? T.blue : T.border}`, display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>
-                  {isAdmin && `${member?.name} · `}{monthLabel(p.month)}
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {isUnread && <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.blue, flexShrink: 0 }} />}
+                  <div style={{ fontWeight: isUnread ? 800 : 700, fontSize: 14, color: T.text }}>
+                    {isAdmin && `${member?.name} · `}{monthLabel(p.month)}
+                  </div>
                 </div>
                 <div style={{ fontSize: 11, color: T.muted, marginTop: 3 }}>{p.createdAt?.slice(0,10)} 업로드</div>
               </div>
-              <a href={p.url} target="_blank" rel="noopener noreferrer"
-                style={{ background: T.blueBg, color: T.blue, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>보기</a>
+              <a href={p.url} target="_blank" rel="noopener noreferrer" onClick={markRead}
+                style={{ background: isUnread ? T.blue : T.blueBg, color: isUnread ? "#fff" : T.blue, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>보기</a>
               {isAdmin && <button onClick={() => del(p)} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "7px 10px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}>삭제</button>}
             </div>
           );
@@ -2241,20 +2307,38 @@ function AnnualScreen({ user, users, annual, leaveRequests }) {
 }
 
 // ── 하단 탭바 ────────────────────────────────────────────────────
-function TabBar({ tab, setTab, isAdmin, leaveRequests }) {
+function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips, user, reads }) {
   const pendingCount = leaveRequests.filter(r => r.status === "대기").length;
-  const tabs = isAdmin
-    ? [["att","🏠","출퇴근"],["notice","📢","공지"],["board","💬","게시판"],["payslip","💰","명세서"],["annual","📅","연차"]]
-    : [["att","🏠","출퇴근"],["notice","📢","공지"],["board","💬","게시판"],["payslip","💰","명세서"],["annual","📅","연차"]];
+
+  const unreadCount = (items, type) => {
+    if (isAdmin || !user || !reads) return 0;
+    return items.filter(item => !reads[`${user.id}_${type}_${item.id}`] &&
+      (type !== "notice" || item.recipient === "all" || item.recipient === user.id) &&
+      (type !== "board" || item.userId !== user.id)
+    ).length;
+  };
+
+  const unreadNotice = unreadCount(notices, "notice");
+  const unreadBoard = unreadCount(board, "board");
+  const unreadPayslip = unreadCount(payslips.filter(p => p.userId === user?.id), "payslip");
+
+  const tabs = [
+    ["att", "🏠", "출퇴근", 0],
+    ["notice", "📢", "공지", unreadNotice],
+    ["board", "💬", "게시판", unreadBoard],
+    ["payslip", "💰", "명세서", unreadPayslip],
+    ["annual", "📅", "연차", isAdmin ? pendingCount : 0],
+  ];
+
   return (
     <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: T.card, borderTop: `1px solid ${T.border}`, display: "flex", zIndex: 50, paddingBottom: "env(safe-area-inset-bottom)" }}>
-      {tabs.map(([key, icon, label]) => (
+      {tabs.map(([key, icon, label, badge]) => (
         <button key={key} onClick={() => setTab(key)}
           style={{ flex: 1, padding: "10px 0 8px", border: "none", background: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, position: "relative" }}>
           <span style={{ fontSize: 20 }}>{icon}</span>
           <span style={{ fontSize: 10, fontWeight: tab===key?800:500, color: tab===key?T.adminHeader:T.muted }}>{label}</span>
-          {key === "annual" && pendingCount > 0 && isAdmin && (
-            <div style={{ position: "absolute", top: 6, right: "calc(50% - 16px)", background: T.red, color: "#fff", borderRadius: "50%", width: 16, height: 16, fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{pendingCount}</div>
+          {badge > 0 && (
+            <div style={{ position: "absolute", top: 6, right: "calc(50% - 16px)", background: T.red, color: "#fff", borderRadius: "50%", width: 16, height: 16, fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{badge}</div>
           )}
           {tab === key && <div style={{ position: "absolute", bottom: 0, left: "20%", right: "20%", height: 2, background: T.adminHeader, borderRadius: 2 }} />}
         </button>
@@ -2264,7 +2348,7 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests }) {
 }
 
 // ── 메인 App ───────────────────────────────────────────────────
-function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
+function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("att");
 
@@ -2294,7 +2378,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
             <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>공지사항</div>
           </div>
-          <NoticeScreen user={user} users={users} notices={notices} />
+          <NoticeScreen user={user} users={users} notices={notices} reads={reads} />
         </>
       )}
       {tab === "board" && (
@@ -2303,7 +2387,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
             <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>자유게시판</div>
           </div>
-          <BoardScreen user={user} board={board} />
+          <BoardScreen user={user} board={board} reads={reads} />
         </>
       )}
       {tab === "payslip" && (
@@ -2312,7 +2396,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
             <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>급여명세서</div>
           </div>
-          <PayslipScreen user={user} users={users} payslips={payslips} />
+          <PayslipScreen user={user} users={users} payslips={payslips} reads={reads} />
         </>
       )}
       {tab === "annual" && (
@@ -2324,7 +2408,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
           <AnnualScreen user={user} users={users} annual={annual} leaveRequests={leaveRequests} />
         </>
       )}
-      <TabBar tab={tab} setTab={setTab} isAdmin={isAdmin} leaveRequests={leaveRequests} />
+      <TabBar tab={tab} setTab={setTab} isAdmin={isAdmin} leaveRequests={leaveRequests} notices={notices} board={board} payslips={payslips} user={user} reads={reads} />
     </div>
   );
 }
