@@ -705,8 +705,10 @@ function EditRecordModal({ user, date, rec, settings, userLeaves, onSave, onClos
 
   const save = async () => {
     const nr = { ...rec, outing: outings, note, lateConfirm, earlyConfirm, overtimeConfirm };
-    if (inTime) nr.in = setTimeOnDate(date, inTime); else delete nr.in;
-    if (outTime) nr.out = setTimeOnDate(date, outTime); else delete nr.out;
+    if (inTime) nr.in = setTimeOnDate(date, inTime);
+    else { delete nr.in; delete nr.inGps; } // 출근 시간 지우면 GPS도 삭제
+    if (outTime) nr.out = setTimeOnDate(date, outTime);
+    else { delete nr.out; delete nr.outGps; } // 퇴근 시간 지우면 GPS도 삭제
     await onSave(date, nr, leaveType ? { type: leaveType, hours: leaveHours } : null);
   };
 
