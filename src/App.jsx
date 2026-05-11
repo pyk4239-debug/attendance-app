@@ -1494,6 +1494,58 @@ function MemberInfoModal({ user, info, onSave, onClose }) {
 }
 
 // ── 관리자 팀원 섹션 ───────────────────────────────────────────
+// ── 연차 신청 아이템 컴포넌트 ─────────────────────────────────
+function LeaveRequestItem({ r, statusColor, setDelConfirm }) {
+  const [processing, setProcessing] = useState(null);
+  const [done, setDone] = useState(null);
+
+  const handleApprove = async () => {
+    setProcessing("승인");
+    await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "승인" }, { merge: true });
+    const leaveData = { userId: r.userId, date: r.date, type: r.type };
+    if (r.hours) leaveData.hours = r.hours;
+    await setDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`), leaveData);
+    setProcessing(null); setDone("승인");
+    setTimeout(() => setDone(null), 2000);
+  };
+
+  const handleReject = async () => {
+    setProcessing("반려");
+    await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true });
+    try { await deleteDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`)); } catch(e) {}
+    setProcessing(null); setDone("반려");
+    setTimeout(() => setDone(null), 2000);
+  };
+
+  return (
+    <div style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${done ? (done === "승인" ? T.green : T.red) : T.border}`, transition: "border 0.3s" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: T.text, flex: 1 }}>{r.userName} · {r.date} · {r.type}</div>
+        <Badge label={done || r.status} color={statusColor[done || r.status] || "gray"} />
+      </div>
+      {r.note && <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>📝 {r.note}</div>}
+      {done ? (
+        <div style={{ textAlign: "center", padding: "8px 0", fontSize: 13, fontWeight: 700, color: done === "승인" ? T.green : T.red }}>
+          {done === "승인" ? "✓ 승인 완료!" : "✓ 반려 완료!"}
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={handleApprove} disabled={!!processing}
+            style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: processing === "승인" ? T.green : T.greenBg, color: processing === "승인" ? "#fff" : T.green, fontSize: 12, fontWeight: 700, cursor: processing ? "not-allowed" : "pointer", transition: "all 0.15s" }}>
+            {processing === "승인" ? "처리중..." : "승인"}
+          </button>
+          <button onClick={handleReject} disabled={!!processing}
+            style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: processing === "반려" ? T.red : T.redBg, color: processing === "반려" ? "#fff" : T.red, fontSize: 12, fontWeight: 700, cursor: processing ? "not-allowed" : "pointer", transition: "all 0.15s" }}>
+            {processing === "반려" ? "처리중..." : "반려"}
+          </button>
+          <button onClick={() => setDelConfirm(r)}
+            style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, cursor: "pointer" }}>삭제</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUsers, onBack }) {
   const [showUserModal, setShowUserModal] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
@@ -1594,54 +1646,7 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
           ? <div style={{ textAlign: "center", color: T.muted, padding: 24, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>신청 없음</div>
           : leaveRequests.map(r => {
             const statusColor = { "대기": "yellow", "승인": "green", "반려": "red" };
-            const [processing, setProcessing] = useState(null); // null | "승인" | "반려"
-            const [done, setDone] = useState(null);
-
-            const handleApprove = async () => {
-              setProcessing("승인");
-              await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "승인" }, { merge: true });
-              const leaveData = { userId: r.userId, date: r.date, type: r.type };
-              if (r.hours) leaveData.hours = r.hours;
-              await setDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`), leaveData);
-              setProcessing(null); setDone("승인");
-              setTimeout(() => setDone(null), 2000);
-            };
-
-            const handleReject = async () => {
-              setProcessing("반려");
-              await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true });
-              try { await deleteDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`)); } catch(e) {}
-              setProcessing(null); setDone("반려");
-              setTimeout(() => setDone(null), 2000);
-            };
-
-            return (
-              <div key={r.id} style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${done ? (done === "승인" ? T.green : T.red) : T.border}`, transition: "border 0.3s" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: T.text, flex: 1 }}>{r.userName} · {r.date} · {r.type}</div>
-                  <Badge label={done || r.status} color={statusColor[done || r.status] || "gray"} />
-                </div>
-                {r.note && <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>📝 {r.note}</div>}
-                {done ? (
-                  <div style={{ textAlign: "center", padding: "8px 0", fontSize: 13, fontWeight: 700, color: done === "승인" ? T.green : T.red }}>
-                    {done === "승인" ? "✓ 승인 완료!" : "✓ 반려 완료!"}
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={handleApprove} disabled={!!processing}
-                      style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: processing === "승인" ? T.green : T.greenBg, color: processing === "승인" ? "#fff" : T.green, fontSize: 12, fontWeight: 700, cursor: processing ? "not-allowed" : "pointer", transition: "all 0.15s" }}>
-                      {processing === "승인" ? "처리중..." : "승인"}
-                    </button>
-                    <button onClick={handleReject} disabled={!!processing}
-                      style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: processing === "반려" ? T.red : T.redBg, color: processing === "반려" ? "#fff" : T.red, fontSize: 12, fontWeight: 700, cursor: processing ? "not-allowed" : "pointer", transition: "all 0.15s" }}>
-                      {processing === "반려" ? "처리중..." : "반려"}
-                    </button>
-                    <button onClick={() => setDelConfirm(r)}
-                      style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, cursor: "pointer" }}>삭제</button>
-                  </div>
-                )}
-              </div>
-            );
+            return <LeaveRequestItem key={r.id} r={r} statusColor={statusColor} setDelConfirm={setDelConfirm} />;
           })
         }
       </div>
@@ -2087,24 +2092,24 @@ function PayslipScreen({ user, users, payslips, reads }) {
         ? <div style={{ textAlign: "center", color: T.muted, padding: 40 }}>등록된 명세서가 없어요</div>
         : myPayslips.map(p => {
           const member = users.find(u => u.id === p.userId);
-          const isUnread = !isAdmin && !reads?.[`${user.id}_payslip_${p.id}`];
-          const markRead = async () => {
+          const unread = !isAdmin && !reads?.[`${user.id}_payslip_${p.id}`];
+          const handleRead = async () => {
             const key = `${user.id}_payslip_${p.id}`;
             if (!reads?.[key]) await setDoc(doc(db, COL_READS, key), { userId: user.id, type: "payslip", docId: p.id, readAt: new Date().toISOString() });
           };
           return (
-            <div key={p.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${isUnread ? T.blue : T.border}`, display: "flex", alignItems: "center", gap: 12 }}>
+            <div key={p.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${unread ? T.blue : T.border}`, display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {isUnread && <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.blue, flexShrink: 0 }} />}
-                  <div style={{ fontWeight: isUnread ? 800 : 700, fontSize: 14, color: T.text }}>
+                  {unread && <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.blue, flexShrink: 0 }} />}
+                  <div style={{ fontWeight: unread ? 800 : 700, fontSize: 14, color: T.text }}>
                     {isAdmin && `${member?.name} · `}{monthLabel(p.month)}
                   </div>
                 </div>
                 <div style={{ fontSize: 11, color: T.muted, marginTop: 3 }}>{p.createdAt?.slice(0,10)} 업로드</div>
               </div>
-              <a href={p.url} target="_blank" rel="noopener noreferrer" onClick={markRead}
-                style={{ background: isUnread ? T.blue : T.blueBg, color: isUnread ? "#fff" : T.blue, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>보기</a>
+              <a href={p.url} target="_blank" rel="noopener noreferrer" onClick={handleRead}
+                style={{ background: unread ? T.blue : T.blueBg, color: unread ? "#fff" : T.blue, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>보기</a>
               {isAdmin && <button onClick={() => del(p)} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "7px 10px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}>삭제</button>}
             </div>
           );
