@@ -1439,13 +1439,14 @@ function AdminAttendance({ users, settings, records, leaves, leaveRequests, onSa
 // ── 지급일 계산 ─────────────────────────────────────────────
 function getPayDate(yearMonth, holidays = []) {
   const [y, m] = yearMonth.split("-").map(Number);
-  // 당월 급여 → 익월 15일
-  let d = new Date(y, m, 15); // m이 이미 0-based가 아니므로 m = 익월
-  // 토(6)/일(0)/공휴일이면 다음 평일
-  while (d.getDay() === 0 || d.getDay() === 6 || holidays.includes(d.toISOString().slice(0,10))) {
+  // 당월 급여 → 익월 15일 (KST 기준)
+  let d = new Date(y, m, 15); // JS month는 0-based, m은 1-based이므로 m = 익월
+  while (d.getDay() === 0 || d.getDay() === 6 || holidays.includes(
+    `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`
+  )) {
     d.setDate(d.getDate() + 1);
   }
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 
 // ── 급여 계산 모달 ───────────────────────────────────────────
@@ -2610,6 +2611,23 @@ function PayslipScreen({ user, users, payslips, reads }) {
               </div>
               {w && (
                 <div style={{ background: T.bg, borderRadius: 10, padding: "12px 14px" }} onClick={handleRead}>
+                  {/* 근태 내역 */}
+                  <div style={{ fontSize: 11, color: T.muted, fontWeight: 700, marginBottom: 6 }}>근태 내역</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 4, marginBottom: 10 }}>
+                    {[
+                      ["출근일수", (w.monthStats?.days||0)+"일"],
+                      ["연장시간", fmtMinutes(w.monthStats?.otMin||0)],
+                      ["휴일근무", (w.monthStats?.holiday||0)+"일"],
+                      ["지각", fmtMinutes(w.monthStats?.lateMin||0)],
+                      ["조퇴", fmtMinutes(w.monthStats?.earlyMin||0)],
+                      ["외출", fmtMinutes(w.monthStats?.outingMin||0)],
+                    ].map(([l,v]) => (
+                      <div key={l} style={{ textAlign: "center", background: T.card, borderRadius: 6, padding: "4px 0" }}>
+                        <div style={{ fontSize: 9, color: T.muted }}>{l}</div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: T.text }}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
                   {/* 소득 내역 */}
                   <div style={{ fontSize: 11, color: T.blue, fontWeight: 700, marginBottom: 6 }}>소득 내역</div>
                   {[
