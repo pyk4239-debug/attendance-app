@@ -28,7 +28,7 @@ const T = {
 };
 
 // ── Firebase 컬렉션 키 ─────────────────────────────────────────
-// v2.5 - 결근공제 추가
+// v2.6 - 휴무일 표시 추가
 const COL_USERS    = "users";
 const COL_RECORDS  = "records";
 const COL_LEAVES   = "leaves";
@@ -174,16 +174,31 @@ function calcMonthStats(days, settings, userLeaves, leaveRequests, userId, month
       .filter(([date]) => !month || date.startsWith(month))
       .forEach(([date, l]) => {
         const dayRec = days.find(([d]) => d === date);
-        const hasClockIn = !!(dayRec && dayRec[1]?.in); // 실제 출근 기록 있는지
+        const hasClockIn = !!(dayRec && dayRec[1]?.in);
         if (l.type === "연차") {
           stats.annualDays++;
-          if (!hasClockIn) stats.days++; // 출근 찍은 기록 없는 연차일만 출근일수 추가
+          if (!hasClockIn) stats.days++;
         } else if (l.type?.includes("반차")) {
           stats.annualDays += 0.5;
-          if (!hasClockIn) stats.days++; // 반차도 출근 기록 없으면 출근 1일로
+          if (!hasClockIn) stats.days++;
         }
       });
   }
+
+  // 휴무일 계산 (토+일+공휴일, 해당 월 전체)
+  if (month) {
+    const [y, m] = month.split("-").map(Number);
+    const daysInMonth = new Date(y, m, 0).getDate();
+    let offDays = 0;
+    for (let i = 1; i <= daysInMonth; i++) {
+      const dateStr = `${month}-${String(i).padStart(2,"0")}`;
+      const dow = new Date(y, m - 1, i).getDay();
+      if (dow === 0 || dow === 6 || isHoliday(dateStr, settings.holidays || [])) offDays++;
+    }
+    stats.offDays = offDays;
+    stats.totalDays = daysInMonth;
+  }
+
   return stats;
 }
 function downloadCSV(filename, rows) {
@@ -631,11 +646,12 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
           <div style={{ fontSize: 12, color: T.muted, marginBottom: 10, fontWeight: 600 }}>이번달 현황</div>
           {[
             [["출근", ms.days + "일", T.green], ["지각", ms.late + "회", T.yellow], ["지각시간", fmtMinutes(ms.lateMin), T.yellow]],
-            [["휴일", ms.holiday + "일", T.red], ["잔업", ms.ot + "일", T.purple], ["잔업시간", fmtMinutes(ms.otMin), T.purple]],
+            [["휴일근무", ms.holiday + "일", T.red], ["잔업", ms.ot + "일", T.purple], ["잔업시간", fmtMinutes(ms.otMin), T.purple]],
             [["연차", ms.annualDays > 0 ? ms.annualDays + "일" : "0일", "#7c3aed"], ["조퇴", ms.early + "회", T.orange], ["조퇴시간", fmtMinutes(ms.earlyMin), T.orange]],
+            [["휴무일", (ms.offDays||0) + "일", T.muted], ["전체", (ms.totalDays||0) + "일", T.text], ["", "", ""]],
           ].map((row, ri) => (
-            <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: ri < 2 ? 6 : 0 }}>
-              {row.map(([l, v, c]) => <StatBox key={l} label={l} value={v} color={c} />)}
+            <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: ri < 3 ? 6 : 0 }}>
+              {row.map(([l, v, c]) => l ? <StatBox key={l} label={l} value={v} color={c} /> : <div key="empty" />)}
             </div>
           ))}
         </div>
@@ -881,11 +897,12 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
         </div>
         {[
           [["출근", ms.days + "일", T.green], ["지각", ms.late + "회", T.yellow], ["지각시간", fmtMinutes(ms.lateMin), T.yellow]],
-          [["휴일", ms.holiday + "일", T.red], ["잔업", ms.ot + "일", T.purple], ["잔업시간", fmtMinutes(ms.otMin), T.purple]],
+          [["휴일근무", ms.holiday + "일", T.red], ["잔업", ms.ot + "일", T.purple], ["잔업시간", fmtMinutes(ms.otMin), T.purple]],
           [["연차", ms.annualDays > 0 ? ms.annualDays + "일" : "0일", "#7c3aed"], ["조퇴", ms.early + "회", T.orange], ["조퇴시간", fmtMinutes(ms.earlyMin), T.orange]],
+          [["휴무일", (ms.offDays||0) + "일", T.muted], ["전체", (ms.totalDays||0) + "일", T.text], ["", "", ""]],
         ].map((row, ri) => (
-          <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: ri < 2 ? 6 : 12 }}>
-            {row.map(([l, v, c]) => <StatBox key={l} label={l} value={v} color={c} />)}
+          <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: ri < 3 ? 6 : 12 }}>
+            {row.map(([l, v, c]) => l ? <StatBox key={l} label={l} value={v} color={c} /> : <div key="empty" />)}
           </div>
         ))}
         <div style={{ fontSize: 12, color: T.muted, marginBottom: 10, fontWeight: 600 }}>날짜별 상세</div>
