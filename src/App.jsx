@@ -1578,9 +1578,10 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, onCl
             <Btn variant="ghost" onClick={onClose}>취소</Btn>
             <Btn variant="green" onClick={() => onSave({
               userId: user.id, userName: user.name, yearMonth,
-              hourlyWage, monthlyBase, otPay, holidayPay, deductPay,
+              hourlyWage, monthlyBase, otPay, holidayPay, deductPay, deductMin,
               ...form,
               incomeTax, residentTax, nationalPension, health, employment, longCare,
+              pensionBase, insuranceBase,
               totalIncome, totalDeduct, netPay,
               monthStats, payDate: getPayDate(yearMonth, holidays),
               createdAt: new Date().toISOString()
