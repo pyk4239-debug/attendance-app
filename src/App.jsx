@@ -28,7 +28,7 @@ const T = {
 };
 
 // ── Firebase 컬렉션 키 ─────────────────────────────────────────
-// v2.4 - 소정근로시간 자유입력
+// v2.5 - 결근공제 추가
 const COL_USERS    = "users";
 const COL_RECORDS  = "records";
 const COL_LEAVES   = "leaves";
@@ -1512,7 +1512,10 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
   const employment      = Math.floor(insuranceBase * (rateEmployment / 100) / 10) * 10;
   const longCare        = Math.floor(health * (rateLongCare / 100) / 10) * 10;
 
-  // 12월이면 연차수당 자동 계산
+  // 결근 공제 = 결근일수 × 일급 + 결근있는주수 × 일급(주휴)
+  const absentDays = monthStats.absentDays || 0;
+  const absentWeeks = monthStats.absentWeeks || 0;
+  const absentPay = Math.round(dailyWage * (absentDays + absentWeeks));
   const isDecember = yearMonth?.slice(5, 7) === "12";
   const annualRemain = isDecember ? Math.max(0, (annualData?.total || 0) - (annualData?.used || 0)) : 0;
   const autoAnnualPay = isDecember ? Math.round(dailyWage * annualRemain) : 0;
@@ -1529,7 +1532,7 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
   const totalIncome = monthlyBase + otPay + holidayPay +
     Number(form.bonus) + Number(form.annualPay) + Number(form.carryOver) + Number(form.otherIncome);
   const totalDeduct = incomeTax + residentTax + nationalPension + health + employment + longCare +
-    deductPay + Number(form.otherDeduct);
+    deductPay + absentPay + Number(form.otherDeduct);
   const netPay = totalIncome - totalDeduct;
 
   const iStyle = { width: "100%", padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box", textAlign: "right", fontFamily: "inherit" };
@@ -1561,6 +1564,7 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
                 ["지각", fmtMinutes(monthStats.lateMin)],
                 ["조퇴", fmtMinutes(monthStats.earlyMin)],
                 ["외출", fmtMinutes(monthStats.outingMin || 0)],
+                ["결근", (monthStats.absentDays||0) + "일"],
               ].map(([l, v]) => (
                 <div key={l} style={{ textAlign: "center" }}>
                   <div style={{ fontSize: 10, color: T.muted }}>{l}</div>
@@ -1603,6 +1607,7 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 12, color: T.red, fontWeight: 700, marginBottom: 8 }}>공제 내역</div>
             {deductPay > 0 && <Row label={`지각/조퇴/외출 차감 (${fmtMinutes(deductMin)})`} value={deductPay} color={T.orange} />}
+            {absentPay > 0 && <Row label={`결근공제 (${absentDays}일×일급 + ${absentWeeks}주×주휴)`} value={absentPay} color={T.red} />}
             <Row label={`소득세`} value={incomeTax} sub />
             <Row label={`주민세 (소득세×10%)`} value={residentTax} sub />
             <Row label={`국민연금 (${pensionBase.toLocaleString()}×${ratePension}%)`} value={nationalPension} sub />
@@ -1636,6 +1641,7 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
             <Btn variant="green" onClick={() => onSave({
               userId: user.id, userName: user.name, yearMonth,
               hourlyWage, monthlyHours, monthlyBase, otPay, holidayPay, deductPay, deductMin,
+              absentDays, absentWeeks, absentPay,
               ...form,
               annualRemain: isDecember ? annualRemain : 0,
               incomeTax, residentTax, nationalPension, health, employment, longCare,
@@ -1691,6 +1697,8 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
     const days = Object.entries(records[userId] || {}).filter(([d]) => d.startsWith(selectedMonth));
     const uLeaves = Object.fromEntries(Object.entries(leaves[userId] || {}).filter(([d]) => d.startsWith(selectedMonth)));
     const ms = calcMonthStats(days, settings, uLeaves, leaveRequests, userId, selectedMonth);
+
+    // 외출 시간 합산
     let outingMin = 0;
     days.forEach(([, rec]) => {
       (rec.outing || []).forEach(o => {
@@ -1698,6 +1706,34 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
       });
     });
     ms.outingMin = Math.round(outingMin);
+
+    // 결근 계산 - 소정근로일 중 출근기록도 연차도 없는 날
+    const [y, m] = selectedMonth.split("-").map(Number);
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const absentDates = [];
+    for (let i = 1; i <= daysInMonth; i++) {
+      const dateStr = `${selectedMonth}-${String(i).padStart(2,"0")}`;
+      const dt = new Date(y, m - 1, i);
+      const dow = dt.getDay();
+      if (dow === 0 || dow === 6) continue; // 주말 제외
+      if (isHoliday(dateStr, settings.holidays || [])) continue; // 공휴일 제외
+      const hasRecord = days.some(([d]) => d === dateStr && records[userId]?.[dateStr]?.in);
+      const hasLeave = !!uLeaves[dateStr];
+      if (!hasRecord && !hasLeave) absentDates.push(dateStr);
+    }
+
+    // 결근 있는 주 수 계산 (ISO 주차 기준)
+    const getWeek = (dateStr) => {
+      const d = new Date(dateStr);
+      const day = d.getDay() || 7;
+      d.setDate(d.getDate() + 4 - day);
+      const yearStart = new Date(d.getFullYear(), 0, 1);
+      return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    };
+    const absentWeeks = new Set(absentDates.map(d => `${d.slice(0,4)}_${getWeek(d)}`));
+
+    ms.absentDays = absentDates.length;
+    ms.absentWeeks = absentWeeks.size;
     return ms;
   };
 
@@ -1879,7 +1915,7 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, marginBottom: 8 }}>
                         {[["소득세", s.incomeTax], ["주민세", s.residentTax], ["국민연금", s.nationalPension],
                           ["건강보험", s.health], ["고용보험", s.employment], ["장기요양", s.longCare],
-                          ["지각/조퇴차감", s.deductPay], ["기타공제", s.otherDeduct],
+                          ["지각/조퇴차감", s.deductPay], ["결근공제", s.absentPay], ["기타공제", s.otherDeduct],
                         ].filter(([,v]) => Number(v) > 0).map(([l,v]) => (
                           <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "3px 6px", background: "#fff1f2", borderRadius: 4 }}>
                             <span style={{ fontSize: 11, color: T.muted }}>{l}</span>
@@ -2750,6 +2786,7 @@ function PayslipScreen({ user, users, payslips, reads }) {
                     ["고용보험", w.employment, `보수월액 ${Number(w.insuranceBase||0).toLocaleString()} × ${w.rateEmployment||0.9}%`],
                     ["장기요양", w.longCare, `건강보험 × ${w.rateLongCare||13.14}%`],
                     ["지각/조퇴차감", w.deductPay, `${fmtMinutes(w.deductMin||0)} × 시급`],
+                    ["결근공제", w.absentPay, `결근 ${w.absentDays||0}일 + ${w.absentWeeks||0}주 주휴`],
                     ["기타공제", w.otherDeduct, ""],
                   ].filter(([,v]) => Number(v) > 0).map(([l,v,c]) => (
                     <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: `1px solid ${T.border}` }}>
