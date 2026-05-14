@@ -2624,6 +2624,8 @@ function PayslipScreen({ user, users, payslips, reads }) {
               )}
             </div>
           );
+        })
+      }
     </div>
   );
 }
