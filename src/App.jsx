@@ -1464,8 +1464,8 @@ function WageModal({ user, info, monthStats, yearMonth, onClose, onSave }) {
   const insuranceBase = Number(info?.insuranceBase || 0);
   const incomeTax = Number(info?.incomeTax || 0);
   const residentTax = Math.floor(incomeTax * 0.1 / 10) * 10;      // 소득세×10%, 원단위 버림
-  const nationalPension = Math.round(pensionBase * 0.0475);        // 4.75%, 반올림
-  const health = Math.round(insuranceBase * 0.03595);              // 3.595%, 반올림
+  const nationalPension = Math.floor(pensionBase * 0.0475 / 10) * 10;  // 4.75%, 원단위 버림
+  const health = Math.floor(insuranceBase * 0.03595 / 10) * 10;        // 3.595%, 원단위 버림
   const employment = Math.floor(insuranceBase * 0.009 / 10) * 10;  // 0.9%, 원단위 버림
   const longCare = Math.floor(health * 0.1314 / 10) * 10;         // 13.14%, 원단위 버림
 
