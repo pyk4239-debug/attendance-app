@@ -1463,11 +1463,11 @@ function WageModal({ user, info, monthStats, yearMonth, onClose, onSave }) {
   const pensionBase = Number(info?.pensionBase || 0);
   const insuranceBase = Number(info?.insuranceBase || 0);
   const incomeTax = Number(info?.incomeTax || 0);
-  const residentTax = Math.floor(incomeTax / 10) * 10;           // 원단위 버림
-  const nationalPension = Math.round(pensionBase * 0.0475);       // 4.75%, 반올림
-  const health = Math.round(insuranceBase * 0.03545);             // 3.545%, 반올림
-  const employment = Math.floor(insuranceBase * 0.009 / 10) * 10; // 0.9%, 원단위 버림
-  const longCare = Math.floor(health * 0.1314 / 10) * 10;        // 13.14%, 원단위 버림
+  const residentTax = Math.floor(incomeTax * 0.1 / 10) * 10;      // 소득세×10%, 원단위 버림
+  const nationalPension = Math.round(pensionBase * 0.0475);        // 4.75%, 반올림
+  const health = Math.round(insuranceBase * 0.03595);              // 3.595%, 반올림
+  const employment = Math.floor(insuranceBase * 0.009 / 10) * 10;  // 0.9%, 원단위 버림
+  const longCare = Math.floor(health * 0.1314 / 10) * 10;         // 13.14%, 원단위 버림
 
   const [form, setForm] = useState({
     bonus: 0,       // 상여금
@@ -1544,8 +1544,8 @@ function WageModal({ user, info, monthStats, yearMonth, onClose, onSave }) {
             {deductPay > 0 && <Row label={`지각/조퇴/외출 차감 (${fmtMinutes(deductMin)})`} value={deductPay} color={T.orange} />}
             <Row label={`소득세`} value={incomeTax} sub />
             <Row label={`주민세 (소득세×10%)`} value={residentTax} sub />
-            <Row label={`국민연금 (${pensionBase.toLocaleString()}×4.5%)`} value={nationalPension} sub />
-            <Row label={`건강보험 (${insuranceBase.toLocaleString()}×3.545%)`} value={health} sub />
+            <Row label={`국민연금 (${pensionBase.toLocaleString()}×4.75%)`} value={nationalPension} sub />
+            <Row label={`건강보험 (${insuranceBase.toLocaleString()}×3.595%)`} value={health} sub />
             <Row label={`고용보험 (${insuranceBase.toLocaleString()}×0.9%)`} value={employment} sub />
             <Row label={`장기요양 (건강보험×13.14%)`} value={longCare} sub />
             <div style={{ padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>
