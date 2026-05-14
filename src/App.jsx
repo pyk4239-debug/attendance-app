@@ -1688,17 +1688,17 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
       <div style={{ background: "#16a34a", padding: "16px 16px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
           <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
           <div>
             <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>💰 임금</div>
           </div>
         </div>
-        <div style={{ display: "flex", borderBottom: "1px solid #ffffff18" }}>
+        <div style={{ display: "flex" }}>
           {[["calc","급여 계산"], ["ledger","임금대장"]].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
-              style={{ padding: "9px 20px", border: "none", background: "none", color: tab===key?"#fff":"#ffffff50", fontWeight: tab===key?800:400, fontSize: 14, cursor: "pointer", borderBottom: tab===key?"2px solid #fff":"2px solid transparent", fontFamily: "inherit" }}>
+              style={{ padding: "10px 24px", border: "none", background: "none", color: tab===key?"#fff":"#ffffff60", fontWeight: tab===key?800:500, fontSize: 14, cursor: "pointer", borderBottom: tab===key?"3px solid #fff":"3px solid transparent", fontFamily: "inherit" }}>
               {label}
             </button>
           ))}
