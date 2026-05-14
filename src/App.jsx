@@ -1437,15 +1437,19 @@ function AdminAttendance({ users, settings, records, leaves, leaveRequests, onSa
 
 // ── 관리자 임금 섹션 (추후 개발) ──────────────────────────────
 // ── 지급일 계산 ─────────────────────────────────────────────
-function getPayDate(yearMonth) {
+function getPayDate(yearMonth, holidays = []) {
   const [y, m] = yearMonth.split("-").map(Number);
-  let d = new Date(y, m - 1, 15);
-  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  // 당월 급여 → 익월 15일
+  let d = new Date(y, m, 15); // m이 이미 0-based가 아니므로 m = 익월
+  // 토(6)/일(0)/공휴일이면 다음 평일
+  while (d.getDay() === 0 || d.getDay() === 6 || holidays.includes(d.toISOString().slice(0,10))) {
+    d.setDate(d.getDate() + 1);
+  }
   return d.toISOString().slice(0, 10);
 }
 
 // ── 급여 계산 모달 ───────────────────────────────────────────
-function WageModal({ user, info, monthStats, yearMonth, onClose, onSave }) {
+function WageModal({ user, info, monthStats, yearMonth, existing, holidays, onClose, onSave }) {
   const hourlyWage = Number(info?.hourlyWage || 0);
   const dailyWage = Math.round(hourlyWage * 8);
   const monthlyBase = Math.round(hourlyWage * 209);
@@ -1469,11 +1473,11 @@ function WageModal({ user, info, monthStats, yearMonth, onClose, onSave }) {
   const longCare = Math.floor(health * 0.1314 / 10) * 10;         // 13.14%, 원단위 버림
 
   const [form, setForm] = useState({
-    bonus: 0,       // 상여금
-    carryOver: 0,   // 이월분
-    otherIncome: 0, // 기타 소득
-    otherDeduct: 0, // 기타 공제
-    memo: "",
+    bonus: existing?.bonus || 0,
+    carryOver: existing?.carryOver || 0,
+    otherIncome: existing?.otherIncome || 0,
+    otherDeduct: existing?.otherDeduct || 0,
+    memo: existing?.memo || "",
   });
 
   const totalIncome = monthlyBase + otPay + holidayPay +
@@ -1496,7 +1500,7 @@ function WageModal({ user, info, monthStats, yearMonth, onClose, onSave }) {
       <div style={{ background: T.card, borderRadius: 20, width: "100%", maxWidth: 360, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 20px 60px #00000030" }}>
         <div style={{ background: "#16a34a", padding: "16px 20px", borderRadius: "20px 20px 0 0" }}>
           <div style={{ fontWeight: 800, fontSize: 17, color: "#fff" }}>{user.name} — {monthLabel(yearMonth)}</div>
-          <div style={{ fontSize: 12, color: "#ffffff80", marginTop: 4 }}>지급일 {getPayDate(yearMonth)}</div>
+          <div style={{ fontSize: 12, color: "#ffffff80", marginTop: 4 }}>지급일 {getPayDate(yearMonth, holidays)} · {info?.bank ? `${info.bank}은행 ${info.account}` : "계좌 미등록"}</div>
         </div>
 
         <div style={{ padding: "16px 20px" }}>
@@ -1577,7 +1581,7 @@ function WageModal({ user, info, monthStats, yearMonth, onClose, onSave }) {
               ...form,
               incomeTax, residentTax, nationalPension, health, employment, longCare,
               totalIncome, totalDeduct, netPay,
-              monthStats, payDate: getPayDate(yearMonth),
+              monthStats, payDate: getPayDate(yearMonth, holidays),
               createdAt: new Date().toISOString()
             })}>저장 + 확정</Btn>
           </div>
@@ -1826,6 +1830,8 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
           info={memberInfo[wageModal.user.id] || {}}
           monthStats={getMonthStats(wageModal.user.id)}
           yearMonth={selectedMonth}
+          existing={savedWages[`${wageModal.user.id}_${selectedMonth}`]}
+          holidays={settings.holidays || []}
           onClose={() => setWageModal(null)}
           onSave={saveWage}
         />
@@ -2602,24 +2608,60 @@ function PayslipScreen({ user, users, payslips, reads }) {
                 }
                 {isAdmin && <button onClick={async () => { await deleteDoc(doc(db, COL_PAYSLIPS, p.id)); }} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "7px 10px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}>삭제</button>}
               </div>
-              {/* 자동 생성 명세서 상세 */}
               {w && (
-                <div style={{ background: T.bg, borderRadius: 10, padding: "10px 14px" }} onClick={handleRead}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 6 }}>
-                    {[["기본급", w.monthlyBase], ["연장수당", w.otPay], ["휴일수당", w.holidayPay],
-                      ["상여금", w.bonus], ["소득세", w.incomeTax], ["국민연금", w.nationalPension],
-                      ["건강보험", w.health], ["고용보험", w.employment], ["장기요양", w.longCare],
-                    ].filter(([,v]) => Number(v) > 0).map(([l,v]) => (
-                      <div key={l} style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span style={{ fontSize: 11, color: T.muted }}>{l}</span>
-                        <span style={{ fontSize: 11, fontWeight: 600 }}>{Number(v).toLocaleString()}</span>
+                <div style={{ background: T.bg, borderRadius: 10, padding: "12px 14px" }} onClick={handleRead}>
+                  {/* 소득 내역 */}
+                  <div style={{ fontSize: 11, color: T.blue, fontWeight: 700, marginBottom: 6 }}>소득 내역</div>
+                  {[
+                    ["기본급", w.monthlyBase, `시급 ${Number(w.hourlyWage).toLocaleString()} × 209`],
+                    ["연장수당", w.otPay, `시급 × 연장${fmtMinutes(w.monthStats?.otMin||0)} × 1.5`],
+                    ["휴일수당", w.holidayPay, `일급 × 휴일${w.monthStats?.holiday||0}일 × 1.5`],
+                    ["상여금", w.bonus, ""],
+                    ["이월분", w.carryOver, ""],
+                    ["기타", w.otherIncome, ""],
+                  ].filter(([,v]) => Number(v) > 0).map(([l,v,c]) => (
+                    <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: `1px solid ${T.border}` }}>
+                      <div>
+                        <span style={{ fontSize: 12, color: T.text }}>{l}</span>
+                        {c && <span style={{ fontSize: 10, color: T.muted, marginLeft: 6 }}>{c}</span>}
                       </div>
-                    ))}
+                      <span style={{ fontSize: 12, fontWeight: 700, color: T.blue }}>{Number(v).toLocaleString()}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 800 }}>소득 합계</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: T.blue }}>{Number(w.totalIncome||0).toLocaleString()}</span>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${T.border}`, paddingTop: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700 }}>실 지급액</span>
-                    <span style={{ fontSize: 15, fontWeight: 800, color: "#16a34a" }}>{Number(w.netPay).toLocaleString()}원</span>
+                  {/* 공제 내역 */}
+                  <div style={{ fontSize: 11, color: T.red, fontWeight: 700, marginBottom: 6 }}>공제 내역</div>
+                  {[
+                    ["소득세", w.incomeTax, "간이세액표 기준"],
+                    ["주민세", w.residentTax, `소득세 × 10%`],
+                    ["국민연금", w.nationalPension, `기준소득 ${Number(w.pensionBase||0).toLocaleString()} × 4.75%`],
+                    ["건강보험", w.health, `보수월액 ${Number(w.insuranceBase||0).toLocaleString()} × 3.595%`],
+                    ["고용보험", w.employment, `보수월액 × 0.9%`],
+                    ["장기요양", w.longCare, `건강보험 × 13.14%`],
+                    ["지각/조퇴차감", w.deductPay, `${fmtMinutes(w.deductMin||0)} × 시급`],
+                    ["기타공제", w.otherDeduct, ""],
+                  ].filter(([,v]) => Number(v) > 0).map(([l,v,c]) => (
+                    <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: `1px solid ${T.border}` }}>
+                      <div>
+                        <span style={{ fontSize: 12, color: T.text }}>{l}</span>
+                        {c && <span style={{ fontSize: 10, color: T.muted, marginLeft: 6 }}>{c}</span>}
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: T.red }}>{Number(v).toLocaleString()}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 800 }}>공제 합계</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: T.red }}>{Number(w.totalDeduct||0).toLocaleString()}</span>
                   </div>
+                  {/* 실지급액 */}
+                  <div style={{ display: "flex", justifyContent: "space-between", borderTop: `2px solid #16a34a44`, paddingTop: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 800 }}>실 지급액</span>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: "#16a34a" }}>{Number(w.netPay||0).toLocaleString()}원</span>
+                  </div>
+                  {w.memo && <div style={{ fontSize: 11, color: T.muted, marginTop: 6 }}>📝 {w.memo}</div>}
                 </div>
               )}
             </div>
