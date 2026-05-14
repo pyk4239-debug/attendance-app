@@ -347,7 +347,8 @@ function AppLoader() {
         if (s.officeLng != null) s.officeLng = Number(s.officeLng);
         if (s.officeRadius != null) s.officeRadius = Number(s.officeRadius);
         setSettings(s);
-      } else fbSaveSettings(DEFAULT_SETTINGS);
+      }
+      // 문서 없어도 절대 덮어쓰지 않음 (네트워크 일시 오류 대비)
     }));
 
     // 출퇴근 기록
