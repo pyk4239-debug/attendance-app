@@ -332,13 +332,11 @@ function AppLoader() {
 
     // 유저
     unsubs.push(onSnapshot(collection(db, COL_USERS), snap => {
-      if (snap.empty) { fbSaveUsers(DEFAULT_USERS); setUsers(DEFAULT_USERS); }
-      else {
-        const all = snap.docs.map(d => d.data());
-        const admin = all.filter(u => u.role === "admin");
-        const members = all.filter(u => u.role === "member").sort((a,b) => (a.createdAt||"").localeCompare(b.createdAt||""));
-        setUsers([...admin, ...members]);
-      }
+      if (snap.empty) return; // 빈 snapshot이면 절대 건드리지 않음
+      const all = snap.docs.map(d => d.data());
+      const admin = all.filter(u => u.role === "admin");
+      const members = all.filter(u => u.role === "member").sort((a,b) => (a.createdAt||"").localeCompare(b.createdAt||""));
+      setUsers([...admin, ...members]);
     }));
 
     // 설정
