@@ -1450,7 +1450,7 @@ function getPayDate(yearMonth, holidays = []) {
 }
 
 // ── 급여 계산 모달 ───────────────────────────────────────────
-function WageModal({ user, info, monthStats, yearMonth, existing, holidays, onClose, onSave }) {
+function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annualData, onClose, onSave }) {
   const hourlyWage = Number(info?.hourlyWage || 0);
   const dailyWage = Math.round(hourlyWage * 8);
   const monthlyBase = Math.round(hourlyWage * 209);
@@ -1459,22 +1459,28 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, onCl
   const otPay = Math.round(hourlyWage * 1.5 * (monthStats.otMin / 60));
   const holidayPay = Math.round(dailyWage * 1.5 * (monthStats.holiday || 0));
 
-  // 지각/조퇴/외출 차감 (발생 시간 × 시급)
+  // 지각/조퇴/외출 차감
   const deductMin = (monthStats.lateMin || 0) + (monthStats.earlyMin || 0) + (monthStats.outingMin || 0);
   const deductPay = Math.round(hourlyWage * (deductMin / 60));
 
-  // 4대보험 자동 계산 (원단위 버림 적용)
+  // 4대보험
   const pensionBase = Number(info?.pensionBase || 0);
   const insuranceBase = Number(info?.insuranceBase || 0);
   const incomeTax = Number(info?.incomeTax || 0);
-  const residentTax = Math.floor(incomeTax * 0.1 / 10) * 10;      // 소득세×10%, 원단위 버림
-  const nationalPension = Math.floor(pensionBase * 0.0475 / 10) * 10;  // 4.75%, 원단위 버림
-  const health = Math.floor(insuranceBase * 0.03595 / 10) * 10;        // 3.595%, 원단위 버림
-  const employment = Math.floor(insuranceBase * 0.009 / 10) * 10;  // 0.9%, 원단위 버림
-  const longCare = Math.floor(health * 0.1314 / 10) * 10;         // 13.14%, 원단위 버림
+  const residentTax = Math.floor(incomeTax * 0.1 / 10) * 10;
+  const nationalPension = Math.floor(pensionBase * 0.0475 / 10) * 10;
+  const health = Math.floor(insuranceBase * 0.03595 / 10) * 10;
+  const employment = Math.floor(insuranceBase * 0.009 / 10) * 10;
+  const longCare = Math.floor(health * 0.1314 / 10) * 10;
+
+  // 12월이면 연차수당 자동 계산
+  const isDecember = yearMonth?.slice(5, 7) === "12";
+  const annualRemain = isDecember ? Math.max(0, (annualData?.total || 0) - (annualData?.used || 0)) : 0;
+  const autoAnnualPay = isDecember ? Math.round(dailyWage * annualRemain) : 0;
 
   const [form, setForm] = useState({
     bonus: existing?.bonus || 0,
+    annualPay: existing?.annualPay !== undefined ? existing.annualPay : autoAnnualPay,
     carryOver: existing?.carryOver || 0,
     otherIncome: existing?.otherIncome || 0,
     otherDeduct: existing?.otherDeduct || 0,
@@ -1482,7 +1488,7 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, onCl
   });
 
   const totalIncome = monthlyBase + otPay + holidayPay +
-    Number(form.bonus) + Number(form.carryOver) + Number(form.otherIncome);
+    Number(form.bonus) + Number(form.annualPay) + Number(form.carryOver) + Number(form.otherIncome);
   const totalDeduct = incomeTax + residentTax + nationalPension + health + employment + longCare +
     deductPay + Number(form.otherDeduct);
   const netPay = totalIncome - totalDeduct;
@@ -1539,6 +1545,18 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, onCl
                 </div>
               </div>
             ))}
+            {/* 12월 연차수당 */}
+            {isDecember && (
+              <div style={{ padding: "5px 0", borderBottom: `1px solid ${T.border}`, background: "#fffbeb" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                  <div>
+                    <span style={{ fontSize: 13, color: T.text, whiteSpace: "nowrap" }}>연차수당</span>
+                    <div style={{ fontSize: 10, color: T.muted }}>잔여 {annualRemain}일 × 일급 {dailyWage.toLocaleString()} (수정가능)</div>
+                  </div>
+                  <input type="number" value={form.annualPay} onChange={e => setForm(p => ({...p, annualPay: e.target.value}))} style={{ ...iStyle, width: 130 }} placeholder="0" />
+                </div>
+              </div>
+            )}
             <Row label="소득 합계" value={totalIncome} bold color={T.blue} />
           </div>
 
@@ -1580,6 +1598,7 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, onCl
               userId: user.id, userName: user.name, yearMonth,
               hourlyWage, monthlyBase, otPay, holidayPay, deductPay, deductMin,
               ...form,
+              annualRemain: isDecember ? annualRemain : 0,
               incomeTax, residentTax, nationalPension, health, employment, longCare,
               pensionBase, insuranceBase,
               totalIncome, totalDeduct, netPay,
@@ -1834,6 +1853,7 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
           yearMonth={selectedMonth}
           existing={savedWages[`${wageModal.user.id}_${selectedMonth}`]}
           holidays={settings.holidays || []}
+          annualData={annual[wageModal.user.id]}
           onClose={() => setWageModal(null)}
           onSave={saveWage}
         />
@@ -2520,6 +2540,7 @@ function PayslipScreen({ user, users, payslips, reads }) {
   const [selMonth, setSelMonth] = useState(new Date(new Date().getTime() + 9*60*60*1000).toISOString().slice(0,7));
   const [file, setFile] = useState(null);
   const [msg, setMsg] = useState("");
+  const [expanded, setExpanded] = useState({});
 
   const members = users.filter(u => u.role === "member");
   const myPayslips = isAdmin ? payslips : payslips.filter(p => p.userId === user.id);
@@ -2589,10 +2610,12 @@ function PayslipScreen({ user, users, payslips, reads }) {
             const key = `${user.id}_payslip_${p.id}`;
             if (!reads?.[key]) await setDoc(doc(db, COL_READS, key), { userId: user.id, type: "payslip", docId: p.id, readAt: new Date().toISOString() });
           };
-          const w = p.wageData; // 자동 생성 명세서 데이터
+          const w = p.wageData;
+          const isOpen = !!expanded[p.id];
           return (
-            <div key={p.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${unread ? T.blue : T.border}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: w ? 10 : 0 }}>
+            <div key={p.id} style={{ background: T.card, borderRadius: 14, marginBottom: 10, border: `1px solid ${unread ? T.blue : T.border}`, overflow: "hidden" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", cursor: "pointer" }}
+                onClick={() => { setExpanded(e => ({...e, [p.id]: !e[p.id]})); handleRead(); }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     {unread && <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.blue, flexShrink: 0 }} />}
@@ -2601,17 +2624,21 @@ function PayslipScreen({ user, users, payslips, reads }) {
                       {p.isAuto && <span style={{ fontSize: 10, background: "#16a34a22", color: "#16a34a", borderRadius: 6, padding: "2px 6px", marginLeft: 6, fontWeight: 700 }}>자동생성</span>}
                     </div>
                   </div>
-                  <div style={{ fontSize: 11, color: T.muted, marginTop: 3 }}>{p.createdAt?.slice(0,10)} 발급 · 지급일 {w?.payDate || "-"}</div>
+                  <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
+                    {p.createdAt?.slice(0,10)} 발급 · 지급일 {w?.payDate || "-"}
+                    {w && <span style={{ marginLeft: 8, fontWeight: 700, color: "#16a34a" }}>실지급 {Number(w.netPay||0).toLocaleString()}원</span>}
+                  </div>
                 </div>
-                {p.url
-                  ? <a href={p.url} target="_blank" rel="noopener noreferrer" onClick={handleRead}
-                      style={{ background: unread ? T.blue : T.blueBg, color: unread ? "#fff" : T.blue, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>보기</a>
-                  : null
-                }
-                {isAdmin && <button onClick={async () => { await deleteDoc(doc(db, COL_PAYSLIPS, p.id)); }} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "7px 10px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}>삭제</button>}
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                    style={{ background: T.blueBg, color: T.blue, borderRadius: 8, padding: "5px 10px", fontSize: 11, fontWeight: 700, textDecoration: "none" }}>보기</a>}
+                  {isAdmin && <button onClick={e => { e.stopPropagation(); deleteDoc(doc(db, COL_PAYSLIPS, p.id)); }}
+                    style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 8px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>삭제</button>}
+                  <span style={{ color: T.muted, fontSize: 14 }}>{isOpen ? "▲" : "▼"}</span>
+                </div>
               </div>
-              {w && (
-                <div style={{ background: T.bg, borderRadius: 10, padding: "12px 14px" }} onClick={handleRead}>
+              {isOpen && w && (
+                <div style={{ background: T.bg, padding: "12px 16px", borderTop: `1px solid ${T.border}` }}>
                   {/* 근태 내역 */}
                   <div style={{ fontSize: 11, color: T.muted, fontWeight: 700, marginBottom: 6 }}>근태 내역</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 4, marginBottom: 10 }}>
@@ -2658,7 +2685,7 @@ function PayslipScreen({ user, users, payslips, reads }) {
                     ["주민세", w.residentTax, `소득세 × 10%`],
                     ["국민연금", w.nationalPension, `기준소득 ${Number(w.pensionBase||0).toLocaleString()} × 4.75%`],
                     ["건강보험", w.health, `보수월액 ${Number(w.insuranceBase||0).toLocaleString()} × 3.595%`],
-                    ["고용보험", w.employment, `보수월액 × 0.9%`],
+                    ["고용보험", w.employment, `보수월액 ${Number(w.insuranceBase||0).toLocaleString()} × 0.9%`],
                     ["장기요양", w.longCare, `건강보험 × 13.14%`],
                     ["지각/조퇴차감", w.deductPay, `${fmtMinutes(w.deductMin||0)} × 시급`],
                     ["기타공제", w.otherDeduct, ""],
