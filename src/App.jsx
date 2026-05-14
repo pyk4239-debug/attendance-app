@@ -52,7 +52,12 @@ const DEFAULT_SETTINGS = {
   workStart: "09:00", workEnd: "18:00",
   lunchStart: "12:00", lunchEnd: "13:00",
   officeLat: null, officeLng: null, officeRadius: 200,
-  holidays: []
+  holidays: [],
+  // 4대보험 요율 (% 단위)
+  ratePension: 4.75,      // 국민연금
+  rateHealth: 3.595,      // 건강보험
+  rateEmployment: 0.9,    // 고용보험
+  rateLongCare: 13.14,    // 장기요양 (건강보험료 대비 %)
 };
 const MASTER_CODE = "att2026!"; // 관리자 PIN 분실 시 비상 코드
 
@@ -1200,6 +1205,29 @@ function SettingsModal({ settings, onSave, onClose }) {
           </select>
         </div>
 
+        {/* 4대보험 요율 */}
+        <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 20 }}>
+          <div style={{ fontSize: 13, color: T.text, fontWeight: 700, marginBottom: 4 }}>🏥 4대보험 요율 (%)</div>
+          <div style={{ fontSize: 11, color: T.muted, marginBottom: 12 }}>매년 변경 시 업데이트해주세요</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {[
+              ["국민연금", "ratePension", "4.75"],
+              ["건강보험", "rateHealth", "3.595"],
+              ["고용보험", "rateEmployment", "0.9"],
+              ["장기요양*", "rateLongCare", "13.14"],
+            ].map(([label, key, placeholder]) => (
+              <div key={key}>
+                <div style={{ fontSize: 11, color: T.muted, marginBottom: 4, fontWeight: 600 }}>{label}</div>
+                <input type="number" step="0.001" value={s[key] ?? DEFAULT_SETTINGS[key]}
+                  onChange={e => setS(p => ({ ...p, [key]: Number(e.target.value) }))}
+                  placeholder={placeholder}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box" }} />
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 10, color: T.muted, marginTop: 8 }}>* 장기요양은 건강보험료 대비 %</div>
+        </div>
+
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Btn variant="ghost" onClick={onClose}>취소</Btn>
           <Btn variant="admin" onClick={() => onSave(s)}>저장</Btn>
@@ -1450,28 +1478,29 @@ function getPayDate(yearMonth, holidays = []) {
 }
 
 // ── 급여 계산 모달 ───────────────────────────────────────────
-function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annualData, onClose, onSave }) {
+function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annualData, settings, onClose, onSave }) {
   const hourlyWage = Number(info?.hourlyWage || 0);
   const dailyWage = Math.round(hourlyWage * 8);
   const monthlyBase = Math.round(hourlyWage * 209);
-
-  // 자동 계산
   const otPay = Math.round(hourlyWage * 1.5 * (monthStats.otMin / 60));
   const holidayPay = Math.round(dailyWage * 1.5 * (monthStats.holiday || 0));
-
-  // 지각/조퇴/외출 차감
   const deductMin = (monthStats.lateMin || 0) + (monthStats.earlyMin || 0) + (monthStats.outingMin || 0);
   const deductPay = Math.round(hourlyWage * (deductMin / 60));
 
-  // 4대보험
+  // settings에서 요율 읽기 (없으면 기본값)
+  const ratePension    = Number(settings?.ratePension    ?? 4.75);
+  const rateHealth     = Number(settings?.rateHealth     ?? 3.595);
+  const rateEmployment = Number(settings?.rateEmployment ?? 0.9);
+  const rateLongCare   = Number(settings?.rateLongCare   ?? 13.14);
+
   const pensionBase = Number(info?.pensionBase || 0);
   const insuranceBase = Number(info?.insuranceBase || 0);
   const incomeTax = Number(info?.incomeTax || 0);
-  const residentTax = Math.floor(incomeTax * 0.1 / 10) * 10;
-  const nationalPension = Math.floor(pensionBase * 0.0475 / 10) * 10;
-  const health = Math.floor(insuranceBase * 0.03595 / 10) * 10;
-  const employment = Math.floor(insuranceBase * 0.009 / 10) * 10;
-  const longCare = Math.floor(health * 0.1314 / 10) * 10;
+  const residentTax    = Math.floor(incomeTax * 0.1 / 10) * 10;
+  const nationalPension = Math.floor(pensionBase * (ratePension / 100) / 10) * 10;
+  const health          = Math.floor(insuranceBase * (rateHealth / 100) / 10) * 10;
+  const employment      = Math.floor(insuranceBase * (rateEmployment / 100) / 10) * 10;
+  const longCare        = Math.floor(health * (rateLongCare / 100) / 10) * 10;
 
   // 12월이면 연차수당 자동 계산
   const isDecember = yearMonth?.slice(5, 7) === "12";
@@ -1566,10 +1595,10 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
             {deductPay > 0 && <Row label={`지각/조퇴/외출 차감 (${fmtMinutes(deductMin)})`} value={deductPay} color={T.orange} />}
             <Row label={`소득세`} value={incomeTax} sub />
             <Row label={`주민세 (소득세×10%)`} value={residentTax} sub />
-            <Row label={`국민연금 (${pensionBase.toLocaleString()}×4.75%)`} value={nationalPension} sub />
-            <Row label={`건강보험 (${insuranceBase.toLocaleString()}×3.595%)`} value={health} sub />
-            <Row label={`고용보험 (${insuranceBase.toLocaleString()}×0.9%)`} value={employment} sub />
-            <Row label={`장기요양 (건강보험×13.14%)`} value={longCare} sub />
+            <Row label={`국민연금 (${pensionBase.toLocaleString()}×${ratePension}%)`} value={nationalPension} sub />
+            <Row label={`건강보험 (${insuranceBase.toLocaleString()}×${rateHealth}%)`} value={health} sub />
+            <Row label={`고용보험 (${insuranceBase.toLocaleString()}×${rateEmployment}%)`} value={employment} sub />
+            <Row label={`장기요양 (건강보험×${rateLongCare}%)`} value={longCare} sub />
             <div style={{ padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                 <span style={{ fontSize: 13, color: T.text, whiteSpace: "nowrap" }}>기타 공제</span>
@@ -1601,6 +1630,7 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
               annualRemain: isDecember ? annualRemain : 0,
               incomeTax, residentTax, nationalPension, health, employment, longCare,
               pensionBase, insuranceBase,
+              ratePension, rateHealth, rateEmployment, rateLongCare,
               totalIncome, totalDeduct, netPay,
               monthStats, payDate: getPayDate(yearMonth, holidays),
               createdAt: new Date().toISOString()
@@ -1876,6 +1906,7 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
           existing={savedWages[`${wageModal.user.id}_${selectedMonth}`]}
           holidays={settings.holidays || []}
           annualData={annual[wageModal.user.id]}
+          settings={settings}
           onClose={() => setWageModal(null)}
           onSave={saveWage}
         />
@@ -2705,10 +2736,10 @@ function PayslipScreen({ user, users, payslips, reads }) {
                   {[
                     ["소득세", w.incomeTax, "간이세액표 기준"],
                     ["주민세", w.residentTax, `소득세 × 10%`],
-                    ["국민연금", w.nationalPension, `기준소득 ${Number(w.pensionBase||0).toLocaleString()} × 4.75%`],
-                    ["건강보험", w.health, `보수월액 ${Number(w.insuranceBase||0).toLocaleString()} × 3.595%`],
-                    ["고용보험", w.employment, `보수월액 ${Number(w.insuranceBase||0).toLocaleString()} × 0.9%`],
-                    ["장기요양", w.longCare, `건강보험 × 13.14%`],
+                    ["국민연금", w.nationalPension, `기준소득 ${Number(w.pensionBase||0).toLocaleString()} × ${w.ratePension||4.75}%`],
+                    ["건강보험", w.health, `보수월액 ${Number(w.insuranceBase||0).toLocaleString()} × ${w.rateHealth||3.595}%`],
+                    ["고용보험", w.employment, `보수월액 ${Number(w.insuranceBase||0).toLocaleString()} × ${w.rateEmployment||0.9}%`],
+                    ["장기요양", w.longCare, `건강보험 × ${w.rateLongCare||13.14}%`],
                     ["지각/조퇴차감", w.deductPay, `${fmtMinutes(w.deductMin||0)} × 시급`],
                     ["기타공제", w.otherDeduct, ""],
                   ].filter(([,v]) => Number(v) > 0).map(([l,v,c]) => (
