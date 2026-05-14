@@ -1459,15 +1459,15 @@ function WageModal({ user, info, monthStats, yearMonth, onClose, onSave }) {
   const deductMin = (monthStats.lateMin || 0) + (monthStats.earlyMin || 0) + (monthStats.outingMin || 0);
   const deductPay = Math.round(hourlyWage * (deductMin / 60));
 
-  // 4대보험 자동 계산
+  // 4대보험 자동 계산 (원단위 버림 적용)
   const pensionBase = Number(info?.pensionBase || 0);
   const insuranceBase = Number(info?.insuranceBase || 0);
   const incomeTax = Number(info?.incomeTax || 0);
-  const residentTax = Math.round(incomeTax * 0.1);
-  const nationalPension = Math.round(pensionBase * 0.045);
-  const health = Math.round(insuranceBase * 0.03545);
-  const employment = Math.round(insuranceBase * 0.009);
-  const longCare = Math.round(health * 0.1314);
+  const residentTax = Math.floor(incomeTax / 10) * 10;           // 원단위 버림
+  const nationalPension = Math.round(pensionBase * 0.0475);       // 4.75%, 반올림
+  const health = Math.round(insuranceBase * 0.03545);             // 3.545%, 반올림
+  const employment = Math.floor(insuranceBase * 0.009 / 10) * 10; // 0.9%, 원단위 버림
+  const longCare = Math.floor(health * 0.1314 / 10) * 10;        // 13.14%, 원단위 버림
 
   const [form, setForm] = useState({
     bonus: 0,       // 상여금
