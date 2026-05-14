@@ -1592,8 +1592,10 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
   const members = users.filter(u => u.role === "member");
   const kst = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const [selectedMonth, setSelectedMonth] = useState(kst.toISOString().slice(0, 7));
-  const [wageModal, setWageModal] = useState(null); // { user }
+  const [wageModal, setWageModal] = useState(null);
   const [savedWages, setSavedWages] = useState({});
+  const [tab, setTab] = useState("calc"); // calc | ledger
+  const [sending, setSending] = useState(null); // userId
 
   // 저장된 급여 로드
   useEffect(() => {
@@ -1624,14 +1626,10 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
     const days = Object.entries(records[userId] || {}).filter(([d]) => d.startsWith(selectedMonth));
     const uLeaves = Object.fromEntries(Object.entries(leaves[userId] || {}).filter(([d]) => d.startsWith(selectedMonth)));
     const ms = calcMonthStats(days, settings, uLeaves, leaveRequests, userId, selectedMonth);
-    // 외출 시간 합산
     let outingMin = 0;
     days.forEach(([, rec]) => {
       (rec.outing || []).forEach(o => {
-        if (o.out && o.in) {
-          const diff = (new Date(o.in) - new Date(o.out)) / 60000;
-          outingMin += diff;
-        }
+        if (o.out && o.in) outingMin += (new Date(o.in) - new Date(o.out)) / 60000;
       });
     });
     ms.outingMin = Math.round(outingMin);
@@ -1645,65 +1643,102 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
     setWageModal(null);
   };
 
+  // 명세서 팀원에게 전송
+  const sendPayslip = async (userId, userName, saved) => {
+    setSending(userId);
+    try {
+      // wages 데이터를 payslips 컬렉션에 저장 (팀원 명세서 탭에 표시)
+      const key = `${userId}_${selectedMonth}`;
+      await setDoc(doc(db, COL_PAYSLIPS, key), {
+        userId, month: selectedMonth,
+        fileName: `${monthLabel(selectedMonth)} 급여명세서`,
+        wageData: saved,
+        isAuto: true, // 자동 생성 명세서
+        uploadedBy: "관리자",
+        createdAt: new Date().toISOString()
+      });
+      // 공지 발송
+      await addDoc(collection(db, COL_NOTICES), {
+        title: `💰 ${monthLabel(selectedMonth)} 급여명세서 발급`,
+        content: `${monthLabel(selectedMonth)} 급여명세서가 발급되었습니다.\n명세서 탭에서 확인해주세요.\n\n실 지급액: ${saved.netPay?.toLocaleString()}원\n지급일: ${saved.payDate}`,
+        recipient: userId, author: "관리자",
+        createdAt: new Date().toISOString(), auto: true
+      });
+      alert(`${userName}님께 명세서가 전송됐어요!`);
+    } catch(e) { alert("전송 실패: " + e.message); }
+    setSending(null);
+  };
+
+  // 임금대장 CSV
+  const downloadLedger = () => {
+    const header = ["이름", "지급일", "출근", "연장", "휴일", "기본급", "연장수당", "휴일수당", "상여금", "이월분", "기타소득", "소득합계", "소득세", "주민세", "국민연금", "건강보험", "고용보험", "장기요양", "차감", "기타공제", "공제합계", "실지급액"];
+    const rows = members.map(u => {
+      const s = savedWages[`${u.id}_${selectedMonth}`];
+      if (!s) return [u.name, getPayDate(selectedMonth), ...Array(20).fill("-")];
+      return [u.name, s.payDate, s.monthStats?.days||0, fmtMinutes(s.monthStats?.otMin||0), s.monthStats?.holiday||0,
+        s.monthlyBase||0, s.otPay||0, s.holidayPay||0, s.bonus||0, s.carryOver||0, s.otherIncome||0, s.totalIncome||0,
+        s.incomeTax||0, s.residentTax||0, s.nationalPension||0, s.health||0, s.employment||0, s.longCare||0,
+        s.deductPay||0, s.otherDeduct||0, s.totalDeduct||0, s.netPay||0];
+    });
+    downloadCSV(`임금대장_${monthLabel(selectedMonth)}.csv`, [header, ...rows]);
+  };
+
   const isCurrentMonth = selectedMonth >= new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
 
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
-      <div style={{ background: "#16a34a", padding: "16px 16px 20px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ background: "#16a34a", padding: "16px 16px 0" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
           <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
           <div>
             <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>💰 임금</div>
           </div>
         </div>
+        <div style={{ display: "flex", borderBottom: "1px solid #ffffff18" }}>
+          {[["calc","급여 계산"], ["ledger","임금대장"]].map(([key, label]) => (
+            <button key={key} onClick={() => setTab(key)}
+              style={{ padding: "9px 20px", border: "none", background: "none", color: tab===key?"#fff":"#ffffff50", fontWeight: tab===key?800:400, fontSize: 14, cursor: "pointer", borderBottom: tab===key?"2px solid #fff":"2px solid transparent", fontFamily: "inherit" }}>
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div style={{ padding: 16 }}>
         {/* 월 선택 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
           <button onClick={prevMonth} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 16px", fontSize: 16, cursor: "pointer", fontWeight: 700, color: T.text }}>‹</button>
           <div style={{ flex: 1, textAlign: "center", fontSize: 16, fontWeight: 800, color: T.text }}>{monthLabel(selectedMonth)}</div>
           <button onClick={nextMonth} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 16px", fontSize: 16, cursor: "pointer", fontWeight: 700, color: isCurrentMonth ? T.muted : T.text, opacity: isCurrentMonth ? 0.3 : 1 }}>›</button>
         </div>
-
         <div style={{ fontSize: 12, color: T.muted, marginBottom: 14, textAlign: "center" }}>
           지급일 <strong style={{ color: T.text }}>{getPayDate(selectedMonth)}</strong>
         </div>
 
-        {/* 팀원별 급여 카드 */}
-        {members.map(u => {
+        {/* 급여 계산 탭 */}
+        {tab === "calc" && members.map(u => {
           const info = memberInfo[u.id] || {};
           const ms = getMonthStats(u.id);
           const key = `${u.id}_${selectedMonth}`;
           const saved = savedWages[key];
           const hourlyWage = Number(info.hourlyWage || 0);
-
           return (
             <div key={u.id} style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${saved ? "#16a34a44" : T.border}`, boxShadow: "0 1px 4px #0000000a" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
                 <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: "#fff" }}>{u.name[0]}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 800, fontSize: 16, color: T.text }}>{u.name}</div>
-                  <div style={{ fontSize: 12, color: T.muted }}>
-                    {hourlyWage ? `시급 ${hourlyWage.toLocaleString()}원` : "⚠ 시급 미입력"}
-                  </div>
+                  <div style={{ fontSize: 12, color: T.muted }}>{hourlyWage ? `시급 ${hourlyWage.toLocaleString()}원` : "⚠ 시급 미입력"}</div>
                 </div>
-                {saved
-                  ? <Badge label="확정" color="green" />
-                  : <Badge label="미확정" color="gray" />
-                }
+                <Badge label={saved ? "확정" : "미확정"} color={saved ? "green" : "gray"} />
               </div>
-
-              {/* 근태 요약 */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: 12 }}>
                 {[["출근", ms.days+"일", T.green], ["연장", fmtMinutes(ms.otMin), T.purple], ["휴일", ms.holiday+"일", T.red]].map(([l,v,c]) => (
                   <StatBox key={l} label={l} value={v} color={c} />
                 ))}
               </div>
-
-              {/* 급여 요약 */}
-              {saved ? (
+              {saved && (
                 <div style={{ background: T.bg, borderRadius: 10, padding: "10px 14px", marginBottom: 10 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                     <span style={{ fontSize: 12, color: T.muted }}>소득 합계</span>
@@ -1718,21 +1753,71 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
                     <span style={{ fontSize: 15, fontWeight: 800, color: "#16a34a" }}>{saved.netPay?.toLocaleString()}원</span>
                   </div>
                 </div>
-              ) : (
-                !hourlyWage && (
-                  <div style={{ fontSize: 12, color: T.orange, marginBottom: 10, padding: "8px 12px", background: "#fff7ed", borderRadius: 8 }}>
-                    팀원 섹션에서 시급을 먼저 입력해주세요
-                  </div>
-                )
               )}
-
-              <button onClick={() => setWageModal({ user: u })}
-                style={{ width: "100%", padding: "10px 0", borderRadius: 10, border: "none", background: saved ? "#16a34a22" : "#16a34a", color: saved ? "#16a34a" : "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                {saved ? "✏ 수정" : "급여 계산"}
-              </button>
+              {!hourlyWage && !saved && (
+                <div style={{ fontSize: 12, color: T.orange, marginBottom: 10, padding: "8px 12px", background: "#fff7ed", borderRadius: 8 }}>
+                  팀원 섹션에서 시급을 먼저 입력해주세요
+                </div>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: saved ? "1fr 1fr" : "1fr", gap: 8 }}>
+                <button onClick={() => setWageModal({ user: u })}
+                  style={{ padding: "10px 0", borderRadius: 10, border: "none", background: saved ? "#16a34a22" : "#16a34a", color: saved ? "#16a34a" : "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  {saved ? "✏ 수정" : "급여 계산"}
+                </button>
+                {saved && (
+                  <button onClick={() => sendPayslip(u.id, u.name, saved)} disabled={sending === u.id}
+                    style={{ padding: "10px 0", borderRadius: 10, border: "none", background: "#2563eb", color: "#fff", fontSize: 13, fontWeight: 700, cursor: sending === u.id ? "not-allowed" : "pointer", opacity: sending === u.id ? 0.6 : 1 }}>
+                    {sending === u.id ? "전송중..." : "📤 명세서 전송"}
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
+
+        {/* 임금대장 탭 */}
+        {tab === "ledger" && (
+          <div>
+            <button onClick={downloadLedger}
+              style={{ width: "100%", padding: "11px 0", borderRadius: 12, border: "none", background: T.green, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 14 }}>
+              ⬇ 임금대장 CSV 다운로드
+            </button>
+            {members.map(u => {
+              const s = savedWages[`${u.id}_${selectedMonth}`];
+              return (
+                <div key={u.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${s ? "#16a34a44" : T.border}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: s ? 10 : 0 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff" }}>{u.name[0]}</div>
+                    <div style={{ flex: 1, fontWeight: 800, fontSize: 15, color: T.text }}>{u.name}</div>
+                    <Badge label={s ? "확정" : "미확정"} color={s ? "green" : "gray"} />
+                  </div>
+                  {s ? (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+                      {[
+                        ["기본급", s.monthlyBase], ["연장수당", s.otPay], ["휴일수당", s.holidayPay],
+                        ["상여금", s.bonus], ["이월분", s.carryOver], ["기타", s.otherIncome],
+                        ["소득세", s.incomeTax], ["주민세", s.residentTax], ["국민연금", s.nationalPension],
+                        ["건강보험", s.health], ["고용보험", s.employment], ["장기요양", s.longCare],
+                        ["지각/조퇴차감", s.deductPay], ["기타공제", s.otherDeduct],
+                      ].filter(([,v]) => Number(v) > 0).map(([l,v]) => (
+                        <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: `1px solid ${T.border}` }}>
+                          <span style={{ fontSize: 11, color: T.muted }}>{l}</span>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: T.text }}>{Number(v).toLocaleString()}</span>
+                        </div>
+                      ))}
+                      <div style={{ gridColumn: "span 2", display: "flex", justifyContent: "space-between", padding: "6px 0", marginTop: 4, borderTop: `2px solid #16a34a44` }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>실 지급액</span>
+                        <span style={{ fontSize: 15, fontWeight: 800, color: "#16a34a" }}>{s.netPay?.toLocaleString()}원</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12, color: T.muted, marginTop: 8 }}>급여 미확정</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {wageModal && (
@@ -2496,24 +2581,49 @@ function PayslipScreen({ user, users, payslips, reads }) {
             const key = `${user.id}_payslip_${p.id}`;
             if (!reads?.[key]) await setDoc(doc(db, COL_READS, key), { userId: user.id, type: "payslip", docId: p.id, readAt: new Date().toISOString() });
           };
+          const w = p.wageData; // 자동 생성 명세서 데이터
           return (
-            <div key={p.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${unread ? T.blue : T.border}`, display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {unread && <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.blue, flexShrink: 0 }} />}
-                  <div style={{ fontWeight: unread ? 800 : 700, fontSize: 14, color: T.text }}>
-                    {isAdmin && `${member?.name} · `}{monthLabel(p.month)}
+            <div key={p.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${unread ? T.blue : T.border}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: w ? 10 : 0 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {unread && <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.blue, flexShrink: 0 }} />}
+                    <div style={{ fontWeight: unread ? 800 : 700, fontSize: 14, color: T.text }}>
+                      {isAdmin && `${member?.name} · `}{monthLabel(p.month)}
+                      {p.isAuto && <span style={{ fontSize: 10, background: "#16a34a22", color: "#16a34a", borderRadius: 6, padding: "2px 6px", marginLeft: 6, fontWeight: 700 }}>자동생성</span>}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: T.muted, marginTop: 3 }}>{p.createdAt?.slice(0,10)} 발급 · 지급일 {w?.payDate || "-"}</div>
+                </div>
+                {p.url
+                  ? <a href={p.url} target="_blank" rel="noopener noreferrer" onClick={handleRead}
+                      style={{ background: unread ? T.blue : T.blueBg, color: unread ? "#fff" : T.blue, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>보기</a>
+                  : null
+                }
+                {isAdmin && <button onClick={async () => { await deleteDoc(doc(db, COL_PAYSLIPS, p.id)); }} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "7px 10px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}>삭제</button>}
+              </div>
+              {/* 자동 생성 명세서 상세 */}
+              {w && (
+                <div style={{ background: T.bg, borderRadius: 10, padding: "10px 14px" }} onClick={handleRead}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 6 }}>
+                    {[["기본급", w.monthlyBase], ["연장수당", w.otPay], ["휴일수당", w.holidayPay],
+                      ["상여금", w.bonus], ["소득세", w.incomeTax], ["국민연금", w.nationalPension],
+                      ["건강보험", w.health], ["고용보험", w.employment], ["장기요양", w.longCare],
+                    ].filter(([,v]) => Number(v) > 0).map(([l,v]) => (
+                      <div key={l} style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ fontSize: 11, color: T.muted }}>{l}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600 }}>{Number(v).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${T.border}`, paddingTop: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>실 지급액</span>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: "#16a34a" }}>{Number(w.netPay).toLocaleString()}원</span>
                   </div>
                 </div>
-                <div style={{ fontSize: 11, color: T.muted, marginTop: 3 }}>{p.createdAt?.slice(0,10)} 업로드</div>
-              </div>
-              <a href={p.url} target="_blank" rel="noopener noreferrer" onClick={handleRead}
-                style={{ background: unread ? T.blue : T.blueBg, color: unread ? "#fff" : T.blue, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>보기</a>
-              {isAdmin && <button onClick={() => del(p)} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "7px 10px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}>삭제</button>}
+              )}
             </div>
           );
-        })
-      }
     </div>
   );
 }
