@@ -751,7 +751,7 @@ function EditRecordModal({ user, date, rec, settings, userLeaves, onSave, onClos
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 16 }}>
-      <div style={{ background: T.card, borderRadius: 20, padding: 22, width: "100%", maxWidth: 340, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px #00000030" }}>
+      <div style={{ background: T.card, borderRadius: 20, padding: 22, width: "100%", maxWidth: 340, maxHeight: "90vh", overflowY: "scroll", WebkitOverflowScrolling: "touch", boxShadow: "0 20px 60px #00000030" }}>
         <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 4 }}>{user.name} — 기록 수정</div>
         <div style={{ fontSize: 12, color: T.muted, marginBottom: 18 }}>{formatDate(date)}</div>
 
@@ -1129,8 +1129,8 @@ function SettingsModal({ settings, onSave, onClose }) {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 16 }}>
-      <div style={{ background: T.card, borderRadius: 20, padding: 22, width: "100%", maxWidth: 340, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px #00000020" }}>
+    <div style={{ position: "fixed", inset: 0, background: "#00000066", zIndex: 200, overflowY: "scroll", WebkitOverflowScrolling: "touch", padding: "20px 16px" }}>
+      <div style={{ background: T.card, borderRadius: 20, padding: 22, width: "100%", maxWidth: 340, margin: "0 auto", boxShadow: "0 20px 60px #00000020" }}>
         <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 20 }}>근무 설정</div>
 
         <div style={{ marginBottom: 16 }}>
@@ -1258,7 +1258,7 @@ function UserManageModal({ users, onSave, onClose }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 20 }}>
-      <div style={{ background: T.card, borderRadius: 20, padding: 22, width: "100%", maxWidth: 320, maxHeight: "88vh", overflowY: "auto", boxShadow: "0 20px 60px #00000020" }}>
+      <div style={{ background: T.card, borderRadius: 20, padding: 22, width: "100%", maxWidth: 320, maxHeight: "88vh", overflowY: "scroll", WebkitOverflowScrolling: "touch", boxShadow: "0 20px 60px #00000020" }}>
         {mode === "list" && <>
           <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 6 }}>팀원 관리</div>
           <div style={{ fontSize: 12, color: T.muted, marginBottom: 16 }}>팀원은 로그인 화면에서 직접 PIN을 변경할 수 있어요</div>
@@ -1533,7 +1533,7 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 12 }}>
-      <div style={{ background: T.card, borderRadius: 20, width: "100%", maxWidth: 360, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 20px 60px #00000030" }}>
+      <div style={{ background: T.card, borderRadius: 20, width: "100%", maxWidth: 360, maxHeight: "92vh", overflowY: "scroll", WebkitOverflowScrolling: "touch", boxShadow: "0 20px 60px #00000030" }}>
         <div style={{ background: "#16a34a", padding: "16px 20px", borderRadius: "20px 20px 0 0" }}>
           <div style={{ fontWeight: 800, fontSize: 17, color: "#fff" }}>{user.name} — {monthLabel(yearMonth)}</div>
           <div style={{ fontSize: 12, color: "#ffffff80", marginTop: 4 }}>지급일 {getPayDate(yearMonth, holidays)} · {info?.bank ? `${info.bank}은행 ${info.account}` : "계좌 미등록"}</div>
@@ -1938,7 +1938,7 @@ function MemberInfoModal({ user, info, onSave, onClose }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 16 }}>
-      <div style={{ background: T.card, borderRadius: 20, padding: 22, width: "100%", maxWidth: 340, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px #00000030" }}>
+      <div style={{ background: T.card, borderRadius: 20, padding: 22, width: "100%", maxWidth: 340, maxHeight: "90vh", overflowY: "scroll", WebkitOverflowScrolling: "touch", boxShadow: "0 20px 60px #00000030" }}>
         <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 4 }}>{user.name} — 기초 데이터</div>
         <div style={{ fontSize: 12, color: T.muted, marginBottom: 18 }}>임금 계산에 사용되는 정보예요</div>
 
