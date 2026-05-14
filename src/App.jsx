@@ -28,7 +28,7 @@ const T = {
 };
 
 // ── Firebase 컬렉션 키 ─────────────────────────────────────────
-// v2.2 - Vercel toolbar fix
+// v2.3 - 월 소정근로시간 설정화
 const COL_USERS    = "users";
 const COL_RECORDS  = "records";
 const COL_LEAVES   = "leaves";
@@ -54,11 +54,12 @@ const DEFAULT_SETTINGS = {
   lunchStart: "12:00", lunchEnd: "13:00",
   officeLat: null, officeLng: null, officeRadius: 200,
   holidays: [],
+  monthlyHours: 209,      // 월 소정근로시간 (주40시간 기준)
   // 4대보험 요율 (% 단위)
-  ratePension: 4.75,      // 국민연금
-  rateHealth: 3.595,      // 건강보험
-  rateEmployment: 0.9,    // 고용보험
-  rateLongCare: 13.14,    // 장기요양 (건강보험료 대비 %)
+  ratePension: 4.75,
+  rateHealth: 3.595,
+  rateEmployment: 0.9,
+  rateLongCare: 13.14,
 };
 const MASTER_CODE = "att2026!"; // 관리자 PIN 분실 시 비상 코드
 
@@ -1142,6 +1143,13 @@ function SettingsModal({ settings, onSave, onClose }) {
           <div style={{ fontSize: 13, color: T.blue, marginBottom: 6, fontWeight: 700 }}>퇴근 기준</div>
           <input type="time" value={s.workEnd} onChange={e => setS(p => ({ ...p, workEnd: e.target.value }))} style={{ ...iStyle, borderColor: T.blue + "44" }} />
         </div>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: T.text, marginBottom: 3, fontWeight: 700 }}>⏱ 월 소정근로시간</div>
+          <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>주40시간=209h · 주36시간=188h · 법 개정 시 변경</div>
+          <input type="number" value={s.monthlyHours ?? 209}
+            onChange={e => setS(p => ({ ...p, monthlyHours: Number(e.target.value) }))}
+            style={{ ...iStyle }} placeholder="209" />
+        </div>
         {/* 점심시간 */}
         <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
           <div style={{ fontSize: 13, color: T.text, fontWeight: 700, marginBottom: 4 }}>🍱 점심시간</div>
@@ -1480,9 +1488,10 @@ function getPayDate(yearMonth, holidays = []) {
 
 // ── 급여 계산 모달 ───────────────────────────────────────────
 function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annualData, settings, onClose, onSave }) {
+  const monthlyHours = Number(settings?.monthlyHours ?? 209);
   const hourlyWage = Number(info?.hourlyWage || 0);
   const dailyWage = Math.round(hourlyWage * 8);
-  const monthlyBase = Math.round(hourlyWage * 209);
+  const monthlyBase = Math.round(hourlyWage * monthlyHours);
   const otPay = Math.round(hourlyWage * 1.5 * (monthStats.otMin / 60));
   const holidayPay = Math.round(dailyWage * 1.5 * (monthStats.holiday || 0));
   const deductMin = (monthStats.lateMin || 0) + (monthStats.earlyMin || 0) + (monthStats.outingMin || 0);
@@ -1564,7 +1573,7 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
           {/* 소득 */}
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 700, marginBottom: 8 }}>소득 내역</div>
-            <Row label={`기본급 (${hourlyWage.toLocaleString()}×209)`} value={monthlyBase} />
+            <Row label={`기본급 (${hourlyWage.toLocaleString()}×${monthlyHours})`} value={monthlyBase} />
             {otPay > 0 && <Row label={`연장수당 (×1.5, ${fmtMinutes(monthStats.otMin)})`} value={otPay} />}
             {holidayPay > 0 && <Row label={`휴일수당 (×1.5, ${monthStats.holiday}일)`} value={holidayPay} />}
             {[["상여금", "bonus"], ["이월분", "carryOver"], ["기타", "otherIncome"]].map(([label, key]) => (
@@ -1626,7 +1635,7 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
             <Btn variant="ghost" onClick={onClose}>취소</Btn>
             <Btn variant="green" onClick={() => onSave({
               userId: user.id, userName: user.name, yearMonth,
-              hourlyWage, monthlyBase, otPay, holidayPay, deductPay, deductMin,
+              hourlyWage, monthlyHours, monthlyBase, otPay, holidayPay, deductPay, deductMin,
               ...form,
               annualRemain: isDecember ? annualRemain : 0,
               incomeTax, residentTax, nationalPension, health, employment, longCare,
@@ -2713,7 +2722,7 @@ function PayslipScreen({ user, users, payslips, reads }) {
                   {/* 소득 내역 */}
                   <div style={{ fontSize: 11, color: T.blue, fontWeight: 700, marginBottom: 6 }}>소득 내역</div>
                   {[
-                    ["기본급", w.monthlyBase, `시급 ${Number(w.hourlyWage).toLocaleString()} × 209`],
+                    ["기본급", w.monthlyBase, `시급 ${Number(w.hourlyWage||0).toLocaleString()} × ${w.monthlyHours||209}`],
                     ["연장수당", w.otPay, `시급 × 연장${fmtMinutes(w.monthStats?.otMin||0)} × 1.5`],
                     ["휴일수당", w.holidayPay, `일급 × 휴일${w.monthStats?.holiday||0}일 × 1.5`],
                     ["상여금", w.bonus, ""],
