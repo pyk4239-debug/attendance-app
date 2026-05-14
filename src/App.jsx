@@ -1441,63 +1441,60 @@ function AdminAttendance({ users, settings, records, leaves, leaveRequests, onSa
 function getPayDate(yearMonth) {
   const [y, m] = yearMonth.split("-").map(Number);
   let d = new Date(y, m - 1, 15);
-  // 15일이 토(6)/일(0)이면 다음 평일
   while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
   return d.toISOString().slice(0, 10);
 }
 
-// ── 간이 소득세 (수동 입력이므로 참고용) ──────────────────────
-function calcInsurance(baseAmount) {
-  const base = Math.round(baseAmount / 1000) * 1000; // 천원 단위
-  return {
-    nationalPension: Math.round(base * 0.045),      // 국민연금 4.5% (정확히는 4.5%)
-    employment: Math.round(base * 0.009),            // 고용보험 0.9%
-    health: Math.round(base * 0.03545),              // 건강보험 3.545%
-    longCare: Math.round(base * 0.03545 * 0.1314),  // 장기요양 건강보험료 × 13.14%
-  };
-}
-
 // ── 급여 계산 모달 ───────────────────────────────────────────
-function WageModal({ user, info, monthStats, annual, yearMonth, onClose, onSave }) {
+function WageModal({ user, info, monthStats, yearMonth, onClose, onSave }) {
   const hourlyWage = Number(info?.hourlyWage || 0);
   const dailyWage = Math.round(hourlyWage * 8);
-  const monthlyBase = Math.round(hourlyWage * 209); // 기본급
+  const monthlyBase = Math.round(hourlyWage * 209);
 
   // 자동 계산
   const otPay = Math.round(hourlyWage * 1.5 * (monthStats.otMin / 60));
   const holidayPay = Math.round(dailyWage * 1.5 * (monthStats.holiday || 0));
-  const ins = calcInsurance(monthlyBase);
+
+  // 지각/조퇴/외출 차감 (발생 시간 × 시급)
+  const deductMin = (monthStats.lateMin || 0) + (monthStats.earlyMin || 0) + (monthStats.outingMin || 0);
+  const deductPay = Math.round(hourlyWage * (deductMin / 60));
+
+  // 4대보험 자동 계산
+  const pensionBase = Number(info?.pensionBase || 0);
+  const insuranceBase = Number(info?.insuranceBase || 0);
+  const incomeTax = Number(info?.incomeTax || 0);
+  const residentTax = Math.round(incomeTax * 0.1);
+  const nationalPension = Math.round(pensionBase * 0.045);
+  const health = Math.round(insuranceBase * 0.03545);
+  const employment = Math.round(insuranceBase * 0.009);
+  const longCare = Math.round(health * 0.1314);
 
   const [form, setForm] = useState({
-    incomeTax: 0,      // 소득세 (수동)
-    bonus: 0,          // 상여금 (수동)
-    annualPay: 0,      // 연차수당 (수동)
-    carryOver: 0,      // 이월분 (수동)
-    otherIncome: 0,    // 기타 소득 (수동)
-    otherDeduct: 0,    // 기타 공제 (수동)
+    bonus: 0,       // 상여금
+    carryOver: 0,   // 이월분
+    otherIncome: 0, // 기타 소득
+    otherDeduct: 0, // 기타 공제
     memo: "",
   });
 
-  const residentTax = Math.round(Number(form.incomeTax) * 0.1);
   const totalIncome = monthlyBase + otPay + holidayPay +
-    Number(form.bonus) + Number(form.annualPay) + Number(form.carryOver) + Number(form.otherIncome);
-  const totalDeduct = ins.nationalPension + ins.employment + ins.health + ins.longCare +
-    Number(form.incomeTax) + residentTax + Number(form.otherDeduct);
+    Number(form.bonus) + Number(form.carryOver) + Number(form.otherIncome);
+  const totalDeduct = incomeTax + residentTax + nationalPension + health + employment + longCare +
+    deductPay + Number(form.otherDeduct);
   const netPay = totalIncome - totalDeduct;
 
   const iStyle = { width: "100%", padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box", textAlign: "right", fontFamily: "inherit" };
 
-  const Row = ({ label, value, color, bold }) => (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${T.border}` }}>
-      <span style={{ fontSize: 13, color: T.muted }}>{label}</span>
-      <span style={{ fontSize: 13, fontWeight: bold ? 800 : 600, color: color || T.text }}>{value?.toLocaleString()}원</span>
+  const Row = ({ label, value, color, bold, sub }) => (
+    <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>
+      <span style={{ fontSize: sub ? 11 : 13, color: sub ? T.muted : T.text }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: bold ? 800 : 600, color: color || T.text }}>{Number(value || 0).toLocaleString()}원</span>
     </div>
   );
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 12 }}>
       <div style={{ background: T.card, borderRadius: 20, width: "100%", maxWidth: 360, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 20px 60px #00000030" }}>
-        {/* 헤더 */}
         <div style={{ background: "#16a34a", padding: "16px 20px", borderRadius: "20px 20px 0 0" }}>
           <div style={{ fontWeight: 800, fontSize: 17, color: "#fff" }}>{user.name} — {monthLabel(yearMonth)}</div>
           <div style={{ fontSize: 12, color: "#ffffff80", marginTop: 4 }}>지급일 {getPayDate(yearMonth)}</div>
@@ -1508,9 +1505,14 @@ function WageModal({ user, info, monthStats, annual, yearMonth, onClose, onSave 
           <div style={{ background: T.bg, borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
             <div style={{ fontSize: 12, color: T.muted, fontWeight: 700, marginBottom: 8 }}>근태 내역</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
-              {[["출근", monthStats.days+"일"], ["연장", fmtMinutes(monthStats.otMin)], ["휴일근무", monthStats.holiday+"일"],
-                ["연차사용", (monthStats.annualDays||0)+"일"], ["연차잔여", ((annual?.total||0)-(annual?.used||0))+"일"], ["결근", monthStats.absent+"일"]
-              ].map(([l,v]) => (
+              {[
+                ["출근", monthStats.days + "일"],
+                ["연장", fmtMinutes(monthStats.otMin)],
+                ["휴일", monthStats.holiday + "일"],
+                ["지각", fmtMinutes(monthStats.lateMin)],
+                ["조퇴", fmtMinutes(monthStats.earlyMin)],
+                ["외출", fmtMinutes(monthStats.outingMin || 0)],
+              ].map(([l, v]) => (
                 <div key={l} style={{ textAlign: "center" }}>
                   <div style={{ fontSize: 10, color: T.muted }}>{l}</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{v}</div>
@@ -1521,44 +1523,36 @@ function WageModal({ user, info, monthStats, annual, yearMonth, onClose, onSave 
 
           {/* 소득 */}
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 12, color: T.muted, fontWeight: 700, marginBottom: 8 }}>소득 내역</div>
+            <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 700, marginBottom: 8 }}>소득 내역</div>
             <Row label={`기본급 (${hourlyWage.toLocaleString()}×209)`} value={monthlyBase} />
             {otPay > 0 && <Row label={`연장수당 (×1.5, ${fmtMinutes(monthStats.otMin)})`} value={otPay} />}
             {holidayPay > 0 && <Row label={`휴일수당 (×1.5, ${monthStats.holiday}일)`} value={holidayPay} />}
-            <div style={{ padding: "6px 0", borderBottom: `1px solid ${T.border}` }}>
-              <div style={{ fontSize: 13, color: T.muted, marginBottom: 4 }}>상여금</div>
-              <input type="number" value={form.bonus} onChange={e => setForm(p => ({...p, bonus: e.target.value}))} style={iStyle} placeholder="0" />
-            </div>
-            <div style={{ padding: "6px 0", borderBottom: `1px solid ${T.border}` }}>
-              <div style={{ fontSize: 13, color: T.muted, marginBottom: 4 }}>연차수당</div>
-              <input type="number" value={form.annualPay} onChange={e => setForm(p => ({...p, annualPay: e.target.value}))} style={iStyle} placeholder="0" />
-            </div>
-            <div style={{ padding: "6px 0", borderBottom: `1px solid ${T.border}` }}>
-              <div style={{ fontSize: 13, color: T.muted, marginBottom: 4 }}>이월분</div>
-              <input type="number" value={form.carryOver} onChange={e => setForm(p => ({...p, carryOver: e.target.value}))} style={iStyle} placeholder="0" />
-            </div>
-            <div style={{ padding: "6px 0", borderBottom: `1px solid ${T.border}` }}>
-              <div style={{ fontSize: 13, color: T.muted, marginBottom: 4 }}>기타</div>
-              <input type="number" value={form.otherIncome} onChange={e => setForm(p => ({...p, otherIncome: e.target.value}))} style={iStyle} placeholder="0" />
-            </div>
+            {[["상여금", "bonus"], ["이월분", "carryOver"], ["기타", "otherIncome"]].map(([label, key]) => (
+              <div key={key} style={{ padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 13, color: T.text, whiteSpace: "nowrap" }}>{label}</span>
+                  <input type="number" value={form[key]} onChange={e => setForm(p => ({...p, [key]: e.target.value}))} style={{ ...iStyle, width: 130 }} placeholder="0" />
+                </div>
+              </div>
+            ))}
             <Row label="소득 합계" value={totalIncome} bold color={T.blue} />
           </div>
 
           {/* 공제 */}
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 12, color: T.muted, fontWeight: 700, marginBottom: 8 }}>공제 내역</div>
-            <div style={{ padding: "6px 0", borderBottom: `1px solid ${T.border}` }}>
-              <div style={{ fontSize: 13, color: T.muted, marginBottom: 4 }}>소득세 (수동)</div>
-              <input type="number" value={form.incomeTax} onChange={e => setForm(p => ({...p, incomeTax: e.target.value}))} style={iStyle} placeholder="0" />
-            </div>
-            <Row label={`주민세 (소득세×10%)`} value={residentTax} />
-            <Row label={`국민연금 (4.5%)`} value={ins.nationalPension} />
-            <Row label={`고용보험 (0.9%)`} value={ins.employment} />
-            <Row label={`건강보험 (3.545%)`} value={ins.health} />
-            <Row label={`장기요양 (13.14%)`} value={ins.longCare} />
-            <div style={{ padding: "6px 0", borderBottom: `1px solid ${T.border}` }}>
-              <div style={{ fontSize: 13, color: T.muted, marginBottom: 4 }}>기타 공제</div>
-              <input type="number" value={form.otherDeduct} onChange={e => setForm(p => ({...p, otherDeduct: e.target.value}))} style={iStyle} placeholder="0" />
+            <div style={{ fontSize: 12, color: T.red, fontWeight: 700, marginBottom: 8 }}>공제 내역</div>
+            {deductPay > 0 && <Row label={`지각/조퇴/외출 차감 (${fmtMinutes(deductMin)})`} value={deductPay} color={T.orange} />}
+            <Row label={`소득세`} value={incomeTax} sub />
+            <Row label={`주민세 (소득세×10%)`} value={residentTax} sub />
+            <Row label={`국민연금 (${pensionBase.toLocaleString()}×4.5%)`} value={nationalPension} sub />
+            <Row label={`건강보험 (${insuranceBase.toLocaleString()}×3.545%)`} value={health} sub />
+            <Row label={`고용보험 (${insuranceBase.toLocaleString()}×0.9%)`} value={employment} sub />
+            <Row label={`장기요양 (건강보험×13.14%)`} value={longCare} sub />
+            <div style={{ padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 13, color: T.text, whiteSpace: "nowrap" }}>기타 공제</span>
+                <input type="number" value={form.otherDeduct} onChange={e => setForm(p => ({...p, otherDeduct: e.target.value}))} style={{ ...iStyle, width: 130 }} placeholder="0" />
+              </div>
             </div>
             <Row label="공제 합계" value={totalDeduct} bold color={T.red} />
           </div>
@@ -1580,9 +1574,9 @@ function WageModal({ user, info, monthStats, annual, yearMonth, onClose, onSave 
             <Btn variant="ghost" onClick={onClose}>취소</Btn>
             <Btn variant="green" onClick={() => onSave({
               userId: user.id, userName: user.name, yearMonth,
-              hourlyWage, monthlyBase, otPay, holidayPay,
+              hourlyWage, monthlyBase, otPay, holidayPay, deductPay,
               ...form,
-              residentTax, ...ins,
+              incomeTax, residentTax, nationalPension, health, employment, longCare,
               totalIncome, totalDeduct, netPay,
               monthStats, payDate: getPayDate(yearMonth),
               createdAt: new Date().toISOString()
@@ -1616,27 +1610,32 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
   const prevMonth = () => {
     const [y, m] = selectedMonth.split("-").map(Number);
     const d = new Date(y, m - 2, 1);
-    setSelectedMonth(d.toISOString().slice(0, 7));
+    setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   };
   const nextMonth = () => {
     const [y, m] = selectedMonth.split("-").map(Number);
-    const now = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
-    const cur = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+    const cur = `${kstNow.getFullYear()}-${String(kstNow.getMonth() + 1).padStart(2, "0")}`;
     if (selectedMonth >= cur) return;
     const d = new Date(y, m, 1);
-    setSelectedMonth(d.toISOString().slice(0, 7));
+    setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   };
 
   const getMonthStats = (userId) => {
     const days = Object.entries(records[userId] || {}).filter(([d]) => d.startsWith(selectedMonth));
     const uLeaves = Object.fromEntries(Object.entries(leaves[userId] || {}).filter(([d]) => d.startsWith(selectedMonth)));
     const ms = calcMonthStats(days, settings, uLeaves, leaveRequests, userId, selectedMonth);
-    // 결근일수 계산 (소정근로일 - 출근일)
-    const workDays = days.filter(([d]) => {
-      const dt = new Date(d);
-      return dt.getDay() !== 0 && dt.getDay() !== 6 && !isHoliday(d, settings.holidays);
-    }).length;
-    ms.absent = Math.max(0, workDays - ms.days);
+    // 외출 시간 합산
+    let outingMin = 0;
+    days.forEach(([, rec]) => {
+      (rec.outing || []).forEach(o => {
+        if (o.out && o.in) {
+          const diff = (new Date(o.in) - new Date(o.out)) / 60000;
+          outingMin += diff;
+        }
+      });
+    });
+    ms.outingMin = Math.round(outingMin);
     return ms;
   };
 
@@ -1742,7 +1741,6 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
           user={wageModal.user}
           info={memberInfo[wageModal.user.id] || {}}
           monthStats={getMonthStats(wageModal.user.id)}
-          annual={annual[wageModal.user.id]}
           yearMonth={selectedMonth}
           onClose={() => setWageModal(null)}
           onSave={saveWage}
@@ -1758,9 +1756,20 @@ function MemberInfoModal({ user, info, onSave, onClose }) {
   const [d, setD] = useState({
     empNo: "", ssn: "", joinDate: "", bank: "", account: "",
     hourlyWage: "", employType: "정규직", weeklyHours: 40, insurance: true,
+    incomeTax: "",        // 소득세 (월 고정)
+    pensionBase: "",      // 국민연금 기준소득월액
+    insuranceBase: "",    // 건강/고용보험 보수월액
     ...info
   });
   const iStyle = { width: "100%", padding: "11px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box", fontFamily: "inherit" };
+  const numField = (label, key, placeholder, hint) => (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 12, color: T.sub, marginBottom: 3, fontWeight: 600 }}>{label}</div>
+      {hint && <div style={{ fontSize: 11, color: T.muted, marginBottom: 5 }}>{hint}</div>}
+      <input type="number" value={d[key]} onChange={e => setD(p => ({ ...p, [key]: e.target.value }))}
+        placeholder={placeholder} style={iStyle} />
+    </div>
+  );
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 16 }}>
@@ -1768,6 +1777,8 @@ function MemberInfoModal({ user, info, onSave, onClose }) {
         <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 4 }}>{user.name} — 기초 데이터</div>
         <div style={{ fontSize: 12, color: T.muted, marginBottom: 18 }}>임금 계산에 사용되는 정보예요</div>
 
+        {/* 기본 정보 */}
+        <div style={{ fontSize: 12, color: T.adminHeader, fontWeight: 700, marginBottom: 10 }}>📋 기본 정보</div>
         {[
           ["사번", "empNo", "text", "사번 입력"],
           ["주민등록번호", "ssn", "text", "000000-0000000"],
@@ -1787,34 +1798,24 @@ function MemberInfoModal({ user, info, onSave, onClose }) {
             {BANKS.map(b => <option key={b} value={b}>{b}은행</option>)}
           </select>
         </div>
-
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 12, color: T.sub, marginBottom: 5, fontWeight: 600 }}>계좌번호</div>
           <input value={d.account} onChange={e => setD(p => ({ ...p, account: e.target.value }))}
             placeholder="계좌번호 입력" style={iStyle} />
         </div>
-
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 12, color: T.sub, marginBottom: 5, fontWeight: 600 }}>시급 (원)</div>
-          <input type="number" value={d.hourlyWage} onChange={e => setD(p => ({ ...p, hourlyWage: e.target.value }))}
-            placeholder="시급 입력" style={iStyle} />
-        </div>
-
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 12, color: T.sub, marginBottom: 5, fontWeight: 600 }}>고용형태</div>
           <select value={d.employType} onChange={e => setD(p => ({ ...p, employType: e.target.value }))} style={iStyle}>
             {["정규직", "계약직", "파트타임"].map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
-
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 12, color: T.sub, marginBottom: 5, fontWeight: 600 }}>소정근로시간 (주)</div>
           <select value={d.weeklyHours} onChange={e => setD(p => ({ ...p, weeklyHours: Number(e.target.value) }))} style={iStyle}>
             {[40, 35, 30, 25, 20, 15].map(h => <option key={h} value={h}>주 {h}시간</option>)}
           </select>
         </div>
-
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 12, color: T.sub, marginBottom: 8, fontWeight: 600 }}>4대보험</div>
           <div style={{ display: "flex", gap: 10 }}>
             {[["적용", true], ["미적용", false]].map(([label, val]) => (
@@ -1826,7 +1827,17 @@ function MemberInfoModal({ user, info, onSave, onClose }) {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {/* 임금 정보 */}
+        <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 700, marginBottom: 10, marginTop: 4 }}>💰 임금 정보</div>
+        {numField("시급 (원)", "hourlyWage", "시급 입력")}
+        {numField("소득세 (월 고정, 원)", "incomeTax", "0", "간이세액표 기준 수동 입력")}
+
+        {/* 보험 과세표준 */}
+        <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 700, marginBottom: 10, marginTop: 4 }}>🏥 보험 과세표준</div>
+        {numField("국민연금 기준소득월액 (원)", "pensionBase", "0", "× 4.5% = 국민연금")}
+        {numField("건강/고용보험 보수월액 (원)", "insuranceBase", "0", "건강 ×3.595% / 고용 ×0.9%")}
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
           <Btn variant="ghost" onClick={onClose}>취소</Btn>
           <Btn variant="admin" onClick={() => onSave(d)}>저장</Btn>
         </div>
