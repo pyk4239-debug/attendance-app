@@ -1817,22 +1817,44 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
                     <Badge label={s ? "확정" : "미확정"} color={s ? "green" : "gray"} />
                   </div>
                   {s ? (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
-                      {[
-                        ["기본급", s.monthlyBase], ["연장수당", s.otPay], ["휴일수당", s.holidayPay],
-                        ["상여금", s.bonus], ["이월분", s.carryOver], ["기타", s.otherIncome],
-                        ["소득세", s.incomeTax], ["주민세", s.residentTax], ["국민연금", s.nationalPension],
-                        ["건강보험", s.health], ["고용보험", s.employment], ["장기요양", s.longCare],
-                        ["지각/조퇴차감", s.deductPay], ["기타공제", s.otherDeduct],
-                      ].filter(([,v]) => Number(v) > 0).map(([l,v]) => (
-                        <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: `1px solid ${T.border}` }}>
-                          <span style={{ fontSize: 11, color: T.muted }}>{l}</span>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: T.text }}>{Number(v).toLocaleString()}</span>
+                    <div>
+                      {/* 소득 */}
+                      <div style={{ fontSize: 11, color: T.blue, fontWeight: 700, marginBottom: 4 }}>소득</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, marginBottom: 8 }}>
+                        {[["기본급", s.monthlyBase], ["연장수당", s.otPay], ["휴일수당", s.holidayPay],
+                          ["상여금", s.bonus], ["연차수당", s.annualPay], ["이월분", s.carryOver], ["기타", s.otherIncome],
+                        ].filter(([,v]) => Number(v) > 0).map(([l,v]) => (
+                          <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "3px 6px", background: "#eff6ff", borderRadius: 4 }}>
+                            <span style={{ fontSize: 11, color: T.muted }}>{l}</span>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: T.blue }}>{Number(v).toLocaleString()}</span>
+                          </div>
+                        ))}
+                        <div style={{ gridColumn: "span 2", display: "flex", justifyContent: "space-between", padding: "4px 6px", background: "#dbeafe", borderRadius: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: T.blue }}>소득 합계</span>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: T.blue }}>{Number(s.totalIncome||0).toLocaleString()}</span>
                         </div>
-                      ))}
-                      <div style={{ gridColumn: "span 2", display: "flex", justifyContent: "space-between", padding: "6px 0", marginTop: 4, borderTop: `2px solid #16a34a44` }}>
+                      </div>
+                      {/* 공제 */}
+                      <div style={{ fontSize: 11, color: T.red, fontWeight: 700, marginBottom: 4 }}>공제</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, marginBottom: 8 }}>
+                        {[["소득세", s.incomeTax], ["주민세", s.residentTax], ["국민연금", s.nationalPension],
+                          ["건강보험", s.health], ["고용보험", s.employment], ["장기요양", s.longCare],
+                          ["지각/조퇴차감", s.deductPay], ["기타공제", s.otherDeduct],
+                        ].filter(([,v]) => Number(v) > 0).map(([l,v]) => (
+                          <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "3px 6px", background: "#fff1f2", borderRadius: 4 }}>
+                            <span style={{ fontSize: 11, color: T.muted }}>{l}</span>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: T.red }}>{Number(v).toLocaleString()}</span>
+                          </div>
+                        ))}
+                        <div style={{ gridColumn: "span 2", display: "flex", justifyContent: "space-between", padding: "4px 6px", background: "#ffe4e6", borderRadius: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: T.red }}>공제 합계</span>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: T.red }}>{Number(s.totalDeduct||0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                      {/* 실지급액 */}
+                      <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: "#f0fdf4", borderRadius: 8, border: "1px solid #16a34a44" }}>
                         <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>실 지급액</span>
-                        <span style={{ fontSize: 15, fontWeight: 800, color: "#16a34a" }}>{s.netPay?.toLocaleString()}원</span>
+                        <span style={{ fontSize: 16, fontWeight: 800, color: "#16a34a" }}>{Number(s.netPay||0).toLocaleString()}원</span>
                       </div>
                     </div>
                   ) : (
