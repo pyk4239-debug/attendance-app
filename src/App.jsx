@@ -1129,8 +1129,8 @@ function SettingsModal({ settings, onSave, onClose }) {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "#00000066", zIndex: 200, overflowY: "scroll", WebkitOverflowScrolling: "touch", padding: "20px 16px" }}>
-      <div style={{ background: T.card, borderRadius: 20, padding: 22, width: "100%", maxWidth: 340, margin: "0 auto", boxShadow: "0 20px 60px #00000020" }}>
+    <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "flex-start", justifyContent: "center", zIndex: 200, padding: "20px 16px", overflowY: "auto" }}>
+      <div style={{ background: T.card, borderRadius: 20, padding: 22, width: "100%", maxWidth: 340, margin: "auto", boxShadow: "0 20px 60px #00000020" }}>
         <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 20 }}>근무 설정</div>
 
         <div style={{ marginBottom: 16 }}>
@@ -1211,16 +1211,16 @@ function SettingsModal({ settings, onSave, onClose }) {
           <div style={{ fontSize: 11, color: T.muted, marginBottom: 12 }}>매년 변경 시 업데이트해주세요</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {[
-              ["국민연금", "ratePension", "4.75"],
-              ["건강보험", "rateHealth", "3.595"],
-              ["고용보험", "rateEmployment", "0.9"],
-              ["장기요양*", "rateLongCare", "13.14"],
-            ].map(([label, key, placeholder]) => (
+              ["국민연금", "ratePension", 4.75],
+              ["건강보험", "rateHealth", 3.595],
+              ["고용보험", "rateEmployment", 0.9],
+              ["장기요양*", "rateLongCare", 13.14],
+            ].map(([label, key, defaultVal]) => (
               <div key={key}>
                 <div style={{ fontSize: 11, color: T.muted, marginBottom: 4, fontWeight: 600 }}>{label}</div>
-                <input type="number" step="0.001" value={s[key] ?? DEFAULT_SETTINGS[key]}
+                <input type="number" step="0.001"
+                  value={s[key] !== undefined && s[key] !== null ? s[key] : defaultVal}
                   onChange={e => setS(p => ({ ...p, [key]: Number(e.target.value) }))}
-                  placeholder={placeholder}
                   style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box" }} />
               </div>
             ))}
