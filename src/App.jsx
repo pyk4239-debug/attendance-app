@@ -28,7 +28,7 @@ const T = {
 };
 
 // ── Firebase 컬렉션 키 ─────────────────────────────────────────
-// v2.3 - 월 소정근로시간 설정화
+// v2.4 - 소정근로시간 자유입력
 const COL_USERS    = "users";
 const COL_RECORDS  = "records";
 const COL_LEAVES   = "leaves";
@@ -1985,10 +1985,9 @@ function MemberInfoModal({ user, info, onSave, onClose }) {
           </select>
         </div>
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 12, color: T.sub, marginBottom: 5, fontWeight: 600 }}>소정근로시간 (주)</div>
-          <select value={d.weeklyHours} onChange={e => setD(p => ({ ...p, weeklyHours: Number(e.target.value) }))} style={iStyle}>
-            {[40, 35, 30, 25, 20, 15].map(h => <option key={h} value={h}>주 {h}시간</option>)}
-          </select>
+          <div style={{ fontSize: 12, color: T.sub, marginBottom: 5, fontWeight: 600 }}>소정근로시간 (주, 시간)</div>
+          <input type="number" value={d.weeklyHours} onChange={e => setD(p => ({ ...p, weeklyHours: Number(e.target.value) }))}
+            placeholder="40" style={iStyle} />
         </div>
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 12, color: T.sub, marginBottom: 8, fontWeight: 600 }}>4대보험</div>
