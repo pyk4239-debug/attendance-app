@@ -28,7 +28,7 @@ const T = {
 };
 
 // ── Firebase 컬렉션 키 ─────────────────────────────────────────
-// v2.8 - 미래날짜 제외, 급여 근태 결근/휴무일
+// v2.9 - 퇴직금 섹션 추가
 const COL_USERS    = "users";
 const COL_RECORDS  = "records";
 const COL_LEAVES   = "leaves";
@@ -1361,6 +1361,159 @@ function UserManageModal({ users, onSave, onClose }) {
 }
 
 // ── 관리자 화면 ────────────────────────────────────────────────
+// ── 퇴직금 계산 ────────────────────────────────────────────────
+function AdminSeverance({ users, memberInfo, onBack }) {
+  const members = users.filter(u => u.role === "member");
+  const [selUser, setSelUser] = useState(members[0]?.id || "");
+  const [retireDate, setRetireDate] = useState("");
+  const [wages, setWages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const user = members.find(u => u.id === selUser);
+  const info = memberInfo[selUser] || {};
+  const joinDate = info.joinDate || "";
+
+  const calc = async () => {
+    if (!selUser || !retireDate || !joinDate) return;
+    setLoading(true);
+    // wages 컬렉션에서 해당 팀원 최근 3개월 급여 로드
+    const snap = await getDocs(collection(db, "wages"));
+    const all = snap.docs.map(d => d.data()).filter(w => w.userId === selUser);
+    all.sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
+
+    // 퇴직일 기준 이전 3개월
+    const retire = new Date(retireDate);
+    const threeMonthsAgo = new Date(retire);
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    const recentWages = all.filter(w => {
+      const wDate = new Date(w.yearMonth + "-01");
+      return wDate >= threeMonthsAgo && wDate < retire;
+    }).slice(0, 3);
+
+    setWages(recentWages);
+
+    // 근속일수
+    const join = new Date(joinDate);
+    const workDays = Math.floor((retire - join) / (1000 * 60 * 60 * 24));
+
+    // 3개월 총 임금 / 3개월 달력일수
+    const totalPay3 = recentWages.reduce((s, w) => s + (Number(w.totalIncome) || 0), 0);
+    // 퇴직 전 3개월 달력일수
+    const d1 = new Date(retire); d1.setMonth(d1.getMonth() - 3);
+    const calDays3 = Math.floor((retire - d1) / (1000 * 60 * 60 * 24));
+    const avgDailyWage = recentWages.length > 0 ? Math.round(totalPay3 / calDays3) : 0;
+
+    // 퇴직금 = 평균임금 × 30 × (근속일수 / 365)
+    const severance = Math.round(avgDailyWage * 30 * (workDays / 365));
+
+    setResult({ workDays, avgDailyWage, totalPay3, calDays3, severance, recentWages });
+    setLoading(false);
+  };
+
+  const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 15, fontWeight: 600, boxSizing: "border-box", fontFamily: "inherit" };
+
+  return (
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
+      <div style={{ background: "#0891b2", padding: "16px 16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
+          <div>
+            <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>💼 퇴직금 계산</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: 16 }}>
+        {/* 팀원 선택 */}
+        <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 14, border: `1px solid ${T.border}` }}>
+          <div style={{ fontSize: 13, color: T.muted, fontWeight: 700, marginBottom: 8 }}>팀원 선택</div>
+          <select value={selUser} onChange={e => { setSelUser(e.target.value); setResult(null); }} style={iStyle}>
+            {members.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+          {user && (
+            <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <div style={{ background: T.bg, borderRadius: 8, padding: "8px 12px" }}>
+                <div style={{ fontSize: 10, color: T.muted }}>입사일</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{joinDate || "미입력"}</div>
+              </div>
+              <div style={{ background: T.bg, borderRadius: 8, padding: "8px 12px" }}>
+                <div style={{ fontSize: 10, color: T.muted }}>시급</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{Number(info.hourlyWage||0).toLocaleString()}원</div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 퇴직일 */}
+        <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 14, border: `1px solid ${T.border}` }}>
+          <div style={{ fontSize: 13, color: T.muted, fontWeight: 700, marginBottom: 8 }}>퇴직일</div>
+          <input type="date" value={retireDate} onChange={e => { setRetireDate(e.target.value); setResult(null); }} style={iStyle} />
+          {joinDate && retireDate && (
+            <div style={{ fontSize: 12, color: T.muted, marginTop: 8, textAlign: "center" }}>
+              근속기간: <strong style={{ color: T.text }}>
+                {Math.floor((new Date(retireDate) - new Date(joinDate)) / (1000*60*60*24))}일
+                ({(Math.floor((new Date(retireDate) - new Date(joinDate)) / (1000*60*60*24)) / 365).toFixed(1)}년)
+              </strong>
+            </div>
+          )}
+        </div>
+
+        <button onClick={calc} disabled={!selUser || !retireDate || !joinDate || loading}
+          style={{ width: "100%", padding: "14px 0", borderRadius: 14, border: "none", background: "#0891b2", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", marginBottom: 16, opacity: (!selUser || !retireDate || !joinDate) ? 0.5 : 1 }}>
+          {loading ? "계산중..." : "퇴직금 계산"}
+        </button>
+
+        {result && (
+          <div>
+            {/* 3개월 급여 내역 */}
+            <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 14, border: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 13, color: T.muted, fontWeight: 700, marginBottom: 10 }}>퇴직 전 3개월 급여</div>
+              {result.recentWages.length === 0 ? (
+                <div style={{ fontSize: 12, color: T.orange, padding: "8px 0" }}>⚠ 급여 확정 데이터가 없어요. 시급 기준으로 계산해주세요.</div>
+              ) : result.recentWages.map(w => (
+                <div key={w.yearMonth} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${T.border}` }}>
+                  <span style={{ fontSize: 13, color: T.text }}>{monthLabel(w.yearMonth)}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: T.blue }}>{Number(w.totalIncome).toLocaleString()}원</span>
+                </div>
+              ))}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0 4px" }}>
+                <span style={{ fontSize: 12, color: T.muted }}>3개월 합계</span>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{result.totalPay3.toLocaleString()}원</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+                <span style={{ fontSize: 12, color: T.muted }}>달력일수</span>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{result.calDays3}일</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+                <span style={{ fontSize: 12, color: T.muted }}>1일 평균임금</span>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{result.avgDailyWage.toLocaleString()}원</span>
+              </div>
+            </div>
+
+            {/* 계산식 */}
+            <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 14, border: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 13, color: T.muted, fontWeight: 700, marginBottom: 10 }}>계산식</div>
+              <div style={{ fontSize: 12, color: T.muted, lineHeight: 2 }}>
+                <div>평균임금 × 30일 × (근속일수 ÷ 365)</div>
+                <div>{result.avgDailyWage.toLocaleString()} × 30 × ({result.workDays} ÷ 365)</div>
+              </div>
+            </div>
+
+            {/* 퇴직금 */}
+            <div style={{ background: "#ecfeff", borderRadius: 16, padding: 20, border: "2px solid #0891b2", textAlign: "center" }}>
+              <div style={{ fontSize: 13, color: "#0891b2", fontWeight: 700, marginBottom: 8 }}>퇴직금</div>
+              <div style={{ fontSize: 30, fontWeight: 800, color: "#0891b2" }}>{result.severance.toLocaleString()}원</div>
+              <div style={{ fontSize: 11, color: T.muted, marginTop: 8 }}>근속 {result.workDays}일 ({(result.workDays/365).toFixed(1)}년)</div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── 관리자 대문 ────────────────────────────────────────────────
 function AdminHome({ user, onLogout, onSection }) {
   const now = new Date();
@@ -1368,10 +1521,11 @@ function AdminHome({ user, onLogout, onSection }) {
   const dateStr = kst.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
 
   const sections = [
-    { key: "attendance", icon: "📋", label: "근태", desc: "출퇴근 현황 · 월별 기록", color: "#2563eb" },
-    { key: "wage",       icon: "💰", label: "임금", desc: "급여 계산 · 임금대장",   color: "#16a34a" },
-    { key: "members",    icon: "👥", label: "팀원", desc: "직원 정보 · 기초 데이터", color: "#7c3aed" },
-    { key: "general",    icon: "⚙",  label: "일반", desc: "설정 · 공지 · 게시판",   color: "#ea580c" },
+    { key: "attendance", icon: "📋", label: "근태",   desc: "출퇴근 현황 · 월별 기록", color: "#2563eb" },
+    { key: "wage",       icon: "💰", label: "임금",   desc: "급여 계산 · 임금대장",   color: "#16a34a" },
+    { key: "members",    icon: "👥", label: "팀원",   desc: "직원 정보 · 기초 데이터", color: "#7c3aed" },
+    { key: "general",    icon: "⚙",  label: "일반",   desc: "설정 · 공지 · 게시판",   color: "#ea580c" },
+    { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#0891b2" },
   ];
 
   return (
@@ -2401,6 +2555,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "wage") return <AdminWage users={users} records={records} leaves={leaves} settings={settings} memberInfo={memberInfo} annual={annual} leaveRequests={leaveRequests} onBack={() => setSection(null)} />;
   if (section === "members") return <AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
   if (section === "general") return <AdminGeneral user={user} users={users} settings={settings} notices={notices} board={board} payslips={payslips} reads={reads} onSaveSettings={onSaveSettings} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
+  if (section === "severance") return <AdminSeverance users={users} memberInfo={memberInfo} onBack={() => setSection(null)} />;
   return null;
 }
 
