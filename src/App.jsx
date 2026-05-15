@@ -1418,6 +1418,7 @@ function AdminSeverance({ users, memberInfo, annual, onBack }) {
   const user = members.find(u => u.id === selUser);
   const info = memberInfo[selUser] || {};
   const joinDate = info.joinDate || "";
+  const hourlyWage = Number(info.hourlyWage || 0);
   const annualData = annual[selUser] || { total: 0, used: 0 };
 
   const calc = async () => {
