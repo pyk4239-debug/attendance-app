@@ -28,7 +28,7 @@ const T = {
 };
 
 // ── Firebase 컬렉션 키 ─────────────────────────────────────────
-// v2.6 - 휴무일 표시 추가
+// v2.7 - 근태화면 결근 표시
 const COL_USERS    = "users";
 const COL_RECORDS  = "records";
 const COL_LEAVES   = "leaves";
@@ -185,18 +185,35 @@ function calcMonthStats(days, settings, userLeaves, leaveRequests, userId, month
       });
   }
 
-  // 휴무일 계산 (토+일+공휴일, 해당 월 전체)
+  // 휴무일 + 결근 계산
   if (month) {
     const [y, m] = month.split("-").map(Number);
     const daysInMonth = new Date(y, m, 0).getDate();
     let offDays = 0;
+    const absentDates = [];
     for (let i = 1; i <= daysInMonth; i++) {
       const dateStr = `${month}-${String(i).padStart(2,"0")}`;
       const dow = new Date(y, m - 1, i).getDay();
-      if (dow === 0 || dow === 6 || isHoliday(dateStr, settings.holidays || [])) offDays++;
+      const isOff = dow === 0 || dow === 6 || isHoliday(dateStr, settings.holidays || []);
+      if (isOff) { offDays++; continue; }
+      // 소정근로일 중 출근기록도 연차도 없으면 결근
+      const hasRecord = days.some(([d, rec]) => d === dateStr && rec.in);
+      const hasLeave = !!(userLeaves?.[dateStr]);
+      if (!hasRecord && !hasLeave) absentDates.push(dateStr);
     }
+    // 결근 있는 주 수
+    const getWeek = (dateStr) => {
+      const d = new Date(dateStr);
+      const day = d.getDay() || 7;
+      d.setDate(d.getDate() + 4 - day);
+      const yearStart = new Date(d.getFullYear(), 0, 1);
+      return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    };
+    const absentWeeks = new Set(absentDates.map(d => `${d.slice(0,4)}_${getWeek(d)}`));
     stats.offDays = offDays;
     stats.totalDays = daysInMonth;
+    stats.absentDays = absentDates.length;
+    stats.absentWeeks = absentWeeks.size;
   }
 
   return stats;
@@ -648,7 +665,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
             [["출근", ms.days + "일", T.green], ["지각", ms.late + "회", T.yellow], ["지각시간", fmtMinutes(ms.lateMin), T.yellow]],
             [["휴일근무", ms.holiday + "일", T.red], ["잔업", ms.ot + "일", T.purple], ["잔업시간", fmtMinutes(ms.otMin), T.purple]],
             [["연차", ms.annualDays > 0 ? ms.annualDays + "일" : "0일", "#7c3aed"], ["조퇴", ms.early + "회", T.orange], ["조퇴시간", fmtMinutes(ms.earlyMin), T.orange]],
-            [["휴무일", (ms.offDays||0) + "일", T.muted], ["전체", (ms.totalDays||0) + "일", T.text], ["", "", ""]],
+            [["휴무일", (ms.offDays||0) + "일", T.muted], ["전체", (ms.totalDays||0) + "일", T.text], ["결근", (ms.absentDays||0) + "일", T.red]],
           ].map((row, ri) => (
             <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: ri < 3 ? 6 : 0 }}>
               {row.map(([l, v, c]) => l ? <StatBox key={l} label={l} value={v} color={c} /> : <div key="empty" />)}
@@ -899,7 +916,7 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
           [["출근", ms.days + "일", T.green], ["지각", ms.late + "회", T.yellow], ["지각시간", fmtMinutes(ms.lateMin), T.yellow]],
           [["휴일근무", ms.holiday + "일", T.red], ["잔업", ms.ot + "일", T.purple], ["잔업시간", fmtMinutes(ms.otMin), T.purple]],
           [["연차", ms.annualDays > 0 ? ms.annualDays + "일" : "0일", "#7c3aed"], ["조퇴", ms.early + "회", T.orange], ["조퇴시간", fmtMinutes(ms.earlyMin), T.orange]],
-          [["휴무일", (ms.offDays||0) + "일", T.muted], ["전체", (ms.totalDays||0) + "일", T.text], ["", "", ""]],
+          [["휴무일", (ms.offDays||0) + "일", T.muted], ["전체", (ms.totalDays||0) + "일", T.text], ["결근", (ms.absentDays||0) + "일", T.red]],
         ].map((row, ri) => (
           <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: ri < 3 ? 6 : 12 }}>
             {row.map(([l, v, c]) => l ? <StatBox key={l} label={l} value={v} color={c} /> : <div key="empty" />)}
@@ -1714,7 +1731,6 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
     const days = Object.entries(records[userId] || {}).filter(([d]) => d.startsWith(selectedMonth));
     const uLeaves = Object.fromEntries(Object.entries(leaves[userId] || {}).filter(([d]) => d.startsWith(selectedMonth)));
     const ms = calcMonthStats(days, settings, uLeaves, leaveRequests, userId, selectedMonth);
-
     // 외출 시간 합산
     let outingMin = 0;
     days.forEach(([, rec]) => {
@@ -1723,34 +1739,6 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
       });
     });
     ms.outingMin = Math.round(outingMin);
-
-    // 결근 계산 - 소정근로일 중 출근기록도 연차도 없는 날
-    const [y, m] = selectedMonth.split("-").map(Number);
-    const daysInMonth = new Date(y, m, 0).getDate();
-    const absentDates = [];
-    for (let i = 1; i <= daysInMonth; i++) {
-      const dateStr = `${selectedMonth}-${String(i).padStart(2,"0")}`;
-      const dt = new Date(y, m - 1, i);
-      const dow = dt.getDay();
-      if (dow === 0 || dow === 6) continue; // 주말 제외
-      if (isHoliday(dateStr, settings.holidays || [])) continue; // 공휴일 제외
-      const hasRecord = days.some(([d]) => d === dateStr && records[userId]?.[dateStr]?.in);
-      const hasLeave = !!uLeaves[dateStr];
-      if (!hasRecord && !hasLeave) absentDates.push(dateStr);
-    }
-
-    // 결근 있는 주 수 계산 (ISO 주차 기준)
-    const getWeek = (dateStr) => {
-      const d = new Date(dateStr);
-      const day = d.getDay() || 7;
-      d.setDate(d.getDate() + 4 - day);
-      const yearStart = new Date(d.getFullYear(), 0, 1);
-      return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-    };
-    const absentWeeks = new Set(absentDates.map(d => `${d.slice(0,4)}_${getWeek(d)}`));
-
-    ms.absentDays = absentDates.length;
-    ms.absentWeeks = absentWeeks.size;
     return ms;
   };
 
