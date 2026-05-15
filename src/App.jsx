@@ -28,7 +28,7 @@ const T = {
 };
 
 // ── Firebase 컬렉션 키 ─────────────────────────────────────────
-// v2.7 - 근태화면 결근 표시
+// v2.8 - 미래날짜 제외, 급여 근태 결근/휴무일
 const COL_USERS    = "users";
 const COL_RECORDS  = "records";
 const COL_LEAVES   = "leaves";
@@ -189,10 +189,13 @@ function calcMonthStats(days, settings, userLeaves, leaveRequests, userId, month
   if (month) {
     const [y, m] = month.split("-").map(Number);
     const daysInMonth = new Date(y, m, 0).getDate();
+    // KST 오늘
+    const kstToday = new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
     let offDays = 0;
     const absentDates = [];
     for (let i = 1; i <= daysInMonth; i++) {
       const dateStr = `${month}-${String(i).padStart(2,"0")}`;
+      if (dateStr > kstToday) continue; // 미래 날짜 제외
       const dow = new Date(y, m - 1, i).getDay();
       const isOff = dow === 0 || dow === 6 || isHoliday(dateStr, settings.holidays || []);
       if (isOff) { offDays++; continue; }
@@ -1594,11 +1597,13 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
               {[
                 ["출근", monthStats.days + "일"],
                 ["연장", fmtMinutes(monthStats.otMin)],
-                ["휴일", monthStats.holiday + "일"],
+                ["휴일근무", monthStats.holiday + "일"],
                 ["지각", fmtMinutes(monthStats.lateMin)],
                 ["조퇴", fmtMinutes(monthStats.earlyMin)],
                 ["외출", fmtMinutes(monthStats.outingMin || 0)],
                 ["결근", (monthStats.absentDays||0) + "일"],
+                ["휴무일", (monthStats.offDays||0) + "일"],
+                ["전체", (monthStats.totalDays||0) + "일"],
               ].map(([l, v]) => (
                 <div key={l} style={{ textAlign: "center" }}>
                   <div style={{ fontSize: 10, color: T.muted }}>{l}</div>
