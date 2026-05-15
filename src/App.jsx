@@ -28,7 +28,7 @@ const T = {
 };
 
 // ── Firebase 컬렉션 키 ─────────────────────────────────────────
-// v3.0 - 퇴직금 전면 개편 (요건/세금/연차/계산식)
+// v3.1 - 연차수당 일할계산
 const COL_USERS    = "users";
 const COL_RECORDS  = "records";
 const COL_LEAVES   = "leaves";
@@ -1475,9 +1475,14 @@ function AdminSeverance({ users, memberInfo, annual, onBack }) {
     // ⑤ 퇴직금 = 평균임금 × 30 × (근속일수/365)
     const severancePay = Math.round(avgDailyWage * 30 * workYears);
 
-    // ⑥ 잔여연차수당 (퇴직일 기준)
-    const annualRemain = Math.max(0, (annualData.total || 0) - (annualData.used || 0));
-    const hourlyWage = Number(info.hourlyWage || 0);
+    // ⑥ 잔여연차수당 - 당해연도 일할계산
+    const totalAnnual = annualData.total || 0;
+    const usedAnnual = annualData.used || 0;
+    const yearStart = new Date(retire.getFullYear(), 0, 1);
+    const workedDaysThisYear = Math.floor((retire - yearStart) / (1000 * 60 * 60 * 24));
+    // 당해연도 발생 연차 = 총연차 × (당해연도 근무일수/365), 소수점 1자리
+    const earnedThisYear = Math.floor(totalAnnual * workedDaysThisYear / 365 * 10) / 10;
+    const annualRemain = Math.max(0, Math.round((earnedThisYear - usedAnnual) * 10) / 10);
     const annualAllowance = Math.round(hourlyWage * 8 * annualRemain);
 
     // ⑦ 퇴직소득세 계산 (8단계)
@@ -1502,7 +1507,7 @@ function AdminSeverance({ users, memberInfo, annual, onBack }) {
       // 퇴직금
       severancePay,
       // 연차
-      annualRemain, annualAllowance,
+      annualRemain, annualAllowance, earnedThisYear, usedAnnual, totalAnnual, workedDaysThisYear,
       // 세금 단계
       step1, step2, step3, step4, step5, step6, step7,
       retirementTax, localTax, totalDeduct, netPay,
@@ -1628,7 +1633,7 @@ function AdminSeverance({ users, memberInfo, annual, onBack }) {
                 <Row label="퇴직금" value={result.severancePay}
                   calc={`평균임금 ${result.avgDailyWage.toLocaleString()} × 30 × (${result.workDays}일 ÷ 365)`} bold />
                 {result.annualRemain > 0 && <Row label="잔여연차수당" value={result.annualAllowance}
-                  calc={`시급 ${hourlyWage.toLocaleString()} × 8 × 잔여 ${result.annualRemain}일`} />}
+                  calc={`총연차 ${result.totalAnnual}일 × ${result.workedDaysThisYear}일/365 = ${result.earnedThisYear}일 발생, 사용 ${result.usedAnnual}일, 잔여 ${result.annualRemain}일 × 시급×8`} />}
               </div>
 
               {/* 퇴직소득세 계산식 */}
