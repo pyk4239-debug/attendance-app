@@ -3256,8 +3256,10 @@ function AnnualScreen({ user, users, annual, leaveRequests }) {
             </div>
             {showReqForm && (
               <>
+                <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 5 }}>📅 신청 날짜</div>
                 <input type="date" value={reqDate} onChange={e => setReqDate(e.target.value)}
-                  style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box", marginBottom: 10 }} />
+                  style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: reqDate ? T.text : T.muted, fontSize: 14, fontWeight: 600, boxSizing: "border-box", marginBottom: 10 }} />
+                <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 5 }}>🗂 연차 종류</div>
                 <select value={reqType} onChange={e => setReqType(e.target.value)}
                   style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box", marginBottom: 10 }}>
                   {LEAVE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
