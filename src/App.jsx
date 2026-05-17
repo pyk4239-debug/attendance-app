@@ -592,7 +592,6 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
   const thisMonth = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(thisMonth);
   const isCurrentMonth = selectedMonth === thisMonth;
-
   const prevMonth = () => {
     const [y, m] = selectedMonth.split("-").map(Number);
     const d = new Date(y, m - 2, 1);
@@ -604,7 +603,6 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
     const next = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     if (next <= thisMonth) setSelectedMonth(next);
   };
-
   const monthDays = Object.entries(records[user.id] || {}).filter(([d]) => d.startsWith(selectedMonth)).sort(([a], [b]) => b.localeCompare(a));
   const monthLeaves = Object.entries(leaves[user.id] || {}).filter(([d]) => d.startsWith(selectedMonth));
   const monthLeavesObj = Object.fromEntries(monthLeaves);
@@ -660,25 +658,23 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
         </div>
 
         {/* 버튼 — 당월에만 표시 */}
-        {isCurrentMonth && (
-          flash ? (
-            <div style={{ textAlign: "center", padding: "16px 0", fontSize: 16, fontWeight: 700, color: T.green }}>{flash}</div>
-          ) : (
-            <>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-                <Btn variant="green" onClick={() => punch("in")} disabled={hasIn}>{hasIn ? "✓ 출근완료" : "출근"}</Btn>
-                <Btn variant="blue" onClick={() => punch("out")} disabled={!hasIn || hasOut}>{hasOut ? "✓ 퇴근완료" : "퇴근"}</Btn>
+        {isCurrentMonth && (flash ? (
+          <div style={{ textAlign: "center", padding: "16px 0", fontSize: 16, fontWeight: 700, color: T.green }}>{flash}</div>
+        ) : (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <Btn variant="green" onClick={() => punch("in")} disabled={hasIn}>{hasIn ? "✓ 출근완료" : "출근"}</Btn>
+              <Btn variant="blue" onClick={() => punch("out")} disabled={!hasIn || hasOut}>{hasOut ? "✓ 퇴근완료" : "퇴근"}</Btn>
+            </div>
+            {hasIn && !hasOut && (
+              <div style={{ marginBottom: 14 }}>
+                {!isOutside
+                  ? <Btn variant="orange" onClick={() => punch("outing_out")}>🚶 외출</Btn>
+                  : <Btn variant="primary" onClick={() => punch("outing_in")}>🏃 복귀</Btn>}
               </div>
-              {hasIn && !hasOut && (
-                <div style={{ marginBottom: 14 }}>
-                  {!isOutside
-                    ? <Btn variant="orange" onClick={() => punch("outing_out")}>🚶 외출</Btn>
-                    : <Btn variant="primary" onClick={() => punch("outing_in")}>🏃 복귀</Btn>}
-                </div>
-              )}
-            </>
-          )
-        )}
+            )}
+          </>
+        ))}
 
         {/* 월 선택 */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, background: T.card, borderRadius: 12, padding: "10px 14px", border: `1px solid ${T.border}` }}>
@@ -687,7 +683,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
           <button onClick={nextMonth} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: isCurrentMonth ? T.muted : T.text, padding: "0 6px" }} disabled={isCurrentMonth}>▶</button>
         </div>
 
-        {/* 월별 현황 */}
+        {/* 이번달 현황 */}
         <div style={{ background: T.card, borderRadius: 16, padding: "14px 16px", marginBottom: 16, border: `1px solid ${T.border}`, boxShadow: "0 1px 4px #0000000a" }}>
           <div style={{ fontSize: 12, color: T.muted, marginBottom: 10, fontWeight: 600 }}>{monthLabel(selectedMonth)} 현황</div>
           {[
@@ -702,7 +698,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
           ))}
         </div>
 
-        {/* 월별 기록 */}
+        {/* 이번달 기록 */}
         <div style={{ fontSize: 13, color: T.muted, marginBottom: 10, fontWeight: 600 }}>{monthLabel(selectedMonth)} 기록</div>
         {monthDays.length === 0
           ? <div style={{ textAlign: "center", color: T.muted, padding: 30, fontSize: 14, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>기록 없음</div>
@@ -2594,6 +2590,7 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
         })}
 
       </div>
+
 
       {editInfo && (
         <MemberInfoModal user={editInfo.user} info={memberInfo[editInfo.user.id] || {}}
