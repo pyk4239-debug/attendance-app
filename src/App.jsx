@@ -3110,7 +3110,7 @@ function PayslipScreen({ user, users, payslips, reads }) {
 }
 
 // ── 연차 현황 ────────────────────────────────────────────────────
-function AnnualScreen({ user, users, annual, leaveRequests, onBack, showList = true }) {
+function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
   const isAdmin = user.role === "admin";
   const members = users.filter(u => u.role === "member");
   const [editUser, setEditUser] = useState(null);
@@ -3207,7 +3207,6 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack, showList = t
           </div>
 
           {/* 내 신청 내역 */}
-          {showList && <>
           <div style={{ fontSize: 13, color: T.muted, marginBottom: 10, fontWeight: 600 }}>신청 내역</div>
           {myRequests.length === 0
             ? <div style={{ textAlign: "center", color: T.muted, padding: 24, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>신청 내역 없음</div>
@@ -3221,7 +3220,6 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack, showList = t
               </div>
             ))
           }
-          </>}
         </>
       )}
 
@@ -3425,7 +3423,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
             <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>연차</div>
           </div>
-          <AnnualScreen user={user} users={users} annual={annual} leaveRequests={leaveRequests} showList={false} />
+          <AnnualScreen user={user} users={users} annual={annual} leaveRequests={leaveRequests} />
         </>
       )}
       <TabBar tab={tab} setTab={setTab} isAdmin={isAdmin} leaveRequests={leaveRequests} notices={notices} board={board} payslips={payslips} user={user} reads={reads} />
