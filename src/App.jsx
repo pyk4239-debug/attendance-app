@@ -3218,10 +3218,19 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
           </div>
 
           {/* 내 신청 내역 */}
-          <div style={{ fontSize: 13, color: T.muted, marginBottom: 10, fontWeight: 600 }}>신청 내역</div>
-          {myRequests.length === 0
-            ? <div style={{ textAlign: "center", color: T.muted, padding: 24, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>신청 내역 없음</div>
-            : myRequests.map(r => (
+          <div style={{ fontSize: 13, color: T.muted, marginBottom: 8, fontWeight: 600 }}>신청 내역</div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+            {years.map(y => (
+              <button key={y} onClick={() => setSelectedYear(y)}
+                style={{ padding: "5px 14px", borderRadius: 20, border: `1px solid ${selectedYear === y ? T.primary : T.border}`, fontWeight: 700, fontSize: 13, cursor: "pointer",
+                  background: selectedYear === y ? T.primary : T.card, color: selectedYear === y ? "#fff" : T.muted }}>
+                {y}년
+              </button>
+            ))}
+          </div>
+          {myRequests.filter(r => r.date?.startsWith(selectedYear)).length === 0
+            ? <div style={{ textAlign: "center", color: T.muted, padding: 24, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>{selectedYear}년 신청 내역 없음</div>
+            : myRequests.filter(r => r.date?.startsWith(selectedYear)).map(r => (
               <div key={r.id} style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{r.date} · {r.type}</div>
