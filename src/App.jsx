@@ -2492,13 +2492,9 @@ function LeaveRequestItem({ r, statusColor, setDelConfirm }) {
           {done === "승인" ? "✓ 승인 완료!" : "✓ 반려 완료!"}
         </div>
       ) : r.status === "승인" ? (
-        // 이미 승인된 건 - 반려/삭제만 가능
+        // 이미 승인된 건 - 승인완료 표시 + 삭제만 가능
         <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 1, padding: "9px 0", borderRadius: 8, background: T.greenBg, color: T.green, fontSize: 12, fontWeight: 700, textAlign: "center", opacity: 0.4 }}>승인됨</div>
-          <button onClick={handleReject} disabled={!!processing}
-            style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: processing === "반려" ? T.red : T.redBg, color: processing === "반려" ? "#fff" : T.red, fontSize: 12, fontWeight: 700, cursor: processing ? "not-allowed" : "pointer", transition: "all 0.15s" }}>
-            {processing === "반려" ? "처리중..." : "반려"}
-          </button>
+          <div style={{ flex: 1, padding: "9px 0", borderRadius: 8, background: T.greenBg, color: T.green, fontSize: 12, fontWeight: 700, textAlign: "center" }}>✓ 승인완료</div>
           <button onClick={() => setDelConfirm(r)}
             style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, cursor: "pointer" }}>삭제</button>
         </div>
