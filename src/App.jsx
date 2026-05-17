@@ -2524,20 +2524,11 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
   const [showUserModal, setShowUserModal] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
   const [editInfo, setEditInfo] = useState(null);
-  const [editAnnual, setEditAnnual] = useState(null);
-  const [delConfirm, setDelConfirm] = useState(null);
   const members = users.filter(u => u.role === "member");
 
   const saveInfo = async (userId, data) => {
     await setDoc(doc(db, COL_MEMBER_INFO, userId), data);
     setEditInfo(null);
-  };
-
-  const saveAnnual = async () => {
-    await setDoc(doc(db, COL_ANNUAL, editAnnual.userId), {
-      total: Number(editAnnual.total), used: Number(editAnnual.used)
-    });
-    setEditAnnual(null);
   };
 
   return (
@@ -2560,8 +2551,6 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
 
       <div style={{ padding: 16 }}>
         {members.map(u => {
-          const a = annual[u.id] || { total: 0, used: 0 };
-          const remain = (a.total || 0) - (a.used || 0);
           const pending = leaveRequests.filter(r => r.userId === u.id && r.status === "대기").length;
           const info = memberInfo[u.id] || {};
 
@@ -2599,30 +2588,10 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
                 </div>
               )}
 
-              {/* 연차 현황 */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                <div style={{ fontSize: 11, color: T.muted, fontWeight: 600 }}>연차 현황</div>
-                <button onClick={() => setEditAnnual({ userId: u.id, total: a.total||0, used: a.used||0 })}
-                  style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "3px 10px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>수정</button>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
-                {[["총 연차", a.total || 0, T.blue], ["사용", a.used || 0, T.orange], ["잔여", remain, T.green]].map(([l, v, c]) => (
-                  <StatBox key={l} label={l} value={v + "일"} color={c} />
-                ))}
-              </div>
             </div>
           );
         })}
 
-        {/* 연차 신청 목록 */}
-        <div style={{ fontSize: 13, color: T.muted, margin: "16px 0 10px", fontWeight: 600 }}>연차 신청 목록</div>
-        {leaveRequests.length === 0
-          ? <div style={{ textAlign: "center", color: T.muted, padding: 24, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>신청 없음</div>
-          : leaveRequests.map(r => {
-            const statusColor = { "대기": "yellow", "승인": "green", "반려": "red" };
-            return <LeaveRequestItem key={r.id} r={r} statusColor={statusColor} setDelConfirm={setDelConfirm} />;
-          })
-        }
       </div>
 
     {/* 삭제 경고 모달 */}
@@ -2659,30 +2628,7 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
         <MemberInfoModal user={editInfo.user} info={memberInfo[editInfo.user.id] || {}}
           onSave={data => saveInfo(editInfo.user.id, data)} onClose={() => setEditInfo(null)} />
       )}
-      {/* 연차 수정 모달 */}
-      {editAnnual && (
-        <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 24 }}>
-          <div style={{ background: T.card, borderRadius: 20, padding: 26, width: "100%", maxWidth: 300, boxShadow: "0 20px 60px #00000020" }}>
-            <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 20 }}>연차 수정</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
-              <div>
-                <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600 }}>총 연차</div>
-                <input type="number" value={editAnnual.total} onChange={e => setEditAnnual(p => ({ ...p, total: e.target.value }))}
-                  style={{ width: "100%", padding: "12px 0", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 22, fontWeight: 800, boxSizing: "border-box", textAlign: "center" }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600 }}>사용</div>
-                <input type="number" value={editAnnual.used} onChange={e => setEditAnnual(p => ({ ...p, used: e.target.value }))}
-                  style={{ width: "100%", padding: "12px 0", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 22, fontWeight: 800, boxSizing: "border-box", textAlign: "center" }} />
-              </div>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <Btn variant="ghost" onClick={() => setEditAnnual(null)}>취소</Btn>
-              <Btn variant="admin" onClick={saveAnnual}>저장</Btn>
-            </div>
-          </div>
-        </div>
-      )}
+
       {showUserModal && <UserManageModal users={users} onSave={async u => { await fbSaveUsers(u, users); setShowUserModal(false); }} onClose={() => setShowUserModal(false)} />}
       {showAccount && <AdminAccountModal users={users} onUpdateUsers={onSaveUsers} onClose={() => setShowAccount(false)} />}
     </div>
