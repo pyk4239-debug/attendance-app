@@ -3143,7 +3143,20 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
   };
 
   const [delConfirm, setDelConfirm] = useState(null);
-  const delReq = async (id) => { await deleteDoc(doc(db, COL_LEAVE_REQ, id)); setDelConfirm(null); };
+  const delReq = async (r) => {
+    const tasks = [deleteDoc(doc(db, COL_LEAVE_REQ, r.id))];
+    if (r.status === "승인") {
+      tasks.push(deleteDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`)).catch(() => {}));
+      const annualRef = doc(db, COL_ANNUAL, r.userId);
+      const snap = await getDoc(annualRef);
+      const current = snap.exists() ? snap.data() : { total: 0, used: 0 };
+      const delta = r.type?.includes("반차") ? -0.5 : -1;
+      const newUsed = Math.max(0, Number(current.used || 0) + delta);
+      tasks.push(setDoc(annualRef, { ...current, used: newUsed }));
+    }
+    await Promise.all(tasks);
+    setDelConfirm(null);
+  };
 
   const statusColor = { "대기": "yellow", "승인": "green", "반려": "red" };
 
@@ -3293,7 +3306,7 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <Btn variant="ghost" onClick={() => setDelConfirm(null)}>취소</Btn>
               <Btn variant="red" onClick={async () => {
-                await delReq(delConfirm.id);
+                await delReq(delConfirm);
                 await addDoc(collection(db, COL_NOTICES), {
                   title: "📅 연차 신청 삭제 안내",
                   content: `${delConfirm.date} ${delConfirm.type} 신청이 삭제되었습니다.\n문의사항은 관리자에게 연락해주세요.`,
