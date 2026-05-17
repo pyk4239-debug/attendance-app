@@ -3122,6 +3122,16 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
   const myRemain = (myAnnual.total || 0) - (myAnnual.used || 0);
   const myRequests = leaveRequests.filter(r => r.userId === user.id);
 
+  const thisYear = new Date().getFullYear().toString();
+  const [selectedYear, setSelectedYear] = useState(thisYear);
+  const years = [...new Set(leaveRequests.map(r => r.date?.slice(0,4)).filter(Boolean))].sort((a,b) => b-a);
+  if (!years.includes(thisYear)) years.unshift(thisYear);
+
+  const thisYear = new Date().getFullYear().toString();
+  const [selectedYear, setSelectedYear] = useState(thisYear);
+  const years = [...new Set(leaveRequests.map(r => r.date?.slice(0,4)).filter(Boolean))].sort((a,b) => b-a);
+  if (!years.includes(thisYear)) years.unshift(thisYear);
+
   const saveAnnual = async (uid) => {
     await setDoc(doc(db, COL_ANNUAL, uid), { total, used });
     setEditUser(null);
@@ -3274,10 +3284,21 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
           })}
 
           {/* 연차 신청 목록 */}
-          <div style={{ fontSize: 13, color: T.muted, margin: "16px 0 10px", fontWeight: 600 }}>연차 신청 목록</div>
-          {leaveRequests.length === 0
-            ? <div style={{ textAlign: "center", color: T.muted, padding: 24, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>신청 없음</div>
-            : leaveRequests.map(r => {
+          <div style={{ fontSize: 13, color: T.muted, margin: "16px 0 8px", fontWeight: 600 }}>연차 신청 목록</div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+            {years.map(y => (
+              <button key={y} onClick={() => setSelectedYear(y)}
+                style={{ padding: "5px 14px", borderRadius: 20, border: "none", fontWeight: 700, fontSize: 13, cursor: "pointer",
+                  background: selectedYear === y ? T.primary : T.card,
+                  color: selectedYear === y ? "#fff" : T.muted,
+                  border: `1px solid ${selectedYear === y ? T.primary : T.border}` }}>
+                {y}년
+              </button>
+            ))}
+          </div>
+          {leaveRequests.filter(r => r.date?.startsWith(selectedYear)).length === 0
+            ? <div style={{ textAlign: "center", color: T.muted, padding: 24, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>{selectedYear}년 신청 없음</div>
+            : leaveRequests.filter(r => r.date?.startsWith(selectedYear)).map(r => {
               const sc = { "대기": "yellow", "승인": "green", "반려": "red" };
               return <LeaveRequestItem key={r.id} r={r} statusColor={sc} setDelConfirm={setDelConfirm} />;
             })
