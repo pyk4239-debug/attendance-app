@@ -3142,17 +3142,13 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
     setTimeout(() => { setReqMsg(""); setShowReqForm(false); }, 2000);
   };
 
-  const updateReqStatus = async (id, status) => {
-    await setDoc(doc(db, COL_LEAVE_REQ, id), { status }, { merge: true });
-  };
-
   const [delConfirm, setDelConfirm] = useState(null);
   const delReq = async (id) => { await deleteDoc(doc(db, COL_LEAVE_REQ, id)); setDelConfirm(null); };
 
   const statusColor = { "대기": "yellow", "승인": "green", "반려": "red" };
 
   return (
-    <div style={{ minHeight: "100vh", background: T.bg }}>
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
       {isAdmin && onBack && (
         <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -3164,7 +3160,7 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
           </div>
         </div>
       )}
-    <div style={{ padding: 16 }}>
+      <div style={{ padding: 16 }}>
       {!isAdmin && <div style={{ fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 16 }}>📅 연차</div>}
 
       {!isAdmin && (
@@ -3272,20 +3268,10 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
           <div style={{ fontSize: 13, color: T.muted, margin: "16px 0 10px", fontWeight: 600 }}>연차 신청 목록</div>
           {leaveRequests.length === 0
             ? <div style={{ textAlign: "center", color: T.muted, padding: 24, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>신청 없음</div>
-            : leaveRequests.map(r => (
-              <div key={r.id} style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${T.border}` }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: T.text, flex: 1 }}>{r.userName} · {r.date} · {r.type}</div>
-                  <Badge label={r.status} color={statusColor[r.status]||"gray"} />
-                </div>
-                {r.note && <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>📝 {r.note}</div>}
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => updateReqStatus(r.id, "승인")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.greenBg, color: T.green, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>승인</button>
-                  <button onClick={() => updateReqStatus(r.id, "반려")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: T.redBg, color: T.red, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>반려</button>
-                  <button onClick={() => setDelConfirm(r)} style={{ padding: "7px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, cursor: "pointer" }}>삭제</button>
-                </div>
-              </div>
-            ))
+            : leaveRequests.map(r => {
+              const statusColor = { "대기": "yellow", "승인": "green", "반려": "red" };
+              return <LeaveRequestItem key={r.id} r={r} statusColor={statusColor} setDelConfirm={setDelConfirm} />;
+            })
           }
         </>
       )}
@@ -3319,7 +3305,6 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
           </div>
         </div>
       )}
-    </div>
     </div>
   );
 }
