@@ -2454,30 +2454,30 @@ function LeaveRequestItem({ r, statusColor, setDelConfirm }) {
 
   const handleApprove = async () => {
     setProcessing("승인");
-    await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "승인" }, { merge: true });
+    setDone("승인");
     const leaveData = { userId: r.userId, date: r.date, type: r.type };
     if (r.hours) leaveData.hours = r.hours;
-    await setDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`), leaveData);
-    // 연차 자동 차감
     const delta = r.type?.includes("반차") ? 0.5 : 1;
-    await updateAnnualUsed(delta);
-    await sendNotice("승인");
-    setProcessing(null); setDone("승인");
-    setTimeout(() => setDone(null), 2000);
+    await Promise.all([
+      setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "승인" }, { merge: true }),
+      setDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`), leaveData),
+      updateAnnualUsed(delta),
+      sendNotice("승인"),
+    ]);
+    setProcessing(null);
   };
 
   const handleReject = async () => {
     setProcessing("반려");
-    // 이전에 승인됐던 건이면 복구
-    if (r.status === "승인") {
-      const delta = r.type?.includes("반차") ? -0.5 : -1;
-      await updateAnnualUsed(delta);
-    }
-    await setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true });
-    try { await deleteDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`)); } catch(e) {}
-    await sendNotice("반려");
-    setProcessing(null); setDone("반려");
-    setTimeout(() => setDone(null), 2000);
+    setDone("반려");
+    const delta = r.type?.includes("반차") ? -0.5 : -1;
+    await Promise.all([
+      setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true }),
+      deleteDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`)).catch(() => {}),
+      sendNotice("반려"),
+      ...(r.status === "승인" ? [updateAnnualUsed(delta)] : []),
+    ]);
+    setProcessing(null);
   };
 
   return (
@@ -3150,14 +3150,12 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
       {isAdmin && onBack && (
-        <div style={{ background: T.adminHeader, padding: "16px 16px 0" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
-              <div>
-                <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📅 연차</div>
-              </div>
+        <div style={{ background: "#0284c7", padding: "16px 16px 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
+            <div>
+              <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📅 연차</div>
             </div>
           </div>
         </div>
