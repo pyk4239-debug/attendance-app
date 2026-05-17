@@ -1720,7 +1720,7 @@ function AdminSeverance({ users, memberInfo, annual, onBack }) {
 }
 
 // ── 관리자 대문 ────────────────────────────────────────────────
-function AdminHome({ user, onLogout, onSection }) {
+function AdminHome({ user, onLogout, onSection, leaveRequests = [] }) {
   const now = new Date();
   const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   const dateStr = kst.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
@@ -1729,7 +1729,7 @@ function AdminHome({ user, onLogout, onSection }) {
     { key: "attendance", icon: "📋", label: "근태",   desc: "출퇴근 현황 · 월별 기록", color: "#2563eb" },
     { key: "wage",       icon: "💰", label: "임금",   desc: "급여 계산 · 임금대장",   color: "#16a34a" },
     { key: "members",    icon: "👥", label: "팀원",   desc: "직원 정보 · 기초 데이터", color: "#7c3aed" },
-    { key: "annual",     icon: "📅", label: "연차",   desc: "연차 현황 · 신청 승인",   color: "#0284c7" },
+    { key: "annual",     icon: "📅", label: "연차",   desc: "연차 현황 · 신청 승인",   color: "#0284c7", badge: leaveRequests.filter(r => r.status === "대기").length },
     { key: "general",    icon: "⚙",  label: "일반",   desc: "설정 · 공지 · 게시판",   color: "#ea580c" },
     { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#0891b2" },
   ];
@@ -1753,11 +1753,14 @@ function AdminHome({ user, onLogout, onSection }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           {sections.map(s => (
             <button key={s.key} onClick={() => onSection(s.key)}
-              style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 20, padding: "24px 16px", cursor: "pointer", textAlign: "left", boxShadow: "0 2px 12px #0000000d", transition: "transform .1s" }}
+              style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 20, padding: "24px 16px", cursor: "pointer", textAlign: "left", boxShadow: "0 2px 12px #0000000d", transition: "transform .1s", position: "relative" }}
               onMouseDown={e => e.currentTarget.style.transform = "scale(0.97)"}
               onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
               onTouchStart={e => e.currentTarget.style.transform = "scale(0.97)"}
               onTouchEnd={e => e.currentTarget.style.transform = "scale(1)"}>
+              {s.badge > 0 && (
+                <div style={{ position: "absolute", top: 12, right: 12, background: "#ef4444", color: "#fff", borderRadius: 12, padding: "2px 8px", fontSize: 11, fontWeight: 800 }}>{s.badge}</div>
+              )}
               <div style={{ fontSize: 32, marginBottom: 10 }}>{s.icon}</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: s.color, marginBottom: 4 }}>{s.label}</div>
               <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.5 }}>{s.desc}</div>
@@ -2673,7 +2676,7 @@ function AdminGeneral({ user, users, settings, notices, board, payslips, reads, 
 function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
   const [section, setSection] = useState(null);
 
-  if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={setSection} />;
+  if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={setSection} leaveRequests={leaveRequests} />;
   if (section === "attendance") return <AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={() => setSection(null)} />;
   if (section === "wage") return <AdminWage users={users} records={records} leaves={leaves} settings={settings} memberInfo={memberInfo} annual={annual} leaveRequests={leaveRequests} onBack={() => setSection(null)} />;
   if (section === "members") return <AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
@@ -3147,12 +3150,14 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
       {isAdmin && onBack && (
-        <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
-            <div>
-              <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📅 연차 관리</div>
+        <div style={{ background: T.adminHeader, padding: "16px 16px 0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
+              <div>
+                <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📅 연차</div>
+              </div>
             </div>
           </div>
         </div>
