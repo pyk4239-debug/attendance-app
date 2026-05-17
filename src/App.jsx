@@ -2594,36 +2594,7 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
 
       </div>
 
-    {/* 삭제 경고 모달 */}
-    {delConfirm && (
-      <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300, padding: 24 }}>
-        <div style={{ background: T.card, borderRadius: 20, padding: 26, width: "100%", maxWidth: 300, boxShadow: "0 20px 60px #00000020" }}>
-          <div style={{ textAlign: "center", marginBottom: 16 }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
-            <div style={{ fontWeight: 800, fontSize: 16, color: T.text, marginBottom: 8 }}>연차 신청 삭제</div>
-            <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.7 }}>
-              <strong style={{ color: T.text }}>{delConfirm.userName}</strong>님의<br />
-              <strong style={{ color: T.text }}>{delConfirm.date} · {delConfirm.type}</strong><br />
-              신청을 삭제할까요?<br />
-              <span style={{ color: T.blue, fontSize: 12 }}>팀원에게 자동으로 공지가 발송돼요</span>
-            </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Btn variant="ghost" onClick={() => setDelConfirm(null)}>취소</Btn>
-            <Btn variant="red" onClick={async () => {
-              await deleteDoc(doc(db, COL_LEAVE_REQ, delConfirm.id));
-              await addDoc(collection(db, COL_NOTICES), {
-                title: "📅 연차 신청 삭제 안내",
-                content: `${delConfirm.date} ${delConfirm.type} 신청이 삭제되었습니다.\n문의사항은 관리자에게 연락해주세요.`,
-                recipient: delConfirm.userId, author: "관리자",
-                createdAt: new Date().toISOString(), auto: true
-              });
-              setDelConfirm(null);
-            }}>삭제 + 공지</Btn>
-          </div>
-        </div>
-      </div>
-    )}
+
       {editInfo && (
         <MemberInfoModal user={editInfo.user} info={memberInfo[editInfo.user.id] || {}}
           onSave={data => saveInfo(editInfo.user.id, data)} onClose={() => setEditInfo(null)} />
