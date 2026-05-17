@@ -1732,6 +1732,7 @@ function AdminHome({ user, onLogout, onSection }) {
     { key: "attendance", icon: "📋", label: "근태",   desc: "출퇴근 현황 · 월별 기록", color: "#2563eb" },
     { key: "wage",       icon: "💰", label: "임금",   desc: "급여 계산 · 임금대장",   color: "#16a34a" },
     { key: "members",    icon: "👥", label: "팀원",   desc: "직원 정보 · 기초 데이터", color: "#7c3aed" },
+    { key: "annual",     icon: "📅", label: "연차",   desc: "연차 현황 · 신청 승인",   color: "#0284c7" },
     { key: "general",    icon: "⚙",  label: "일반",   desc: "설정 · 공지 · 게시판",   color: "#ea580c" },
     { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#0891b2" },
   ];
@@ -2763,6 +2764,15 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "wage") return <AdminWage users={users} records={records} leaves={leaves} settings={settings} memberInfo={memberInfo} annual={annual} leaveRequests={leaveRequests} onBack={() => setSection(null)} />;
   if (section === "members") return <AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
   if (section === "general") return <AdminGeneral user={user} users={users} settings={settings} notices={notices} board={board} payslips={payslips} reads={reads} onSaveSettings={onSaveSettings} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
+  if (section === "annual") return (
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
+      <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
+        <button onClick={() => setSection(null)} style={{ background: "none", border: "none", color: "#fff", fontSize: 13, cursor: "pointer", marginBottom: 6, padding: 0 }}>← 대문</button>
+        <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📅 연차 관리</div>
+      </div>
+      <AnnualScreen user={user} users={users} annual={annual} leaveRequests={leaveRequests} />
+    </div>
+  );
   if (section === "severance") return <AdminSeverance users={users} memberInfo={memberInfo} annual={annual} onBack={() => setSection(null)} />;
   return null;
 }
