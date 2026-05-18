@@ -3222,8 +3222,8 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
           <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
             {years.map(y => (
               <button key={y} onClick={() => setSelectedYear(y)}
-                style={{ padding: "5px 14px", borderRadius: 20, border: `1px solid ${selectedYear === y ? T.primary : T.border}`, fontWeight: 700, fontSize: 13, cursor: "pointer",
-                  background: selectedYear === y ? T.primary : T.card, color: selectedYear === y ? "#fff" : T.muted }}>
+                style={{ padding: "5px 14px", borderRadius: 20, border: `1px solid ${selectedYear === y ? '#0284c7' : T.border}`, fontWeight: 700, fontSize: 13, cursor: "pointer",
+                  background: selectedYear === y ? '#0284c7' : T.card, color: selectedYear === y ? "#fff" : T.muted }}>
                 {y}년
               </button>
             ))}
@@ -3294,9 +3294,9 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
             {years.map(y => (
               <button key={y} onClick={() => setSelectedYear(y)}
                 style={{ padding: "5px 14px", borderRadius: 20, border: "none", fontWeight: 700, fontSize: 13, cursor: "pointer",
-                  background: selectedYear === y ? T.primary : T.card,
+                  background: selectedYear === y ? '#0284c7' : T.card,
                   color: selectedYear === y ? "#fff" : T.muted,
-                  border: `1px solid ${selectedYear === y ? T.primary : T.border}` }}>
+                  border: `1px solid ${selectedYear === y ? '#0284c7' : T.border}` }}>
                 {y}년
               </button>
             ))}
