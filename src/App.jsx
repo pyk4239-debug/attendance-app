@@ -1917,7 +1917,7 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
   const absentWeeks = monthStats.absentWeeks || 0;
   const absentPay = Math.round(dailyWage * (absentDays + absentWeeks));
   const isDecember = yearMonth?.slice(5, 7) === "12";
-  const annualRemain = isDecember ? Math.max(0, (annualData?.total || 0) - (annualData?.used || 0)) : 0;
+  const annualRemain = Math.max(0, (annualData?.total || 0) - (annualData?.used || 0));
   const autoAnnualPay = isDecember ? Math.round(dailyWage * annualRemain) : 0;
 
   const [form, setForm] = useState({
@@ -1991,17 +1991,20 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
               </div>
             ))}
             {/* 12월 연차수당 */}
-            {isDecember && (
-              <div style={{ padding: "5px 0", borderBottom: `1px solid ${T.border}`, background: "#fffbeb" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-                  <div>
-                    <span style={{ fontSize: 13, color: T.text, whiteSpace: "nowrap" }}>연차수당</span>
-                    <div style={{ fontSize: 10, color: T.muted }}>잔여 {annualRemain}일 × 일급 {dailyWage.toLocaleString()} (수정가능)</div>
+            {/* 연차수당 - 항상 표시, 12월만 활성화 */}
+            <div style={{ padding: "5px 0", borderBottom: `1px solid ${T.border}`, background: isDecember ? "#fffbeb" : T.bg }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <div>
+                  <span style={{ fontSize: 13, color: isDecember ? T.text : T.muted, whiteSpace: "nowrap" }}>연차수당</span>
+                  <div style={{ fontSize: 10, color: T.muted }}>
+                    {isDecember ? `잔여 ${annualRemain}일 × 일급 ${dailyWage.toLocaleString()} (수정가능)` : `잔여 ${annualRemain}일 · 12월 급여에 반영`}
                   </div>
-                  <input type="number" value={form.annualPay} onChange={e => setForm(p => ({...p, annualPay: e.target.value}))} style={{ ...iStyle, width: 130 }} placeholder="0" />
                 </div>
+                <input type="number" value={form.annualPay} onChange={e => setForm(p => ({...p, annualPay: e.target.value}))}
+                  disabled={!isDecember}
+                  style={{ ...iStyle, width: 130, background: isDecember ? "#fff" : T.bg, color: isDecember ? T.text : T.muted, cursor: isDecember ? "auto" : "not-allowed" }} placeholder="0" />
               </div>
-            )}
+            </div>
             <Row label="소득 합계" value={totalIncome} bold color={T.blue} />
           </div>
 
