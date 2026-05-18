@@ -3127,6 +3127,11 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
   const years = [...new Set(leaveRequests.map(r => r.date?.slice(0,4)).filter(Boolean))].sort((a,b) => b-a);
   if (!years.includes(thisYear)) years.unshift(thisYear);
 
+  const thisYear = new Date().getFullYear().toString();
+  const [selectedYear, setSelectedYear] = useState(thisYear);
+  const years = [...new Set(leaveRequests.map(r => r.date?.slice(0,4)).filter(Boolean))].sort((a,b) => b-a);
+  if (!years.includes(thisYear)) years.unshift(thisYear);
+
 
   const saveAnnual = async (uid) => {
     await setDoc(doc(db, COL_ANNUAL, uid), { total, used });
