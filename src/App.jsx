@@ -1992,10 +1992,10 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
             ))}
             {/* 12월 연차수당 */}
             {/* 연차수당 - 항상 표시, 12월만 활성화 */}
-            <div style={{ padding: "5px 0", borderBottom: `1px solid ${T.border}`, background: isDecember ? "#fffbeb" : T.bg }}>
+            <div style={{ padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                 <div>
-                  <span style={{ fontSize: 13, color: isDecember ? T.text : T.muted, whiteSpace: "nowrap" }}>연차수당</span>
+                  <span style={{ fontSize: 13, color: T.text, whiteSpace: "nowrap" }}>연차수당</span>
                   <div style={{ fontSize: 10, color: T.muted }}>
                     {isDecember ? `잔여 ${annualRemain}일 × 일급 ${dailyWage.toLocaleString()} (수정가능)` : `잔여 ${annualRemain}일 · 12월 급여에 반영`}
                   </div>
