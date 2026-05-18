@@ -2473,7 +2473,7 @@ function LeaveRequestItem({ r, statusColor, setDelConfirm }) {
     const delta = r.type?.includes("반차") ? -0.5 : -1;
     await Promise.all([
       setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true }),
-      deleteDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`)).catch(() => {}),
+      setDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`), { userId: r.userId, date: r.date, deleted: true }),
       sendNotice("반려"),
       ...(r.status === "승인" ? [updateAnnualUsed(delta)] : []),
     ]);
@@ -3148,7 +3148,7 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
   const delReq = async (r) => {
     const tasks = [deleteDoc(doc(db, COL_LEAVE_REQ, r.id))];
     if (r.status === "승인") {
-      tasks.push(deleteDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`)).catch(() => {}));
+      tasks.push(setDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`), { userId: r.userId, date: r.date, deleted: true }));
       const annualRef = doc(db, COL_ANNUAL, r.userId);
       const snap = await getDoc(annualRef);
       const current = snap.exists() ? snap.data() : { total: 0, used: 0 };
