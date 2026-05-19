@@ -1886,6 +1886,7 @@ function AdminAttendance({ users, settings, records, leaves, leaveRequests, onSa
                   {om >= 30 && <Badge label={`잔업 ${fmtMinutes(roundTo30(om))}`} color="purple" />}
                   {isHoliday(today, settings.holidays) && rec.in && <Badge label="휴일근무" color="red" />}
                   {rec.note && <Badge label={`📝 ${rec.note}`} color="gray" />}
+                  {todayLeave && !todayLeave.deleted && <Badge label={todayLeave.type || "연차"} color="purple" />}
                   {rec.inGps && (() => { const s = gpsStatusLabel(rec.inGps, settings); return s ? <Badge label={`출근 ${s.label}`} color={s.color} /> : null; })()}
                   {rec.outGps && (() => { const s = gpsStatusLabel(rec.outGps, settings); return s ? <Badge label={`퇴근 ${s.label}`} color={s.color} /> : null; })()}
                 </div>
