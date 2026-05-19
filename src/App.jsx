@@ -49,6 +49,34 @@ const DEFAULT_USERS = [
   { id: "u3", name: "팀원3", pin: "333333", role: "member" },
   { id: "u4", name: "팀원4", pin: "444444", role: "member" },
 ];
+
+// ── OneSignal 푸시 알림 ──────────────────────────────────────────
+const OS_APP_ID = "e339bc0f-1f0a-41ed-a8f2-5f9ab3214f07";
+const OS_API_KEY = "os_v2_app_4m43ydy7bja63khsl6nlgikpa6ctde74qhwucj5fc7wpwgzrnhakjdzfvullwniz4mxmdjknrxdk6hjepk4o67qk3ie2l4jsg4enjaa";
+
+async function sendPush({ title, message, targetUserId = null }) {
+  try {
+    const body = {
+      app_id: OS_APP_ID,
+      headings: { en: title, ko: title },
+      contents: { en: message, ko: message },
+    };
+    if (targetUserId) {
+      body.filters = [{ field: "tag", key: "userId", relation: "=", value: targetUserId }];
+    } else {
+      body.included_segments = ["All"];
+    }
+    await fetch("https://onesignal.com/api/v1/notifications", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Basic ${OS_API_KEY}`,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch(e) { console.error("Push 발송 실패:", e); }
+}
+
 const DEFAULT_SETTINGS = {
   workStart: "09:00", workEnd: "18:00",
   lunchStart: "12:00", lunchEnd: "13:00",
@@ -586,6 +614,8 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
     else if (type === "outing_in") newRec = { ...newRec, outing: outings.map((o, i) => i === outings.length - 1 ? { ...o, in: iso, inGps: gps } : o) };
     await onSaveRecord(user.id, today, newRec);
     const msgs = { in: "출근 완료! 👍", out: "퇴근 완료! 수고하셨어요 🙌", outing_out: "외출 처리됐어요 🚶", outing_in: "복귀 완료! 💪" };
+    if (type === "in") await sendPush({ title: "🏢 출근", message: `${user.name}님이 출근했습니다.`, targetUserId: "admin" });
+    if (type === "out") await sendPush({ title: "🏠 퇴근", message: `${user.name}님이 퇴근했습니다.`, targetUserId: "admin" });
     setFlash(msgs[type]); setTimeout(() => setFlash(null), 2500);
   };
 
@@ -3144,6 +3174,7 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
       date: reqDate, type: reqType, note: reqNote,
       status: "대기", createdAt: new Date().toISOString()
     });
+    await sendPush({ title: "📅 연차 신청", message: `${user.name}님이 ${reqDate} ${reqType}을 신청했습니다.`, targetUserId: "admin" });
     setReqMsg("신청 완료! ✓"); setReqDate(""); setReqNote("");
     setTimeout(() => { setReqMsg(""); setShowReqForm(false); }, 2000);
   };
