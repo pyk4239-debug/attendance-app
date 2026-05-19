@@ -1750,7 +1750,7 @@ function AdminSeverance({ users, memberInfo, annual, onBack }) {
 }
 
 // ── 관리자 대문 ────────────────────────────────────────────────
-function AdminHome({ user, onLogout, onSection, leaveRequests = [] }) {
+function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], reads = {} }) {
   const now = new Date();
   const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   const dateStr = kst.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
@@ -1760,7 +1760,8 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [] }) {
     { key: "wage",       icon: "💰", label: "임금",   desc: "급여 계산 · 임금대장",   color: "#16a34a" },
     { key: "members",    icon: "👥", label: "팀원",   desc: "직원 정보 · 기초 데이터", color: "#7c3aed" },
     { key: "annual",     icon: "📅", label: "연차",   desc: "연차 현황 · 신청 승인",   color: "#0284c7", badge: leaveRequests.filter(r => r.status === "대기").length },
-    { key: "general",    icon: "⚙",  label: "일반",   desc: "설정 · 공지 · 게시판",   color: "#ea580c" },
+    { key: "general",    icon: "⚙",  label: "일반",   desc: "설정 · 공지 · 게시판",   color: "#ea580c",
+      badge: board.filter(b => !reads[`${user.id}_board_${b.id}`]).length },
     { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#0891b2" },
   ];
 
@@ -2643,7 +2644,7 @@ function AdminGeneral({ user, users, settings, notices, board, payslips, reads, 
   const menus = [
     { key: "settings", icon: "⚙", label: "근무 설정", desc: "출퇴근 기준 · GPS · 공휴일" },
     { key: "notice",   icon: "📢", label: "공지사항",  desc: `전체 ${notices.length}건` },
-    { key: "board",    icon: "💬", label: "자유게시판", desc: `전체 ${board.length}건` },
+    { key: "board",    icon: "💬", label: "자유게시판", desc: `전체 ${board.length}건`, badge: board.filter(b => !reads[`${user.id}_board_${b.id}`]).length },
     { key: "payslip",  icon: "💰", label: "급여명세서", desc: `전체 ${payslips.length}건` },
   ];
 
@@ -2665,11 +2666,12 @@ function AdminGeneral({ user, users, settings, notices, board, payslips, reads, 
           <button key={m.key} onClick={() => setSubMenu(m.key)}
             style={{ width: "100%", background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, padding: "16px", marginBottom: 10, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 1px 4px #0000000a" }}>
             <div style={{ fontSize: 28 }}>{m.icon}</div>
-            <div>
+            <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, fontSize: 15, color: T.text }}>{m.label}</div>
               <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{m.desc}</div>
             </div>
-            <div style={{ marginLeft: "auto", color: T.muted, fontSize: 18 }}>›</div>
+            {m.badge > 0 && <div style={{ background: "#ef4444", color: "#fff", borderRadius: 12, padding: "2px 8px", fontSize: 11, fontWeight: 800 }}>{m.badge}</div>}
+            <div style={{ color: T.muted, fontSize: 18 }}>›</div>
           </button>
         ))}
       </div>
@@ -2706,7 +2708,7 @@ function AdminGeneral({ user, users, settings, notices, board, payslips, reads, 
 function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
   const [section, setSection] = useState(null);
 
-  if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={setSection} leaveRequests={leaveRequests} />;
+  if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={setSection} leaveRequests={leaveRequests} board={board} reads={reads} />;
   if (section === "attendance") return <AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={() => setSection(null)} />;
   if (section === "wage") return <AdminWage users={users} records={records} leaves={leaves} settings={settings} memberInfo={memberInfo} annual={annual} leaveRequests={leaveRequests} onBack={() => setSection(null)} />;
   if (section === "members") return <AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
