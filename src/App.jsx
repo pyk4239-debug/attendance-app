@@ -2645,11 +2645,10 @@ function AdminGeneral({ user, users, settings, notices, board, payslips, reads, 
     const handler = () => {
       if (subMenu) {
         setSubMenu(null);
-        window.history.pushState({ page: "app" }, "");
       } else {
         onBack();
-        window.history.pushState({ page: "app" }, "");
       }
+      window.history.pushState({ page: "app" }, "");
     };
     window.addEventListener("popstate", handler);
     return () => window.removeEventListener("popstate", handler);
@@ -2726,8 +2725,8 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
     const handler = (e) => {
       if (section) {
         setSection(null);
-        window.history.pushState({ page: "app" }, "");
       }
+      window.history.pushState({ page: "app" }, "");
     };
     window.addEventListener("popstate", handler);
     return () => window.removeEventListener("popstate", handler);
@@ -3443,8 +3442,8 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips,
     const handler = () => {
       if (tab !== "att") {
         setTab("att");
-        window.history.pushState({ page: "app" }, "");
       }
+      window.history.pushState({ page: "app" }, "");
     };
     window.addEventListener("popstate", handler);
     return () => window.removeEventListener("popstate", handler);
