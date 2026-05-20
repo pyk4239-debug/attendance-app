@@ -2641,6 +2641,20 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
 function AdminGeneral({ user, users, settings, notices, board, payslips, reads, onSaveSettings, onSaveUsers, onBack }) {
   const [subMenu, setSubMenu] = useState(null);
 
+  useEffect(() => {
+    const handler = () => {
+      if (subMenu) {
+        setSubMenu(null);
+        window.history.pushState({ page: "app" }, "");
+      } else {
+        onBack();
+        window.history.pushState({ page: "app" }, "");
+      }
+    };
+    window.addEventListener("popstate", handler);
+    return () => window.removeEventListener("popstate", handler);
+  }, [subMenu]);
+
   const menus = [
     { key: "settings", icon: "⚙", label: "근무 설정", desc: "출퇴근 기준 · GPS · 공휴일" },
     { key: "notice",   icon: "📢", label: "공지사항",  desc: `전체 ${notices.length}건` },
@@ -2707,6 +2721,17 @@ function AdminGeneral({ user, users, settings, notices, board, payslips, reads, 
 // ── 관리자 화면 (라우터) ───────────────────────────────────────
 function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
   const [section, setSection] = useState(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (section) {
+        setSection(null);
+        window.history.pushState({ page: "app" }, "");
+      }
+    };
+    window.addEventListener("popstate", handler);
+    return () => window.removeEventListener("popstate", handler);
+  }, [section]);
 
   if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={setSection} leaveRequests={leaveRequests} board={board} reads={reads} />;
   if (section === "attendance") return <AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={() => setSection(null)} />;
@@ -3413,6 +3438,17 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips,
   const unreadNotice = unreadCount(notices, "notice");
   const unreadBoard = unreadCount(board, "board");
   const unreadPayslip = unreadCount(payslips.filter(p => p.userId === user?.id), "payslip");
+
+  useEffect(() => {
+    const handler = () => {
+      if (tab !== "att") {
+        setTab("att");
+        window.history.pushState({ page: "app" }, "");
+      }
+    };
+    window.addEventListener("popstate", handler);
+    return () => window.removeEventListener("popstate", handler);
+  }, [tab]);
 
   const tabs = [
     ["att", "🏠", "출퇴근", 0],
