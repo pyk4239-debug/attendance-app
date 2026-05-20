@@ -534,7 +534,19 @@ function LoginScreen({ users, onLogin, onUpdateUsers }) {
 
   const login = () => {
     const u = users.find(u => u.name === name.trim() && u.pin === pin);
-    if (u) onLogin(u);
+    if (u) {
+      // OneSignal 태그 설정 (기기와 유저 연결)
+      try {
+        const tagValue = u.role === "admin" ? "admin" : u.id;
+        if (window.OneSignalDeferred) {
+          window.OneSignalDeferred.push(async (OneSignal) => {
+            await OneSignal.User.addTag("userId", tagValue);
+            console.log("OneSignal 태그 설정:", tagValue);
+          });
+        }
+      } catch(e) { console.log("OneSignal 태그 오류:", e); }
+      onLogin(u);
+    }
     else { setErr("이름 또는 PIN이 맞지 않아요"); setTimeout(() => setErr(""), 2000); }
   };
 
