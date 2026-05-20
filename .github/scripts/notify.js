@@ -1,4 +1,4 @@
-const https = require('https');
+import https from 'https';
 
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY;
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
@@ -98,13 +98,8 @@ async function main() {
 
   console.log(`KST: ${hh}:${String(mm).padStart(2, '0')} (${today}) 요일:${dayOfWeek}`);
 
-  // 주말 건너뜀
-  if (dayOfWeek === 0 || dayOfWeek === 6) {
-    console.log('주말 - 알림 없음');
-    return;
-  }
+  if (dayOfWeek === 0 || dayOfWeek === 6) { console.log('주말'); return; }
 
-  // Settings 읽기
   const settings = await fetchDoc('settings', 'main');
   if (!settings) { console.log('settings 없음'); return; }
 
@@ -114,11 +109,7 @@ async function main() {
 
   console.log(`출근: ${workStart}, 퇴근: ${workEnd}`);
 
-  // 공휴일 건너뜀
-  if (holidays.includes(today)) {
-    console.log('공휴일 - 알림 없음');
-    return;
-  }
+  if (holidays.includes(today)) { console.log('공휴일'); return; }
 
   const [startH, startM] = workStart.split(':').map(Number);
   const [endH, endM] = workEnd.split(':').map(Number);
@@ -130,27 +121,18 @@ async function main() {
   const isCheckinAlert = currentMinutes === startMinutes - 5;
   const isCheckoutAlert = currentMinutes === endMinutes + 1;
 
-  console.log(`현재: ${currentMinutes}분, 출근: ${startMinutes}분, 퇴근: ${endMinutes}분`);
-  console.log(`출근알림: ${isCheckinAlert}, 퇴근알림: ${isCheckoutAlert}`);
+  console.log(`현재: ${currentMinutes}분, 출근알림: ${isCheckinAlert}, 퇴근알림: ${isCheckoutAlert}`);
 
-  if (!isCheckinAlert && !isCheckoutAlert) {
-    console.log('알림 시간 아님');
-    return;
-  }
+  if (!isCheckinAlert && !isCheckoutAlert) { console.log('알림 시간 아님'); return; }
 
-  // 팀원 목록
   const users = await fetchCollection('users');
   const members = users.filter(u => u.role === 'member');
   console.log('팀원:', members.map(u => u.name));
 
-  // 오늘 근태 기록
   const records = await fetchCollection('records');
   const recordMap = {};
-  for (const rec of records) {
-    recordMap[rec.id] = rec;
-  }
+  for (const rec of records) recordMap[rec.id] = rec;
 
-  // 오늘 연차
   const leaves = await fetchCollection('leaves');
   const leaveSet = new Set(
     leaves.filter(l => l.date === today && !l.deleted).map(l => l.userId)
@@ -160,14 +142,9 @@ async function main() {
     const absentIds = members
       .filter(u => !leaveSet.has(u.id) && !recordMap[`${u.id}_${today}`]?.in)
       .map(u => u.id);
-
     console.log('출근 알림 대상:', absentIds);
     if (absentIds.length > 0) {
-      await sendPush(
-        '⏰ 출근 시간 알림',
-        `출근 시간 ${workStart} 5분 전입니다. 출근 기록을 해주세요!`,
-        absentIds
-      );
+      await sendPush('⏰ 출근 시간 알림', `출근 시간 ${workStart} 5분 전입니다. 출근 기록을 해주세요!`, absentIds);
     }
   }
 
@@ -175,19 +152,11 @@ async function main() {
     const notOutIds = members
       .filter(u => !leaveSet.has(u.id) && recordMap[`${u.id}_${today}`]?.in && !recordMap[`${u.id}_${today}`]?.out)
       .map(u => u.id);
-
     console.log('퇴근 알림 대상:', notOutIds);
     if (notOutIds.length > 0) {
-      await sendPush(
-        '🏠 퇴근 시간 알림',
-        `퇴근 시간 ${workEnd}이 지났습니다. 퇴근 기록을 해주세요!`,
-        notOutIds
-      );
+      await sendPush('🏠 퇴근 시간 알림', `퇴근 시간 ${workEnd}이 지났습니다. 퇴근 기록을 해주세요!`, notOutIds);
     }
   }
 }
 
-main().catch(err => {
-  console.error('오류:', err);
-  process.exit(1);
-});
+main().catch(err => { console.error('오류:', err); process.exit(1); });
