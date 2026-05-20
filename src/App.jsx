@@ -2902,7 +2902,7 @@ function BoardScreen({ user, board, reads }) {
     if (expanded !== id) markRead(id);
   };
 
-  const isUnread = (b) => !isAdmin && !reads[`${user.id}_board_${b.id}`] && b.userId !== user.id;
+  const isUnread = (b) => !reads[`${user.id}_board_${b.id}`] && b.userId !== user.id;
 
   const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 };
 
