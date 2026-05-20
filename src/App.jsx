@@ -2790,7 +2790,7 @@ function NoticeScreen({ user, users, notices, reads }) {
 
   const openEdit = (n) => {
     setEditTarget(n); setTitle(n.title); setContent(n.content);
-    setRecipient(n.recipient || "all"); setFile(null); setShowWrite(true);
+    setRecipient(n.recipient || "all"); setFile(null);
   };
 
   const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 };
@@ -2860,9 +2860,24 @@ function NoticeScreen({ user, users, notices, reads }) {
                   </a>
                 )}
                 {isAdmin && (
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => openEdit(n)} style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>수정</button>
-                    <button onClick={() => del(n)} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>삭제</button>
+                  <div>
+                    {editTarget?.id === n.id ? (
+                      <div style={{ marginTop: 10 }}>
+                        <input value={title} onChange={e => setTitle(e.target.value)}
+                          style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", marginBottom: 8 }} placeholder="제목" />
+                        <textarea value={content} onChange={e => setContent(e.target.value)}
+                          style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", minHeight: 80, resize: "vertical", fontFamily: "inherit", marginBottom: 8 }} placeholder="내용" />
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <Btn variant="ghost" onClick={() => setEditTarget(null)}>취소</Btn>
+                          <Btn variant="admin" onClick={update}>수정 완료</Btn>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                        <button onClick={() => openEdit(n)} style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>수정</button>
+                        <button onClick={() => del(n)} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>삭제</button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
