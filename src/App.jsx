@@ -83,13 +83,15 @@ function FloatBack({ onClick }) {
   return (
     <button onClick={onClick} style={{
       position: "fixed", bottom: 80, right: 16, zIndex: 200,
-      width: 52, height: 52, borderRadius: "50%",
-      background: "#1a1a2e", border: "2px solid #ffffff30",
-      color: "#fff", fontSize: 26, cursor: "pointer",
-      boxShadow: "0 4px 20px #00000060",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      fontWeight: 700
-    }}>‹</button>
+      height: 40, padding: "0 16px", borderRadius: 20,
+      background: "rgba(255,255,255,0.7)",
+      backdropFilter: "blur(10px)",
+      WebkitBackdropFilter: "blur(10px)",
+      border: "1px solid rgba(255,255,255,0.9)",
+      color: "#1a1a2e", fontSize: 13, fontWeight: 700, cursor: "pointer",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+      display: "flex", alignItems: "center", gap: 4
+    }}>‹ 이전</button>
   );
 }
 
