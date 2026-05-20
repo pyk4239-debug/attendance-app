@@ -2900,6 +2900,11 @@ function NoticeScreen({ user, users, notices, reads }) {
                           style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", marginBottom: 8 }} placeholder="제목" />
                         <textarea value={content} onChange={e => setContent(e.target.value)}
                           rows={4} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", resize: "none", lineHeight: 1.6, fontFamily: "inherit", marginBottom: 8 }} placeholder="내용" />
+                        <select value={recipient} onChange={e => setRecipient(e.target.value)}
+                          style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", marginBottom: 8 }}>
+                          <option value="all">전체</option>
+                          {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                        </select>
                         <div style={{ display: "flex", gap: 8 }}>
                           <Btn variant="ghost" onClick={() => setEditTarget(null)}>취소</Btn>
                           <Btn variant="admin" onClick={update}>수정 완료</Btn>
