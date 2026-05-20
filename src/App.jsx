@@ -983,7 +983,7 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
           const leaveDates = Object.entries(userLeaves)
             .filter(([date]) => date.startsWith(selectedMonth) && !days.find(([d]) => d === date))
             .map(([date, l]) => [date, { in: null, out: null, leaveOnly: true }]);
-          const allDays = [...days, ...leaveDates].sort(([a], [b]) => a.localeCompare(b));
+          const allDays = [...days, ...leaveDates].sort(([a], [b]) => b.localeCompare(a));
           if (allDays.length === 0) return <div style={{ textAlign: "center", color: T.muted, padding: 24, fontSize: 14, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>기록 없음</div>;
           return allDays.map(([date, rec]) => {
             const leave = userLeaves[date];
