@@ -77,6 +77,21 @@ async function sendPush({ title, message, targetUserId = null }) {
   } catch(e) { console.error("Push 발송 실패:", e); }
 }
 
+
+// ── 플로팅 뒤로가기 버튼 ─────────────────────────────────────────
+function FloatBack({ onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      position: "fixed", bottom: 88, right: 20, zIndex: 100,
+      width: 48, height: 48, borderRadius: "50%",
+      background: "#1a1a2e", border: "none",
+      color: "#fff", fontSize: 22, cursor: "pointer",
+      boxShadow: "0 4px 16px #00000040",
+      display: "flex", alignItems: "center", justifyContent: "center"
+    }}>‹</button>
+  );
+}
+
 const DEFAULT_SETTINGS = {
   workStart: "09:00", workEnd: "18:00",
   lunchStart: "12:00", lunchEnd: "13:00",
@@ -2641,18 +2656,6 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
 function AdminGeneral({ user, users, settings, notices, board, payslips, reads, onSaveSettings, onSaveUsers, onBack }) {
   const [subMenu, setSubMenu] = useState(null);
 
-  useEffect(() => {
-    const handler = () => {
-      if (subMenu) {
-        setSubMenu(null);
-      } else {
-        onBack();
-      }
-      window.history.pushState({ page: "app" }, "");
-    };
-    window.addEventListener("popstate", handler);
-    return () => window.removeEventListener("popstate", handler);
-  }, [subMenu]);
 
   const menus = [
     { key: "settings", icon: "⚙", label: "근무 설정", desc: "출퇴근 기준 · GPS · 공휴일" },
@@ -2721,16 +2724,6 @@ function AdminGeneral({ user, users, settings, notices, board, payslips, reads, 
 function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
   const [section, setSection] = useState(null);
 
-  useEffect(() => {
-    const handler = (e) => {
-      if (section) {
-        setSection(null);
-      }
-      window.history.pushState({ page: "app" }, "");
-    };
-    window.addEventListener("popstate", handler);
-    return () => window.removeEventListener("popstate", handler);
-  }, [section]);
 
   if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={setSection} leaveRequests={leaveRequests} board={board} reads={reads} />;
   if (section === "attendance") return <AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={() => setSection(null)} />;
@@ -3438,17 +3431,6 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips,
   const unreadBoard = unreadCount(board, "board");
   const unreadPayslip = unreadCount(payslips.filter(p => p.userId === user?.id), "payslip");
 
-  useEffect(() => {
-    const handler = () => {
-      if (tab !== "att") {
-        setTab("att");
-      }
-      window.history.pushState({ page: "app" }, "");
-    };
-    window.addEventListener("popstate", handler);
-    return () => window.removeEventListener("popstate", handler);
-  }, [tab]);
-
   const tabs = [
     ["att", "🏠", "출퇴근", 0],
     ["notice", "📢", "공지", unreadNotice],
@@ -3499,6 +3481,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
         <MemberScreen user={user} settings={settings} records={records} leaves={leaves}
           onSaveRecord={onSaveRecord} onLogout={() => { setUser(null); setTab("att"); }} />
       )}
+      {tab !== "att" && <FloatBack onClick={() => setTab("att")} />}
       {tab === "notice" && (
         <>
           <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
