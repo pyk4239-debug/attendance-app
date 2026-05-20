@@ -976,6 +976,7 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
     return (
       <div>
         <button onClick={() => setDrillUser(null)} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", marginBottom: 14, fontSize: 13, padding: 0, fontWeight: 600 }}>← 전체 목록</button>
+        <FloatBack onClick={() => setDrillUser(null)} />
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
           <div style={{ width: 42, height: 42, borderRadius: "50%", background: T.headerBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: "#fff" }}>{drillUser.name[0]}</div>
           <div style={{ flex: 1 }}>
@@ -2727,12 +2728,12 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
 
 
   if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={setSection} leaveRequests={leaveRequests} board={board} reads={reads} />;
-  if (section === "attendance") return <AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={() => setSection(null)} />;
-  if (section === "wage") return <AdminWage users={users} records={records} leaves={leaves} settings={settings} memberInfo={memberInfo} annual={annual} leaveRequests={leaveRequests} onBack={() => setSection(null)} />;
-  if (section === "members") return <AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
-  if (section === "general") return <AdminGeneral user={user} users={users} settings={settings} notices={notices} board={board} payslips={payslips} reads={reads} onSaveSettings={onSaveSettings} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} />;
-  if (section === "annual") return <AnnualScreen user={user} users={users} annual={annual} leaveRequests={leaveRequests} onBack={() => setSection(null)} />;
-  if (section === "severance") return <AdminSeverance users={users} memberInfo={memberInfo} annual={annual} onBack={() => setSection(null)} />;
+  if (section === "attendance") return <><AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={() => setSection(null)} /><FloatBack onClick={() => setSection(null)} /></>;
+  if (section === "wage") return <><AdminWage users={users} records={records} leaves={leaves} settings={settings} memberInfo={memberInfo} annual={annual} leaveRequests={leaveRequests} onBack={() => setSection(null)} /><FloatBack onClick={() => setSection(null)} /></>;
+  if (section === "members") return <><AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} /><FloatBack onClick={() => setSection(null)} /></>;
+  if (section === "general") return <><AdminGeneral user={user} users={users} settings={settings} notices={notices} board={board} payslips={payslips} reads={reads} onSaveSettings={onSaveSettings} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} /><FloatBack onClick={() => setSection(null)} /></>;
+  if (section === "annual") return <><AnnualScreen user={user} users={users} annual={annual} leaveRequests={leaveRequests} onBack={() => setSection(null)} /><FloatBack onClick={() => setSection(null)} /></>;
+  if (section === "severance") return <><AdminSeverance users={users} memberInfo={memberInfo} annual={annual} onBack={() => setSection(null)} /><FloatBack onClick={() => setSection(null)} /></>;
   return null;
 }
 
