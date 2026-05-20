@@ -2866,7 +2866,7 @@ function NoticeScreen({ user, users, notices, reads }) {
                         <input value={title} onChange={e => setTitle(e.target.value)}
                           style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", marginBottom: 8 }} placeholder="제목" />
                         <textarea value={content} onChange={e => setContent(e.target.value)}
-                          style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", minHeight: 80, resize: "vertical", fontFamily: "inherit", marginBottom: 8 }} placeholder="내용" />
+                          rows={4} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", resize: "none", lineHeight: 1.6, fontFamily: "inherit", marginBottom: 8 }} placeholder="내용" />
                         <div style={{ display: "flex", gap: 8 }}>
                           <Btn variant="ghost" onClick={() => setEditTarget(null)}>취소</Btn>
                           <Btn variant="admin" onClick={update}>수정 완료</Btn>
