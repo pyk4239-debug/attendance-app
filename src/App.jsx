@@ -82,12 +82,13 @@ async function sendPush({ title, message, targetUserId = null }) {
 function FloatBack({ onClick }) {
   return (
     <button onClick={onClick} style={{
-      position: "fixed", bottom: 88, right: 20, zIndex: 100,
-      width: 48, height: 48, borderRadius: "50%",
-      background: "#1a1a2e", border: "none",
-      color: "#fff", fontSize: 22, cursor: "pointer",
-      boxShadow: "0 4px 16px #00000040",
-      display: "flex", alignItems: "center", justifyContent: "center"
+      position: "fixed", bottom: 80, right: 16, zIndex: 200,
+      width: 52, height: 52, borderRadius: "50%",
+      background: "#1a1a2e", border: "2px solid #ffffff30",
+      color: "#fff", fontSize: 26, cursor: "pointer",
+      boxShadow: "0 4px 20px #00000060",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontWeight: 700
     }}>‹</button>
   );
 }
