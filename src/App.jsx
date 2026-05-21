@@ -515,11 +515,16 @@ function LoginScreen({ users, onLogin, onUpdateUsers }) {
   const login = () => {
     const u = users.find(u => u.name === name.trim() && u.pin === pin);
     if (u) {
-      // OneSignal 태그 설정 (기기와 유저 연결)
+      // OneSignal 태그 설정 + 알림 권한 요청
       try {
         const tagValue = u.role === "admin" ? "admin" : u.id;
         if (window.OneSignalDeferred) {
           window.OneSignalDeferred.push(async (OneSignal) => {
+            // 알림 권한 요청 (사용자 인터랙션 후 실행)
+            const permission = await OneSignal.Notifications.permission;
+            if (!permission) {
+              await OneSignal.Notifications.requestPermission();
+            }
             await OneSignal.User.addTag("userId", tagValue);
             console.log("OneSignal 태그 설정:", tagValue);
           });
