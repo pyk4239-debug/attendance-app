@@ -51,28 +51,12 @@ const DEFAULT_USERS = [
 ];
 
 // ── OneSignal 푸시 알림 ──────────────────────────────────────────
-const OS_APP_ID = "e339bc0f-1f0a-41ed-a8f2-5f9ab3214f07";
-const OS_API_KEY = "os_v2_app_4m43ydy7bja63khsl6nlgikpa6ctde74qhwucj5fc7wpwgzrnhakjdzfvullwniz4mxmdjknrxdk6hjepk4o67qk3ie2l4jsg4enjaa";
-
 async function sendPush({ title, message, targetUserId = null }) {
   try {
-    const body = {
-      app_id: OS_APP_ID,
-      headings: { en: title, ko: title },
-      contents: { en: message, ko: message },
-    };
-    if (targetUserId) {
-      body.filters = [{ field: "tag", key: "userId", relation: "=", value: targetUserId }];
-    } else {
-      body.included_segments = ["All"];
-    }
-    await fetch("https://onesignal.com/api/v1/notifications", {
+    await fetch("/api/notify", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Basic ${OS_API_KEY}`,
-      },
-      body: JSON.stringify(body),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, message, targetUserId }),
     });
   } catch(e) { console.error("Push 발송 실패:", e); }
 }
