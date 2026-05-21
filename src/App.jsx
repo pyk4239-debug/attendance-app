@@ -7,11 +7,7 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
 // 기존 서비스워커 완전 제거
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.getRegistrations().then(registrations => {
-    registrations.forEach(r => r.unregister());
-  });
-}
+
 
 // ── 테마 (화이트모드) ──────────────────────────────────────────
 const T = {
