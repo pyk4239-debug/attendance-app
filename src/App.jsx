@@ -2188,6 +2188,7 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
         recipient: userId, author: "관리자",
         createdAt: new Date().toISOString(), auto: true
       });
+      await sendPush({ title: `💰 급여명세서 발급`, message: `${monthLabel(selectedMonth)} 급여명세서가 발급되었습니다. 명세서 탭에서 확인해주세요.`, targetUserId: userId });
       alert(`${userName}님께 명세서가 전송됐어요!`);
     } catch(e) { alert("전송 실패: " + e.message); }
     setSending(null);
@@ -2926,6 +2927,7 @@ function BoardScreen({ user, board, reads }) {
       title: title.trim(), content: content.trim(),
       author: user.name, userId: user.id, createdAt: new Date().toISOString()
     });
+    await sendPush({ title: `💬 게시판: ${title.trim()}`, message: `${user.name}: ${content.trim()}` });
     setTitle(""); setContent(""); setShowWrite(false);
   };
 
