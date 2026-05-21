@@ -2781,6 +2781,8 @@ function NoticeScreen({ user, users, notices, reads }) {
     const data = { title: title.trim(), content: content.trim(), recipient, author: user.name, createdAt: new Date().toISOString() };
     if (fileUrl) { data.fileUrl = fileUrl; data.fileName = fileName; }
     await addDoc(collection(db, COL_NOTICES), data);
+    const pushTarget = recipient === "all" ? null : recipient;
+    await sendPush({ title: `📢 공지: ${title.trim()}`, message: content.trim(), targetUserId: pushTarget });
     resetForm(); setUploading(false);
   };
 
