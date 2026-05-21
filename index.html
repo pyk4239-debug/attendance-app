@@ -16,25 +16,7 @@
         await OneSignal.init({
           appId: "e339bc0f-1f0a-41ed-a8f2-5f9ab3214f07",
           notifyButton: { enable: false },
-          promptOptions: {
-            slidedown: {
-              prompts: [
-                {
-                  type: "push",
-                  autoPrompt: true,
-                  text: {
-                    actionMessage: "출퇴근 알림을 받으시겠습니까?",
-                    acceptButton: "허용",
-                    cancelButton: "나중에"
-                  },
-                  delay: {
-                    pageViews: 1,
-                    timeDelay: 3
-                  }
-                }
-              ]
-            }
-          }
+          autoResubscribe: true,
         });
       });
     </script>
