@@ -134,13 +134,22 @@ async function main() {
   for (const rec of records) recordMap[rec.id] = rec;
 
   const leaves = await fetchCollection('leaves');
-  const leaveSet = new Set(
-    leaves.filter(l => l.date === today && !l.deleted).map(l => l.userId)
-  );
+
+  // 오늘 연차/반차 목록
+  const todayLeaves = leaves.filter(l => l.date === today && !l.deleted);
+  const leaveSet = new Set(todayLeaves.map(l => l.userId)); // 연차(전일)
+  const amLeaveSet = new Set(todayLeaves.filter(l => l.type && l.type.includes('오전')).map(l => l.userId)); // 반차(오전)
+  const pmLeaveSet = new Set(todayLeaves.filter(l => l.type && l.type.includes('오후')).map(l => l.userId)); // 반차(오후)
 
   if (isCheckinAlert) {
     const absentIds = members
-      .filter(u => !leaveSet.has(u.id) && !recordMap[`${u.id}_${today}`]?.in)
+      .filter(u => {
+        const rec = recordMap[`${u.id}_${today}`];
+        if (leaveSet.has(u.id)) return false;   // 1. 연차 제외
+        if (amLeaveSet.has(u.id)) return false;  // 2. 반차(오전) 제외
+        if (rec?.in) return false;               // 3. 이미 출근 제외
+        return true;
+      })
       .map(u => u.id);
     console.log('출근 알림 대상:', absentIds);
     if (absentIds.length > 0) {
@@ -150,7 +159,17 @@ async function main() {
 
   if (isCheckoutAlert) {
     const notOutIds = members
-      .filter(u => !leaveSet.has(u.id) && recordMap[`${u.id}_${today}`]?.in && !recordMap[`${u.id}_${today}`]?.out)
+      .filter(u => {
+        const rec = recordMap[`${u.id}_${today}`];
+        if (leaveSet.has(u.id)) return false;    // 1. 연차 제외
+        if (pmLeaveSet.has(u.id)) return false;  // 2. 반차(오후) 제외
+        if (!rec?.in) return false;              // 3. 출근 안 한 팀원 제외
+        if (rec?.out) return false;              // 4. 이미 퇴근 제외
+        // 5. 외출 중인 팀원 제외 (outing 배열 마지막이 out만 있고 in 없는 경우)
+        const outings = rec?.outing || [];
+        if (outings.length > 0 && !outings[outings.length - 1].in) return false;
+        return true;
+      })
       .map(u => u.id);
     console.log('퇴근 알림 대상:', notOutIds);
     if (notOutIds.length > 0) {
