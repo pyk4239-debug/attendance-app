@@ -2921,6 +2921,8 @@ function BoardScreen({ user, board, reads }) {
   const [showWrite, setShowWrite] = useState(false);
   const [title, setTitle] = useState(""), [content, setContent] = useState("");
   const [expanded, setExpanded] = useState(null);
+  const [editTarget, setEditTarget] = useState(null);
+  const [editTitle, setEditTitle] = useState(""), [editContent, setEditContent] = useState("");
 
   const submit = async () => {
     if (!title.trim() || !content.trim()) return;
@@ -2933,6 +2935,14 @@ function BoardScreen({ user, board, reads }) {
   };
 
   const del = async (id) => { await deleteDoc(doc(db, COL_BOARD, id)); };
+
+  const startEdit = (b) => { setEditTarget(b.id); setEditTitle(b.title); setEditContent(b.content); };
+  const cancelEdit = () => { setEditTarget(null); setEditTitle(""); setEditContent(""); };
+  const saveEdit = async (b) => {
+    if (!editTitle.trim() || !editContent.trim()) return;
+    await setDoc(doc(db, COL_BOARD, b.id), { ...b, title: editTitle.trim(), content: editContent.trim() });
+    cancelEdit();
+  };
 
   const markRead = async (id) => {
     const key = `${user.id}_board_${id}`;
@@ -2985,7 +2995,23 @@ function BoardScreen({ user, board, reads }) {
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
                 <div style={{ fontSize: 14, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{b.content}</div>
                 {(isAdmin || b.userId === user.id) && (
-                  <button onClick={() => del(b.id)} style={{ marginTop: 10, background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>삭제</button>
+                  editTarget === b.id ? (
+                    <div style={{ marginTop: 10 }}>
+                      <input value={editTitle} onChange={e => setEditTitle(e.target.value)}
+                        style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", marginBottom: 8 }} />
+                      <textarea value={editContent} onChange={e => setEditContent(e.target.value)} rows={4}
+                        style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", resize: "none", fontFamily: "inherit", marginBottom: 8 }} />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <Btn variant="ghost" onClick={cancelEdit}>취소</Btn>
+                        <Btn variant="primary" onClick={() => saveEdit(b)}>수정 완료</Btn>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                      {b.userId === user.id && <button onClick={() => startEdit(b)} style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>수정</button>}
+                      <button onClick={() => del(b.id)} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>삭제</button>
+                    </div>
+                  )
                 )}
               </div>
             )}
