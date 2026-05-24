@@ -1853,9 +1853,11 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
     { key: "wage",       icon: "💰", label: "임금",   desc: "급여 계산 · 임금대장",   color: "#16a34a" },
     { key: "members",    icon: "👥", label: "팀원",   desc: "직원 정보 · 기초 데이터", color: "#7c3aed" },
     { key: "annual",     icon: "📅", label: "연차",   desc: "연차 현황 · 신청 승인",   color: "#0284c7", badge: leaveRequests.filter(r => r.status === "대기").length },
-    { key: "general",    icon: "⚙",  label: "일반",   desc: "설정 · 공지 · 게시판",   color: "#ea580c",
+    { key: "notice",     icon: "📢", label: "공지",   desc: "공지사항 작성 · 관리",   color: "#ea580c" },
+    { key: "board",      icon: "💬", label: "게시판", desc: "자유게시판",              color: "#0891b2",
       badge: board.filter(b => !reads[`${user.id}_board_${b.id}`]).length },
-    { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#0891b2" },
+    { key: "settings",   icon: "⚙",  label: "설정",   desc: "근무시간 · GPS · 공휴일", color: "#6b7280" },
+    { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#b45309" },
   ];
 
   return (
@@ -2799,18 +2801,40 @@ function AdminGeneral({ user, users, settings, notices, board, payslips, reads, 
   );
 }
 
+// ── 관리자 섹션 래퍼 (공지/게시판용) ─────────────────────────────
+function AdminSectionWrap({ title, color, onBack, children }) {
+  return (
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
+      <div style={{ background: color || T.adminHeader, padding: "16px 16px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
+          <div>
+            <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>{title}</div>
+          </div>
+        </div>
+      </div>
+      {children}
+      <FloatBack onClick={onBack} />
+    </div>
+  );
+}
+
 // ── 관리자 화면 (라우터) ───────────────────────────────────────
 function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
   const [section, setSection] = useState(null);
 
 
+  const back = () => { setSection(null); window.scrollTo(0,0); };
   if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={s => { setSection(s); window.scrollTo(0,0); }} leaveRequests={leaveRequests} board={board} reads={reads} />;
-  if (section === "attendance") return <><AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={() => { setSection(null); window.scrollTo(0,0); }} /><FloatBack onClick={() => { setSection(null); window.scrollTo(0,0); }} /></>;
-  if (section === "wage") return <><AdminWage users={users} records={records} leaves={leaves} settings={settings} memberInfo={memberInfo} annual={annual} leaveRequests={leaveRequests} onBack={() => { setSection(null); window.scrollTo(0,0); }} /><FloatBack onClick={() => { setSection(null); window.scrollTo(0,0); }} /></>;
-  if (section === "members") return <><AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={() => { setSection(null); window.scrollTo(0,0); }} /><FloatBack onClick={() => { setSection(null); window.scrollTo(0,0); }} /></>;
-  if (section === "general") return <><AdminGeneral user={user} users={users} settings={settings} notices={notices} board={board} payslips={payslips} reads={reads} onSaveSettings={onSaveSettings} onSaveUsers={onSaveUsers} onBack={() => { setSection(null); window.scrollTo(0,0); }} /><FloatBack onClick={() => { setSection(null); window.scrollTo(0,0); }} /></>;
-  if (section === "annual") return <><AnnualScreen user={user} users={users} annual={annual} leaveRequests={leaveRequests} onBack={() => { setSection(null); window.scrollTo(0,0); }} /><FloatBack onClick={() => { setSection(null); window.scrollTo(0,0); }} /></>;
-  if (section === "severance") return <><AdminSeverance users={users} memberInfo={memberInfo} annual={annual} onBack={() => { setSection(null); window.scrollTo(0,0); }} /><FloatBack onClick={() => { setSection(null); window.scrollTo(0,0); }} /></>;
+  if (section === "attendance") return <><AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "wage") return <><AdminWage users={users} records={records} leaves={leaves} settings={settings} memberInfo={memberInfo} annual={annual} leaveRequests={leaveRequests} onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "members") return <><AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "annual") return <><AnnualScreen user={user} users={users} annual={annual} leaveRequests={leaveRequests} onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "severance") return <><AdminSeverance users={users} memberInfo={memberInfo} annual={annual} onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "notice") return <AdminSectionWrap title="📢 공지사항" color="#ea580c" onBack={back}><NoticeScreen user={user} users={users} notices={notices} reads={reads} /></AdminSectionWrap>;
+  if (section === "board") return <AdminSectionWrap title="💬 게시판" color="#0891b2" onBack={back}><BoardScreen user={user} board={board} reads={reads} /></AdminSectionWrap>;
+  if (section === "settings") return <><SettingsModal settings={settings} onSave={async s => { await onSaveSettings(s); back(); }} onClose={back} /></>;
   return null;
 }
 
