@@ -109,7 +109,8 @@ async function main() {
 
   console.log(`출근: ${workStart}, 퇴근: ${workEnd}`);
 
-  if (holidays.includes(today)) { console.log('공휴일'); return; }
+  const isHoliday = holidays.some(h => (typeof h === 'string' ? h : h.date) === today);
+  if (isHoliday) { console.log('공휴일'); return; }
 
   const [startH, startM] = workStart.split(':').map(Number);
   const [endH, endM] = workEnd.split(':').map(Number);
@@ -175,6 +176,28 @@ async function main() {
     if (notOutIds.length > 0) {
       await sendPush('🏠 퇴근 시간 알림', `퇴근 시간 ${workEnd}이 지났습니다. 퇴근 기록을 해주세요!`, notOutIds);
     }
+  }
+
+  // ── 리마인더 체크 ──────────────────────────────────────────────
+  const reminders = await fetchCollection('reminders');
+  const currentHHMM = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  const adminIds = users.filter(u => u.role === 'admin').map(u => u.id);
+  const allIds = users.map(u => u.id);
+
+  for (const r of reminders) {
+    if (!r.active) continue;
+    if (r.time !== currentHHMM) continue;
+
+    // 반복 조건
+    if (r.repeat === 'weekly' && r.weekDay !== dayOfWeek) continue;
+    if (r.repeat === 'monthly' && r.monthDay !== kst.getUTCDate()) continue;
+
+    // 대상
+    const targetIds = r.target === 'all' ? allIds : adminIds;
+    if (targetIds.length === 0) continue;
+
+    console.log(`리마인더 발송: ${r.title} → ${r.target}`);
+    await sendPush(`📅 ${r.title}`, r.title, targetIds);
   }
 }
 
