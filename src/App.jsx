@@ -1867,8 +1867,8 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
     { key: "board",      icon: "💬", label: "게시판", desc: "자유게시판",              color: "#0891b2",
       badge: board.filter(b => !reads[`${user.id}_board_${b.id}`]).length },
     { key: "settings",   icon: "⚙",  label: "설정",   desc: "근무시간 · GPS · 공휴일", color: "#6b7280" },
-    { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#b45309" },
     { key: "reminder",   icon: "📅", label: "리마인더", desc: "반복 알림 · 일정 관리",  color: "#7c3aed" },
+    { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#b45309" },
   ];
 
   return (
