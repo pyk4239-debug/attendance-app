@@ -1875,7 +1875,7 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
       </div>
 
       {/* 섹션 버튼 */}
-      <div style={{ padding: "16px 16px 24px", marginTop: -14 }}>
+      <div style={{ padding: "10px 16px 24px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           {sections.map(s => (
             <button key={s.key} onClick={() => onSection(s.key)}
