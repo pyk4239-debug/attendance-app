@@ -237,7 +237,7 @@ async function main() {
     const targetIds = r.target === 'all' ? allIds : adminIds;
     if (targetIds.length === 0) continue;
     console.log(`리마인더 발송: ${r.title} → ${r.target}`);
-    await sendPush(`📅 ${r.title}`, r.title, targetIds);
+    await sendPush(`🔔 ${r.title}`, r.title, targetIds);
   }
 }
 
