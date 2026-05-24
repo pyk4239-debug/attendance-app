@@ -2751,7 +2751,7 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
 
 // ── 리마인더 ────────────────────────────────────────────────────
 function AdminReminder({ reminders = [], users = [] }) {
-  const EMPTY = { title: "", time: "09:00", repeat: "daily", monthDay: 1, weekDay: 1, target: "admin" };
+  const EMPTY = { title: "", time: "09:00", repeat: "daily", monthDay: 1, weekDay: 1, target: "admin", sendBeforeHoliday: false };
   const [form, setForm] = useState(EMPTY);
   const [editId, setEditId] = useState(null); // null=추가, id=수정
   const [adding, setAdding] = useState(false);
@@ -2870,6 +2870,17 @@ function AdminReminder({ reminders = [], users = [] }) {
             </select>
           </div>
 
+          <div onClick={() => setForm(p => ({...p, sendBeforeHoliday: !p.sendBeforeHoliday}))}
+            style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, cursor: "pointer", padding: "8px 10px", borderRadius: 10, background: form.sendBeforeHoliday ? "#ede9fe" : T.bg, border: `1px solid ${form.sendBeforeHoliday ? "#7c3aed" : T.border}` }}>
+            <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${form.sendBeforeHoliday ? "#7c3aed" : T.border}`, background: form.sendBeforeHoliday ? "#7c3aed" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              {form.sendBeforeHoliday && <span style={{ color: "#fff", fontSize: 12, fontWeight: 900 }}>✓</span>}
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: form.sendBeforeHoliday ? "#7c3aed" : T.text }}>공휴일 전날 대신 발송</div>
+              <div style={{ fontSize: 10, color: T.muted }}>해당일이 공휴일이면 직전 평일에 발송</div>
+            </div>
+          </div>
+
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={cancelForm}
               style={{ flex: 1, background: T.bg, border: `1px solid ${T.border}`, color: T.muted, borderRadius: 10, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>취소</button>
@@ -2891,7 +2902,7 @@ function AdminReminder({ reminders = [], users = [] }) {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: r.active ? T.text : T.muted }}>{r.title}</div>
               <div style={{ fontSize: 11, color: "#7c3aed", fontWeight: 600, marginTop: 2 }}>
-                {repeatDesc(r)} · {r.time} · {r.target === "all" ? "전체" : "관리자"}
+                {repeatDesc(r)} · {r.time} · {r.target === "all" ? "전체" : "관리자"}{r.sendBeforeHoliday ? " · 전날발송" : ""}
               </div>
             </div>
             <div style={{ display: "flex", gap: 5 }}>
@@ -2949,6 +2960,13 @@ function AdminReminder({ reminders = [], users = [] }) {
                   style={{ background: "#7c3aed", border: "none", color: "#fff", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                   {loading ? "저장 중..." : "저장"}
                 </button>
+              </div>
+              <div onClick={() => setForm(p => ({...p, sendBeforeHoliday: !p.sendBeforeHoliday}))}
+                style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, cursor: "pointer", padding: "7px 10px", borderRadius: 10, background: form.sendBeforeHoliday ? "#ede9fe" : "#fff", border: `1px solid ${form.sendBeforeHoliday ? "#7c3aed" : T.border}` }}>
+                <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${form.sendBeforeHoliday ? "#7c3aed" : T.border}`, background: form.sendBeforeHoliday ? "#7c3aed" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {form.sendBeforeHoliday && <span style={{ color: "#fff", fontSize: 10, fontWeight: 900 }}>✓</span>}
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: form.sendBeforeHoliday ? "#7c3aed" : T.muted }}>공휴일 전날 대신 발송</div>
               </div>
             </div>
           )}
