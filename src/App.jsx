@@ -2762,7 +2762,7 @@ function AdminReminder({ reminders = [], users = [] }) {
   const openEdit = (r) => {
     setForm({ title: r.title, time: r.time, repeat: r.repeat, monthDay: r.monthDay || 1, weekDay: r.weekDay || 1, target: r.target || "admin" });
     setEditId(r.id);
-    setAdding(true);
+    setAdding(false); // 상단 추가 폼 닫기
   };
 
   const saveReminder = async () => {
@@ -2885,25 +2885,73 @@ function AdminReminder({ reminders = [], users = [] }) {
       {reminders.length === 0 ? (
         <div style={{ textAlign: "center", color: T.muted, fontSize: 13, padding: "32px 0" }}>등록된 리마인더 없음</div>
       ) : reminders.map(r => (
-        <div key={r.id} style={{ background: T.card, border: `1px solid ${r.active ? "#7c3aed44" : T.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 10, opacity: r.active ? 1 : 0.5 }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+        <div key={r.id} style={{ background: T.card, border: `1px solid ${editId === r.id ? "#7c3aed" : r.active ? "#7c3aed44" : T.border}`, borderRadius: 14, marginBottom: 10, overflow: "hidden", opacity: r.active ? 1 : 0.6 }}>
+          {/* 요약 행 */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px" }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: r.active ? T.text : T.muted }}>{r.title}</div>
-              <div style={{ fontSize: 12, color: "#7c3aed", fontWeight: 600, marginTop: 3 }}>
+              <div style={{ fontSize: 11, color: "#7c3aed", fontWeight: 600, marginTop: 2 }}>
                 {repeatDesc(r)} · {r.time} · {r.target === "all" ? "전체" : "관리자"}
               </div>
             </div>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 5 }}>
               <button onClick={() => toggleActive(r)}
-                style={{ background: r.active ? "#dcfce7" : T.bg, border: `1px solid ${r.active ? "#16a34a" : T.border}`, color: r.active ? "#16a34a" : T.muted, borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                style={{ background: r.active ? "#dcfce7" : T.bg, border: `1px solid ${r.active ? "#16a34a" : T.border}`, color: r.active ? "#16a34a" : T.muted, borderRadius: 8, padding: "4px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                 {r.active ? "ON" : "OFF"}
               </button>
-              <button onClick={() => openEdit(r)}
-                style={{ background: "#ede9fe", border: "none", color: "#7c3aed", borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>수정</button>
+              <button onClick={() => editId === r.id ? cancelForm() : openEdit(r)}
+                style={{ background: editId === r.id ? "#ede9fe" : T.bg, border: `1px solid ${editId === r.id ? "#7c3aed" : T.border}`, color: editId === r.id ? "#7c3aed" : T.muted, borderRadius: 8, padding: "4px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                {editId === r.id ? "닫기" : "수정"}
+              </button>
               <button onClick={() => deleteReminder(r.id)}
-                style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>삭제</button>
+                style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "4px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>삭제</button>
             </div>
           </div>
+          {/* 인라인 수정 폼 */}
+          {editId === r.id && (
+            <div style={{ borderTop: `1px solid #7c3aed33`, padding: "12px 14px", background: "#faf5ff" }}>
+              <input value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))}
+                placeholder="제목"
+                style={{ width: "100%", padding: "9px 10px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 600, marginBottom: 8, boxSizing: "border-box", background: "#fff", color: T.text }} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                <input type="time" value={form.time} onChange={e => setForm(p => ({...p, time: e.target.value}))}
+                  style={{ padding: "9px 10px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700, background: "#fff", color: T.text, width: "100%", boxSizing: "border-box" }} />
+                <select value={form.repeat} onChange={e => setForm(p => ({...p, repeat: e.target.value}))}
+                  style={{ padding: "9px 8px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700, background: "#fff", color: T.text, width: "100%", boxSizing: "border-box" }}>
+                  <option value="daily">매일</option>
+                  <option value="weekly">매주</option>
+                  <option value="monthly">매월</option>
+                </select>
+              </div>
+              {form.repeat === "weekly" && (
+                <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+                  {["일","월","화","수","목","금","토"].map((d, i) => (
+                    <button key={i} onClick={() => setForm(p => ({...p, weekDay: i}))}
+                      style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: `1px solid ${form.weekDay === i ? "#7c3aed" : T.border}`,
+                        background: form.weekDay === i ? "#7c3aed" : "#fff", color: form.weekDay === i ? "#fff" : T.text,
+                        fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{d}</button>
+                  ))}
+                </div>
+              )}
+              {form.repeat === "monthly" && (
+                <select value={form.monthDay} onChange={e => setForm(p => ({...p, monthDay: Number(e.target.value)}))}
+                  style={{ width: "100%", padding: "9px 8px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700, background: "#fff", color: T.text, marginBottom: 8, boxSizing: "border-box" }}>
+                  {Array.from({length: 31}, (_, i) => i+1).map(d => <option key={d} value={d}>{d}일</option>)}
+                </select>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                <select value={form.target} onChange={e => setForm(p => ({...p, target: e.target.value}))}
+                  style={{ padding: "9px 8px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700, background: "#fff", color: T.text, boxSizing: "border-box" }}>
+                  <option value="admin">관리자만</option>
+                  <option value="all">전체</option>
+                </select>
+                <button onClick={saveReminder} disabled={loading}
+                  style={{ background: "#7c3aed", border: "none", color: "#fff", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  {loading ? "저장 중..." : "저장"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ))}
     </div>
