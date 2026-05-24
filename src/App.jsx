@@ -1875,21 +1875,21 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
       </div>
 
       {/* 섹션 버튼 */}
-      <div style={{ padding: 20, marginTop: -14 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+      <div style={{ padding: "16px 16px 24px", marginTop: -14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           {sections.map(s => (
             <button key={s.key} onClick={() => onSection(s.key)}
-              style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 20, padding: "24px 16px", cursor: "pointer", textAlign: "left", boxShadow: "0 2px 12px #0000000d", transition: "transform .1s", position: "relative" }}
+              style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, padding: "14px 14px", cursor: "pointer", textAlign: "left", boxShadow: "0 2px 8px #0000000d", transition: "transform .1s", position: "relative" }}
               onMouseDown={e => e.currentTarget.style.transform = "scale(0.97)"}
               onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
               onTouchStart={e => e.currentTarget.style.transform = "scale(0.97)"}
               onTouchEnd={e => e.currentTarget.style.transform = "scale(1)"}>
               {s.badge > 0 && (
-                <div style={{ position: "absolute", top: 12, right: 12, background: "#ef4444", color: "#fff", borderRadius: 12, padding: "2px 8px", fontSize: 11, fontWeight: 800 }}>{s.badge}</div>
+                <div style={{ position: "absolute", top: 8, right: 8, background: "#ef4444", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>{s.badge}</div>
               )}
-              <div style={{ fontSize: 32, marginBottom: 10 }}>{s.icon}</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: s.color, marginBottom: 4 }}>{s.label}</div>
-              <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.5 }}>{s.desc}</div>
+              <div style={{ fontSize: 26, marginBottom: 6 }}>{s.icon}</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: s.color, marginBottom: 2 }}>{s.label}</div>
+              <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.4 }}>{s.desc}</div>
             </button>
           ))}
         </div>
@@ -2191,13 +2191,13 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
 }
 
 // ── 관리자 임금 섹션 ──────────────────────────────────────────
-function AdminWage({ users, records, leaves, settings, memberInfo, annual, leaveRequests, onBack }) {
+function AdminWage({ users, records, leaves, settings, memberInfo, annual, leaveRequests, payslips, reads, onBack }) {
   const members = users.filter(u => u.role === "member");
   const kst = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const [selectedMonth, setSelectedMonth] = useState(kst.toISOString().slice(0, 7));
   const [wageModal, setWageModal] = useState(null);
   const [savedWages, setSavedWages] = useState({});
-  const [tab, setTab] = useState("calc"); // calc | ledger
+  const [tab, setTab] = useState("calc"); // calc | ledger | payslip
   const [sending, setSending] = useState(null); // userId
 
   // 저장된 급여 로드
@@ -2301,7 +2301,7 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
           </div>
         </div>
         <div style={{ display: "flex" }}>
-          {[["calc","급여 계산"], ["ledger","임금대장"]].map(([key, label]) => (
+          {[["calc","급여 계산"], ["ledger","임금대장"], ["payslip","명세서"]].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               style={{ padding: "10px 24px", border: "none", background: "none", color: tab===key?"#fff":"#ffffff60", fontWeight: tab===key?800:500, fontSize: 14, cursor: "pointer", borderBottom: tab===key?"3px solid #fff":"3px solid transparent", fontFamily: "inherit" }}>
               {label}
@@ -2444,6 +2444,9 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
               );
             })}
           </div>
+        )}
+        {tab === "payslip" && (
+          <PayslipScreen user={users.find(u => u.role === "admin") || users[0]} users={users} payslips={payslips || []} reads={reads || {}} />
         )}
       </div>
 
@@ -2828,7 +2831,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   const back = () => { setSection(null); window.scrollTo(0,0); };
   if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={s => { setSection(s); window.scrollTo(0,0); }} leaveRequests={leaveRequests} board={board} reads={reads} />;
   if (section === "attendance") return <><AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={back} /><FloatBack onClick={back} /></>;
-  if (section === "wage") return <><AdminWage users={users} records={records} leaves={leaves} settings={settings} memberInfo={memberInfo} annual={annual} leaveRequests={leaveRequests} onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "wage") return <><AdminWage users={users} records={records} leaves={leaves} settings={settings} memberInfo={memberInfo} annual={annual} leaveRequests={leaveRequests} payslips={payslips} reads={reads} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "members") return <><AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "annual") return <><AnnualScreen user={user} users={users} annual={annual} leaveRequests={leaveRequests} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "severance") return <><AdminSeverance users={users} memberInfo={memberInfo} annual={annual} onBack={back} /><FloatBack onClick={back} /></>;
