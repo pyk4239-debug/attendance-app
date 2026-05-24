@@ -35,6 +35,7 @@ const COL_ANNUAL   = "annual";
 const COL_LEAVE_REQ = "leave_requests";
 const COL_MEMBER_INFO = "member_info";
 const COL_READS = "reads"; // 읽음 기록
+const COL_REMINDERS = "reminders";
 const DOC_SETTINGS = "app/settings";
 
 // ── 초기 데이터 ────────────────────────────────────────────────
@@ -401,6 +402,7 @@ function AppLoader() {
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [memberInfo, setMemberInfo] = useState({});
   const [reads, setReads] = useState({});
+  const [reminders, setReminders] = useState([]);
 
   useEffect(() => {
     let unsubs = [];
@@ -494,8 +496,15 @@ function AppLoader() {
       setReady(true);
     }));
 
+    // 리마인더 구독
+    unsubs.push(onSnapshot(query(collection(db, COL_REMINDERS), orderBy("createdAt", "desc")), snap => {
+      setReminders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }));
+
     return () => unsubs.forEach(u => u());
   }, []);
+
+
 
   if (!ready) return (
     <div style={{ minHeight: "100vh", background: T.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Noto Sans KR',sans-serif" }}>
@@ -509,6 +518,7 @@ function AppLoader() {
 
   return <App users={users} settings={settings} records={records} leaves={leaves}
     notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} reads={reads}
+    reminders={reminders}
     onSaveUsers={fbSaveUsers} onSaveSettings={fbSaveSettings}
     onSaveRecord={fbSaveRecord} onSaveLeave={fbSaveLeave} />;
 }
@@ -1858,6 +1868,7 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
       badge: board.filter(b => !reads[`${user.id}_board_${b.id}`]).length },
     { key: "settings",   icon: "⚙",  label: "설정",   desc: "근무시간 · GPS · 공휴일", color: "#6b7280" },
     { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#b45309" },
+    { key: "reminder",   icon: "📅", label: "리마인더", desc: "반복 알림 · 일정 관리",  color: "#7c3aed" },
   ];
 
   return (
@@ -2737,6 +2748,154 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
 }
 
 // ── 관리자 일반 섹션 ───────────────────────────────────────────
+
+// ── 리마인더 ────────────────────────────────────────────────────
+function AdminReminder({ reminders = [], users = [] }) {
+  const [form, setForm] = useState({ title: "", time: "09:00", repeat: "daily", monthDay: 1, weekDay: 1, target: "admin" });
+  const [adding, setAdding] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const DOW = ["일","월","화","수","목","금","토"];
+  const REPEAT_LABEL = { daily: "매일", weekly: "매주", monthly: "매월" };
+
+  const saveReminder = async () => {
+    if (!form.title.trim()) return;
+    setLoading(true);
+    try {
+      await setDoc(doc(db, COL_REMINDERS, Date.now().toString()), {
+        ...form,
+        title: form.title.trim(),
+        createdAt: new Date().toISOString(),
+        active: true,
+      });
+      setForm({ title: "", time: "09:00", repeat: "daily", monthDay: 1, weekDay: 1, target: "admin" });
+      setAdding(false);
+    } catch(e) { console.error(e); }
+    setLoading(false);
+  };
+
+  const toggleActive = async (r) => {
+    await setDoc(doc(db, COL_REMINDERS, r.id), { ...r, active: !r.active });
+  };
+
+  const deleteReminder = async (id) => {
+    await deleteDoc(doc(db, COL_REMINDERS, id));
+  };
+
+  const repeatDesc = (r) => {
+    if (r.repeat === "daily") return "매일";
+    if (r.repeat === "weekly") return `매주 ${DOW[r.weekDay]}요일`;
+    if (r.repeat === "monthly") return `매월 ${r.monthDay}일`;
+    return "";
+  };
+
+  return (
+    <div style={{ padding: 16 }}>
+      {/* 추가 버튼 */}
+      {!adding && (
+        <button onClick={() => setAdding(true)}
+          style={{ width: "100%", background: "#7c3aed", border: "none", color: "#fff", borderRadius: 12, padding: "12px 0", fontSize: 14, fontWeight: 700, cursor: "pointer", marginBottom: 16 }}>
+          + 리마인더 추가
+        </button>
+      )}
+
+      {/* 추가 폼 */}
+      {adding && (
+        <div style={{ background: T.card, border: `1px solid #7c3aed44`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#7c3aed", marginBottom: 12 }}>새 리마인더</div>
+
+          <input value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))}
+            placeholder="제목 (예: 급여일, 4대보험 납부)"
+            style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 600, marginBottom: 10, boxSizing: "border-box", background: "#fff", color: T.text }} />
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>알림 시간</div>
+              <input type="time" value={form.time} onChange={e => setForm(p => ({...p, time: e.target.value}))}
+                style={{ width: "100%", padding: "10px 10px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700, boxSizing: "border-box", background: "#fff", color: T.text }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>반복</div>
+              <select value={form.repeat} onChange={e => setForm(p => ({...p, repeat: e.target.value}))}
+                style={{ width: "100%", padding: "10px 8px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700, boxSizing: "border-box", background: "#fff", color: T.text }}>
+                <option value="daily">매일</option>
+                <option value="weekly">매주</option>
+                <option value="monthly">매월</option>
+              </select>
+            </div>
+          </div>
+
+          {form.repeat === "weekly" && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>요일 선택</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {DOW.map((d, i) => (
+                  <button key={i} onClick={() => setForm(p => ({...p, weekDay: i}))}
+                    style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: `1px solid ${form.weekDay === i ? "#7c3aed" : T.border}`,
+                      background: form.weekDay === i ? "#7c3aed" : "#fff", color: form.weekDay === i ? "#fff" : T.text,
+                      fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{d}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {form.repeat === "monthly" && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>날짜</div>
+              <select value={form.monthDay} onChange={e => setForm(p => ({...p, monthDay: Number(e.target.value)}))}
+                style={{ width: "100%", padding: "10px 8px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700, background: "#fff", color: T.text }}>
+                {Array.from({length: 31}, (_, i) => i+1).map(d => <option key={d} value={d}>{d}일</option>)}
+              </select>
+            </div>
+          )}
+
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>수신 대상</div>
+            <select value={form.target} onChange={e => setForm(p => ({...p, target: e.target.value}))}
+              style={{ width: "100%", padding: "10px 8px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700, background: "#fff", color: T.text }}>
+              <option value="admin">관리자만</option>
+              <option value="all">전체</option>
+            </select>
+          </div>
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setAdding(false)}
+              style={{ flex: 1, background: T.bg, border: `1px solid ${T.border}`, color: T.muted, borderRadius: 10, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>취소</button>
+            <button onClick={saveReminder} disabled={loading}
+              style={{ flex: 2, background: "#7c3aed", border: "none", color: "#fff", borderRadius: 10, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              {loading ? "저장 중..." : "저장"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 리마인더 목록 */}
+      {reminders.length === 0 ? (
+        <div style={{ textAlign: "center", color: T.muted, fontSize: 13, padding: "32px 0" }}>등록된 리마인더 없음</div>
+      ) : reminders.map(r => (
+        <div key={r.id} style={{ background: T.card, border: `1px solid ${r.active ? "#7c3aed44" : T.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 10, opacity: r.active ? 1 : 0.5 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: r.active ? T.text : T.muted }}>{r.title}</div>
+              <div style={{ fontSize: 12, color: "#7c3aed", fontWeight: 600, marginTop: 3 }}>
+                {repeatDesc(r)} · {r.time} · {r.target === "all" ? "전체" : "관리자"}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <button onClick={() => toggleActive(r)}
+                style={{ background: r.active ? "#dcfce7" : T.bg, border: `1px solid ${r.active ? "#16a34a" : T.border}`, color: r.active ? "#16a34a" : T.muted, borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                {r.active ? "ON" : "OFF"}
+              </button>
+              <button onClick={() => deleteReminder(r.id)}
+                style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>삭제</button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── 관리자 섹션 래퍼 (공지/게시판용) ─────────────────────────────
 function AdminSectionWrap({ title, color, onBack, children }) {
   return (
@@ -2757,7 +2916,7 @@ function AdminSectionWrap({ title, color, onBack, children }) {
 }
 
 // ── 관리자 화면 (라우터) ───────────────────────────────────────
-function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
+function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
   const [section, setSection] = useState(null);
 
 
@@ -2771,6 +2930,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "notice") return <AdminSectionWrap title="📢 공지사항" color="#ea580c" onBack={back}><NoticeScreen user={user} users={users} notices={notices} reads={reads} /></AdminSectionWrap>;
   if (section === "board") return <AdminSectionWrap title="💬 게시판" color="#0891b2" onBack={back}><BoardScreen user={user} board={board} reads={reads} /></AdminSectionWrap>;
   if (section === "settings") return <><SettingsModal settings={settings} onSave={async s => { await onSaveSettings(s); back(); }} onClose={back} /></>;
+  if (section === "reminder") return <AdminSectionWrap title="📅 리마인더" color="#7c3aed" onBack={back}><AdminReminder reminders={reminders} users={users} /></AdminSectionWrap>;
   return null;
 }
 
@@ -3530,7 +3690,7 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips,
 }
 
 // ── 메인 App ───────────────────────────────────────────────────
-function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
+function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("att");
 
@@ -3542,6 +3702,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
   if (isAdmin) return (
     <AdminScreen user={user} users={users} settings={settings} records={records} leaves={leaves}
       notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} reads={reads}
+      reminders={reminders}
       onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave}
       onSaveUsers={onSaveUsers} onSaveSettings={onSaveSettings}
       onLogout={() => { setUser(null); setTab("att"); }} />
