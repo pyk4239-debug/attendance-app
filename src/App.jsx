@@ -1280,6 +1280,42 @@ function SettingsModal({ settings, onSave, onClose }) {
     setS(p => ({ ...p, holidays: p.holidays.filter(d => d !== date) }));
   };
 
+  // 연도별 한국 공휴일 데이터
+  const KR_HOLIDAYS = {
+    "2025": [
+      "2025-01-01","2025-01-28","2025-01-29","2025-01-30",
+      "2025-03-01","2025-05-01","2025-05-05","2025-05-06",
+      "2025-06-06","2025-08-15","2025-10-03","2025-10-06",
+      "2025-10-07","2025-10-08","2025-10-09","2025-12-25"
+    ],
+    "2026": [
+      "2026-01-01","2026-02-17","2026-02-18","2026-02-19",
+      "2026-03-01","2026-05-01","2026-05-05","2026-05-25",
+      "2026-06-06","2026-08-15","2026-09-24","2026-09-25",
+      "2026-09-26","2026-10-03","2026-10-09","2026-12-25"
+    ],
+    "2027": [
+      "2027-01-01","2027-02-08","2027-02-09","2027-02-10",
+      "2027-03-01","2027-05-01","2027-05-05","2027-05-13",
+      "2027-06-06","2027-08-15","2027-09-14","2027-09-15",
+      "2027-09-16","2027-10-03","2027-10-09","2027-12-25"
+    ],
+  };
+  const [bulkYear, setBulkYear] = useState(String(new Date().getFullYear()));
+  const [bulkMsg, setBulkMsg] = useState("");
+
+  const loadBulkHolidays = () => {
+    const list = KR_HOLIDAYS[bulkYear];
+    if (!list) { setBulkMsg("해당 연도 데이터가 없어요"); return; }
+    setS(p => {
+      const merged = [...new Set([...p.holidays, ...list])].sort();
+      const added = list.filter(d => !p.holidays.includes(d)).length;
+      setBulkMsg(added > 0 ? added + "일 추가됨 (중복 제외)" : "이미 모두 등록됨");
+      return { ...p, holidays: merged };
+    });
+    setTimeout(() => setBulkMsg(""), 3000);
+  };
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "flex-start", justifyContent: "center", zIndex: 200, padding: "20px 16px", overflowY: "auto" }}>
       <div style={{ background: T.card, borderRadius: 20, padding: 22, width: "100%", maxWidth: 340, margin: "auto", boxShadow: "0 20px 60px #00000020" }}>
@@ -1321,9 +1357,21 @@ function SettingsModal({ settings, onSave, onClose }) {
         {/* 공휴일 관리 */}
         <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 20 }}>
           <div style={{ fontSize: 13, color: T.text, fontWeight: 700, marginBottom: 4 }}>🗓 공휴일 지정</div>
-          <div style={{ fontSize: 11, color: T.muted, marginBottom: 12, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 11, color: T.muted, marginBottom: 10, lineHeight: 1.5 }}>
             토/일 외 공휴일을 직접 등록하세요.<br />등록된 날은 휴일근무로 자동 처리돼요.
           </div>
+          {/* 연도별 일괄 불러오기 */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <select value={bulkYear} onChange={e => setBulkYear(e.target.value)}
+              style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 700, boxSizing: "border-box" }}>
+              {["2025","2026","2027"].map(y => <option key={y} value={y}>{y}년</option>)}
+            </select>
+            <button onClick={loadBulkHolidays}
+              style={{ background: T.blue, border: "none", color: "#fff", borderRadius: 10, padding: "10px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>공휴일 불러오기</button>
+          </div>
+          {bulkMsg && <div style={{ fontSize: 11, color: bulkMsg.includes("추가") ? T.green : T.muted, fontWeight: 600, marginBottom: 8 }}>{bulkMsg}</div>}
+          {/* 개별 추가 */}
+          <div style={{ fontSize: 11, color: T.muted, marginBottom: 5, fontWeight: 600 }}>임시공휴일 등 개별 추가</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
             <input type="date" value={newHoliday} onChange={e => setNewHoliday(e.target.value)}
               style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box" }} />
