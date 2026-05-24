@@ -190,9 +190,16 @@ function calcMonthStats(days, settings, userLeaves, leaveRequests, userId, month
       if (finalEarly) { acc.early++; acc.earlyMin += em; }
       if (finalOt) { acc.ot++; acc.otMin += roundTo30(om); }
       if (isHoliday(date, settings.holidays)) acc.holiday++;
+      // 외출시간 합산
+      (rec.outing || []).forEach(o => {
+        if (o.out && o.in) {
+          const outMin = Math.round((new Date(o.in) - new Date(o.out)) / 60000);
+          if (outMin > 0) acc.outingMin += outMin;
+        }
+      });
     }
     return acc;
-  }, { days: 0, late: 0, lateMin: 0, early: 0, earlyMin: 0, ot: 0, otMin: 0, holiday: 0, annualDays: 0 });
+  }, { days: 0, late: 0, lateMin: 0, early: 0, earlyMin: 0, ot: 0, otMin: 0, holiday: 0, annualDays: 0, outingMin: 0 });
 
   // leaves 기반 연차/반차 집계
   if (userLeaves) {
@@ -731,16 +738,31 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
         {/* 이번달 현황 */}
         <div style={{ background: T.card, borderRadius: 16, padding: "14px 16px", marginBottom: 16, border: `1px solid ${T.border}`, boxShadow: "0 1px 4px #0000000a" }}>
           <div style={{ fontSize: 12, color: T.muted, marginBottom: 10, fontWeight: 600 }}>{monthLabel(selectedMonth)} 현황</div>
-          {[
-            [["출근", ms.days + "일", T.green], ["지각", ms.late + "회", T.yellow], ["지각시간", fmtMinutes(ms.lateMin), T.yellow]],
-            [["휴일근무", ms.holiday + "일", T.red], ["잔업", ms.ot + "일", T.purple], ["잔업시간", fmtMinutes(ms.otMin), T.purple]],
-            [["연차", ms.annualDays > 0 ? ms.annualDays + "일" : "0일", "#7c3aed"], ["조퇴", ms.early + "회", T.orange], ["조퇴시간", fmtMinutes(ms.earlyMin), T.orange]],
-            [["휴무일", (ms.offDays||0) + "일", T.muted], ["전체", (ms.totalDays||0) + "일", T.text], ["결근", (ms.absentDays||0) + "일", T.red]],
-          ].map((row, ri) => (
-            <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: ri < 3 ? 6 : 0 }}>
-              {row.map(([l, v, c]) => l ? <StatBox key={l} label={l} value={v} color={c} /> : <div key="empty" />)}
-            </div>
-          ))}
+          {/* 근무 현황 */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: 6 }}>
+            {[["출근", ms.days + "일", T.green], ["결근", (ms.absentDays||0) + "일", T.red], ["연차", ms.annualDays > 0 ? ms.annualDays + "일" : "0일", "#7c3aed"]].map(([l,v,c]) => <StatBox key={l} label={l} value={v} color={c} />)}
+          </div>
+          {/* 추가근무 */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 6, marginBottom: 6 }}>
+            {[["잔업", fmtMinutes(ms.otMin), T.purple], ["휴일근무", ms.holiday + "일", T.red]].map(([l,v,c]) => <StatBox key={l} label={l} value={v} color={c} />)}
+          </div>
+          {/* 차감시간 통합 */}
+          {(() => {
+            const totalDeductMin = ms.lateMin + ms.earlyMin + (ms.outingMin||0);
+            const parts = [];
+            if (ms.lateMin > 0) parts.push(`지각 ${fmtMinutes(ms.lateMin)}`);
+            if (ms.earlyMin > 0) parts.push(`조퇴 ${fmtMinutes(ms.earlyMin)}`);
+            if ((ms.outingMin||0) > 0) parts.push(`외출 ${fmtMinutes(ms.outingMin)}`);
+            return (
+              <div style={{ background: totalDeductMin > 0 ? T.orangeBg : T.bg, borderRadius: 10, padding: "10px 14px", border: `1px solid ${totalDeductMin > 0 ? T.orange : T.border}` }}>
+                <div style={{ fontSize: 10, color: T.muted, marginBottom: 3, fontWeight: 500 }}>차감시간 (지각·조퇴·외출)</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: totalDeductMin > 0 ? T.orange : T.muted }}>
+                  {totalDeductMin > 0 ? fmtMinutes(totalDeductMin) : "-"}
+                </div>
+                {parts.length > 0 && <div style={{ fontSize: 11, color: T.orange, marginTop: 3 }}>{parts.join(" · ")}</div>}
+              </div>
+            );
+          })()}
         </div>
 
         {/* 이번달 기록 */}
@@ -983,16 +1005,31 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
             <div style={{ fontSize: 12, color: T.muted }}>{monthLabel(selectedMonth)}</div>
           </div>
         </div>
-        {[
-          [["출근", ms.days + "일", T.green], ["지각", ms.late + "회", T.yellow], ["지각시간", fmtMinutes(ms.lateMin), T.yellow]],
-          [["휴일근무", ms.holiday + "일", T.red], ["잔업", ms.ot + "일", T.purple], ["잔업시간", fmtMinutes(ms.otMin), T.purple]],
-          [["연차", ms.annualDays > 0 ? ms.annualDays + "일" : "0일", "#7c3aed"], ["조퇴", ms.early + "회", T.orange], ["조퇴시간", fmtMinutes(ms.earlyMin), T.orange]],
-          [["휴무일", (ms.offDays||0) + "일", T.muted], ["전체", (ms.totalDays||0) + "일", T.text], ["결근", (ms.absentDays||0) + "일", T.red]],
-        ].map((row, ri) => (
-          <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: ri < 3 ? 6 : 12 }}>
-            {row.map(([l, v, c]) => l ? <StatBox key={l} label={l} value={v} color={c} /> : <div key="empty" />)}
-          </div>
-        ))}
+        {/* 근무 현황 */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: 6 }}>
+          {[["출근", ms.days + "일", T.green], ["결근", (ms.absentDays||0) + "일", T.red], ["연차", ms.annualDays > 0 ? ms.annualDays + "일" : "0일", "#7c3aed"]].map(([l,v,c]) => <StatBox key={l} label={l} value={v} color={c} />)}
+        </div>
+        {/* 추가근무 */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 6, marginBottom: 6 }}>
+          {[["잔업", fmtMinutes(ms.otMin), T.purple], ["휴일근무", ms.holiday + "일", T.red]].map(([l,v,c]) => <StatBox key={l} label={l} value={v} color={c} />)}
+        </div>
+        {/* 차감시간 통합 */}
+        {(() => {
+          const totalDeductMin = ms.lateMin + ms.earlyMin + (ms.outingMin||0);
+          const parts = [];
+          if (ms.lateMin > 0) parts.push(`지각 ${fmtMinutes(ms.lateMin)}`);
+          if (ms.earlyMin > 0) parts.push(`조퇴 ${fmtMinutes(ms.earlyMin)}`);
+          if ((ms.outingMin||0) > 0) parts.push(`외출 ${fmtMinutes(ms.outingMin)}`);
+          return (
+            <div style={{ background: totalDeductMin > 0 ? T.orangeBg : T.bg, borderRadius: 10, padding: "10px 14px", marginBottom: 12, border: `1px solid ${totalDeductMin > 0 ? T.orange : T.border}` }}>
+              <div style={{ fontSize: 10, color: T.muted, marginBottom: 3, fontWeight: 500 }}>차감시간 (지각·조퇴·외출)</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: totalDeductMin > 0 ? T.orange : T.muted }}>
+                {totalDeductMin > 0 ? fmtMinutes(totalDeductMin) : "-"}
+              </div>
+              {parts.length > 0 && <div style={{ fontSize: 11, color: T.orange, marginTop: 3 }}>{parts.join(" · ")}</div>}
+            </div>
+          );
+        })()}
         <div style={{ fontSize: 12, color: T.muted, marginBottom: 10, fontWeight: 600 }}>날짜별 상세</div>
         {(() => {
           // 출근 기록 + 연차만 있는 날짜 합치기
