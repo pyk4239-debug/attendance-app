@@ -100,7 +100,7 @@ async function main() {
 
   if (dayOfWeek === 0 || dayOfWeek === 6) { console.log('주말'); return; }
 
-  const settings = await fetchDoc('settings', 'main');
+  const settings = await fetchDoc('app', 'settings');
   if (!settings) { console.log('settings 없음'); return; }
 
   const workStart = settings.workStart || '09:00';
