@@ -1890,7 +1890,7 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           {sections.map(s => (
             <button key={s.key} onClick={() => onSection(s.key)}
-              style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, padding: "14px 14px", cursor: "pointer", textAlign: "left", boxShadow: "0 2px 8px #0000000d", transition: "transform .1s", position: "relative" }}
+              style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, padding: "14px 14px", cursor: "pointer", textAlign: "left", boxShadow: "0 2px 8px #0000000d", transition: "transform .1s", position: "relative", minHeight: 100 }}
               onMouseDown={e => e.currentTarget.style.transform = "scale(0.97)"}
               onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
               onTouchStart={e => e.currentTarget.style.transform = "scale(0.97)"}
@@ -2751,28 +2751,40 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
 
 // ── 리마인더 ────────────────────────────────────────────────────
 function AdminReminder({ reminders = [], users = [] }) {
-  const [form, setForm] = useState({ title: "", time: "09:00", repeat: "daily", monthDay: 1, weekDay: 1, target: "admin" });
+  const EMPTY = { title: "", time: "09:00", repeat: "daily", monthDay: 1, weekDay: 1, target: "admin" };
+  const [form, setForm] = useState(EMPTY);
+  const [editId, setEditId] = useState(null); // null=추가, id=수정
   const [adding, setAdding] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const DOW = ["일","월","화","수","목","금","토"];
-  const REPEAT_LABEL = { daily: "매일", weekly: "매주", monthly: "매월" };
+
+  const openEdit = (r) => {
+    setForm({ title: r.title, time: r.time, repeat: r.repeat, monthDay: r.monthDay || 1, weekDay: r.weekDay || 1, target: r.target || "admin" });
+    setEditId(r.id);
+    setAdding(true);
+  };
 
   const saveReminder = async () => {
     if (!form.title.trim()) return;
     setLoading(true);
     try {
-      await setDoc(doc(db, COL_REMINDERS, Date.now().toString()), {
+      const id = editId || Date.now().toString();
+      const existing = editId ? reminders.find(r => r.id === editId) : null;
+      await setDoc(doc(db, COL_REMINDERS, id), {
         ...form,
         title: form.title.trim(),
-        createdAt: new Date().toISOString(),
-        active: true,
+        createdAt: existing?.createdAt || new Date().toISOString(),
+        active: existing?.active ?? true,
       });
-      setForm({ title: "", time: "09:00", repeat: "daily", monthDay: 1, weekDay: 1, target: "admin" });
+      setForm(EMPTY);
+      setEditId(null);
       setAdding(false);
     } catch(e) { console.error(e); }
     setLoading(false);
   };
+
+  const cancelForm = () => { setForm(EMPTY); setEditId(null); setAdding(false); };
 
   const toggleActive = async (r) => {
     await setDoc(doc(db, COL_REMINDERS, r.id), { ...r, active: !r.active });
@@ -2802,7 +2814,7 @@ function AdminReminder({ reminders = [], users = [] }) {
       {/* 추가 폼 */}
       {adding && (
         <div style={{ background: T.card, border: `1px solid #7c3aed44`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#7c3aed", marginBottom: 12 }}>새 리마인더</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#7c3aed", marginBottom: 12 }}>{editId ? "✏ 리마인더 수정" : "새 리마인더"}</div>
 
           <input value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))}
             placeholder="제목 (예: 급여일, 4대보험 납부)"
@@ -2859,7 +2871,7 @@ function AdminReminder({ reminders = [], users = [] }) {
           </div>
 
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setAdding(false)}
+            <button onClick={cancelForm}
               style={{ flex: 1, background: T.bg, border: `1px solid ${T.border}`, color: T.muted, borderRadius: 10, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>취소</button>
             <button onClick={saveReminder} disabled={loading}
               style={{ flex: 2, background: "#7c3aed", border: "none", color: "#fff", borderRadius: 10, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
@@ -2886,6 +2898,8 @@ function AdminReminder({ reminders = [], users = [] }) {
                 style={{ background: r.active ? "#dcfce7" : T.bg, border: `1px solid ${r.active ? "#16a34a" : T.border}`, color: r.active ? "#16a34a" : T.muted, borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                 {r.active ? "ON" : "OFF"}
               </button>
+              <button onClick={() => openEdit(r)}
+                style={{ background: "#ede9fe", border: "none", color: "#7c3aed", borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>수정</button>
               <button onClick={() => deleteReminder(r.id)}
                 style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>삭제</button>
             </div>
