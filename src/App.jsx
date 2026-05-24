@@ -1867,7 +1867,7 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
     { key: "board",      icon: "💬", label: "게시판", desc: "자유게시판",              color: "#0891b2",
       badge: board.filter(b => !reads[`${user.id}_board_${b.id}`]).length },
     { key: "settings",   icon: "⚙",  label: "설정",   desc: "근무시간 · GPS · 공휴일", color: "#6b7280" },
-    { key: "reminder",   icon: "📅", label: "리마인더", desc: "반복 알림 · 일정 관리",  color: "#7c3aed" },
+    { key: "reminder",   icon: "🔔", label: "리마인더", desc: "반복 알림 · 일정 관리",  color: "#7c3aed" },
     { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#b45309" },
   ];
 
@@ -3010,7 +3010,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "notice") return <AdminSectionWrap title="📢 공지사항" color="#ea580c" onBack={back}><NoticeScreen user={user} users={users} notices={notices} reads={reads} /></AdminSectionWrap>;
   if (section === "board") return <AdminSectionWrap title="💬 게시판" color="#0891b2" onBack={back}><BoardScreen user={user} board={board} reads={reads} /></AdminSectionWrap>;
   if (section === "settings") return <><SettingsModal settings={settings} onSave={async s => { await onSaveSettings(s); back(); }} onClose={back} /></>;
-  if (section === "reminder") return <AdminSectionWrap title="📅 리마인더" color="#7c3aed" onBack={back}><AdminReminder reminders={reminders} users={users} /></AdminSectionWrap>;
+  if (section === "reminder") return <AdminSectionWrap title="🔔 리마인더" color="#7c3aed" onBack={back}><AdminReminder reminders={reminders} users={users} /></AdminSectionWrap>;
   return null;
 }
 
