@@ -104,7 +104,7 @@ function formatDate(d) {
 }
 function isWeekend(d) { const w = new Date(d).getDay(); return w === 0 || w === 6; }
 function isHoliday(d, holidays) {
-  return isWeekend(d) || (holidays || []).includes(d);
+  return isWeekend(d) || (holidays || []).some(h => (typeof h === "string" ? h : h.date) === d);
 }
 function isLate(iso, ws) {
   if (!iso || !ws) return false;
@@ -1269,52 +1269,30 @@ function SettingsModal({ settings, onSave, onClose }) {
     }
   };
 
+  // holidays: [{date, memo}] 형태로 저장 — 하위호환: string도 처리
+  const normalizeHolidays = (arr) => (arr || []).map(h =>
+    typeof h === "string" ? { date: h, memo: "" } : h
+  );
+  const holidayList = normalizeHolidays(s.holidays);
+
   const addHoliday = () => {
     if (!newHoliday) return;
-    if (s.holidays.includes(newHoliday)) { setNewHoliday(""); return; }
-    setS(p => ({ ...p, holidays: [...p.holidays, newHoliday].sort() }));
-    setNewHoliday("");
+    if (holidayList.some(h => h.date === newHoliday)) { setNewHoliday(""); setNewMemo(""); return; }
+    const updated = [...holidayList, { date: newHoliday, memo: newMemo.trim() }]
+      .sort((a, b) => a.date.localeCompare(b.date));
+    setS(p => ({ ...p, holidays: updated }));
+    setNewHoliday(""); setNewMemo("");
   };
 
   const removeHoliday = (date) => {
-    setS(p => ({ ...p, holidays: p.holidays.filter(d => d !== date) }));
+    setS(p => ({ ...p, holidays: holidayList.filter(h => h.date !== date) }));
   };
 
-  // 연도별 한국 공휴일 데이터
-  const KR_HOLIDAYS = {
-    "2025": [
-      "2025-01-01","2025-01-28","2025-01-29","2025-01-30",
-      "2025-03-01","2025-05-01","2025-05-05","2025-05-06",
-      "2025-06-06","2025-08-15","2025-10-03","2025-10-06",
-      "2025-10-07","2025-10-08","2025-10-09","2025-12-25"
-    ],
-    "2026": [
-      "2026-01-01","2026-02-17","2026-02-18","2026-02-19",
-      "2026-03-01","2026-05-01","2026-05-05","2026-05-25",
-      "2026-06-06","2026-08-15","2026-09-24","2026-09-25",
-      "2026-09-26","2026-10-03","2026-10-09","2026-12-25"
-    ],
-    "2027": [
-      "2027-01-01","2027-02-08","2027-02-09","2027-02-10",
-      "2027-03-01","2027-05-01","2027-05-05","2027-05-13",
-      "2027-06-06","2027-08-15","2027-09-14","2027-09-15",
-      "2027-09-16","2027-10-03","2027-10-09","2027-12-25"
-    ],
-  };
-  const [bulkYear, setBulkYear] = useState(String(new Date().getFullYear()));
-  const [bulkMsg, setBulkMsg] = useState("");
-
-  const loadBulkHolidays = () => {
-    const list = KR_HOLIDAYS[bulkYear];
-    if (!list) { setBulkMsg("해당 연도 데이터가 없어요"); return; }
-    setS(p => {
-      const merged = [...new Set([...p.holidays, ...list])].sort();
-      const added = list.filter(d => !p.holidays.includes(d)).length;
-      setBulkMsg(added > 0 ? added + "일 추가됨 (중복 제외)" : "이미 모두 등록됨");
-      return { ...p, holidays: merged };
-    });
-    setTimeout(() => setBulkMsg(""), 3000);
-  };
+  const [newMemo, setNewMemo] = useState("");
+  const [viewYear, setViewYear] = useState(String(new Date().getFullYear()));
+  const years = [...new Set(holidayList.map(h => h.date.slice(0, 4)))].sort();
+  if (!years.includes(viewYear) && years.length > 0) { /* viewYear는 존재하는 연도 중 최신으로 */ }
+  const filteredHolidays = holidayList.filter(h => h.date.startsWith(viewYear));
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#00000066", display: "flex", alignItems: "flex-start", justifyContent: "center", zIndex: 200, padding: "20px 16px", overflowY: "auto" }}>
@@ -1357,36 +1335,42 @@ function SettingsModal({ settings, onSave, onClose }) {
         {/* 공휴일 관리 */}
         <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 20 }}>
           <div style={{ fontSize: 13, color: T.text, fontWeight: 700, marginBottom: 4 }}>🗓 공휴일 지정</div>
-          <div style={{ fontSize: 11, color: T.muted, marginBottom: 10, lineHeight: 1.5 }}>
-            토/일 외 공휴일을 직접 등록하세요.<br />등록된 날은 휴일근무로 자동 처리돼요.
+          <div style={{ fontSize: 11, color: T.muted, marginBottom: 12, lineHeight: 1.5 }}>
+            토/일 외 공휴일을 등록하세요. 등록된 날은 휴일근무로 자동 처리돼요.
           </div>
-          {/* 연도별 일괄 불러오기 */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-            <select value={bulkYear} onChange={e => setBulkYear(e.target.value)}
-              style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 700, boxSizing: "border-box" }}>
-              {["2025","2026","2027"].map(y => <option key={y} value={y}>{y}년</option>)}
-            </select>
-            <button onClick={loadBulkHolidays}
-              style={{ background: T.blue, border: "none", color: "#fff", borderRadius: 10, padding: "10px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>공휴일 불러오기</button>
-          </div>
-          {bulkMsg && <div style={{ fontSize: 11, color: bulkMsg.includes("추가") ? T.green : T.muted, fontWeight: 600, marginBottom: 8 }}>{bulkMsg}</div>}
-          {/* 개별 추가 */}
-          <div style={{ fontSize: 11, color: T.muted, marginBottom: 5, fontWeight: 600 }}>임시공휴일 등 개별 추가</div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          {/* 입력 */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 6 }}>
             <input type="date" value={newHoliday} onChange={e => setNewHoliday(e.target.value)}
-              style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box" }} />
-            <button onClick={addHoliday}
-              style={{ background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "10px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>추가</button>
+              style={{ padding: "10px 10px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 13, fontWeight: 600, boxSizing: "border-box" }} />
+            <input value={newMemo} onChange={e => setNewMemo(e.target.value)} placeholder="공휴일 이름"
+              style={{ padding: "10px 10px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 13, fontWeight: 600, boxSizing: "border-box" }} />
           </div>
-          {s.holidays.length === 0 ? (
+          <button onClick={addHoliday}
+            style={{ width: "100%", background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 14 }}>+ 추가</button>
+          {/* 연도 탭 */}
+          {holidayList.length === 0 ? (
             <div style={{ fontSize: 12, color: T.muted, textAlign: "center", padding: "8px 0" }}>등록된 공휴일 없음</div>
-          ) : s.holidays.map(date => (
-            <div key={date} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderTop: `1px solid ${T.border}` }}>
-              <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: T.text }}>{formatDate(date)}</span>
-              <button onClick={() => removeHoliday(date)}
-                style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "4px 10px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}>삭제</button>
+          ) : <>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <button onClick={() => { const idx = years.indexOf(viewYear); if (idx > 0) setViewYear(years[idx-1]); }}
+                style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 8, padding: "4px 10px", fontSize: 14, cursor: "pointer", color: T.text, fontWeight: 700 }}>‹</button>
+              <span style={{ fontSize: 14, fontWeight: 800, color: T.text }}>{viewYear}년 ({filteredHolidays.length}일)</span>
+              <button onClick={() => { const idx = years.indexOf(viewYear); if (idx < years.length - 1) setViewYear(years[idx+1]); }}
+                style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 8, padding: "4px 10px", fontSize: 14, cursor: "pointer", color: T.text, fontWeight: 700 }}>›</button>
             </div>
-          ))}
+            {filteredHolidays.length === 0 ? (
+              <div style={{ fontSize: 12, color: T.muted, textAlign: "center", padding: "8px 0" }}>{viewYear}년 등록 없음</div>
+            ) : filteredHolidays.map(h => (
+              <div key={h.date} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderTop: `1px solid ${T.border}` }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{formatDate(h.date)}</div>
+                  {h.memo && <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{h.memo}</div>}
+                </div>
+                <button onClick={() => removeHoliday(h.date)}
+                  style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "4px 10px", fontSize: 12, cursor: "pointer", fontWeight: 700, flexShrink: 0 }}>삭제</button>
+              </div>
+            ))}
+          </>}
         </div>
 
         {/* 회사 위치 */}
