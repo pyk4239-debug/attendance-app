@@ -2772,13 +2772,13 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   const [section, setSection] = useState(null);
 
 
-  if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={setSection} leaveRequests={leaveRequests} board={board} reads={reads} />;
-  if (section === "attendance") return <><AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={() => setSection(null)} /><FloatBack onClick={() => setSection(null)} /></>;
-  if (section === "wage") return <><AdminWage users={users} records={records} leaves={leaves} settings={settings} memberInfo={memberInfo} annual={annual} leaveRequests={leaveRequests} onBack={() => setSection(null)} /><FloatBack onClick={() => setSection(null)} /></>;
-  if (section === "members") return <><AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} /><FloatBack onClick={() => setSection(null)} /></>;
-  if (section === "general") return <><AdminGeneral user={user} users={users} settings={settings} notices={notices} board={board} payslips={payslips} reads={reads} onSaveSettings={onSaveSettings} onSaveUsers={onSaveUsers} onBack={() => setSection(null)} /><FloatBack onClick={() => setSection(null)} /></>;
-  if (section === "annual") return <><AnnualScreen user={user} users={users} annual={annual} leaveRequests={leaveRequests} onBack={() => setSection(null)} /><FloatBack onClick={() => setSection(null)} /></>;
-  if (section === "severance") return <><AdminSeverance users={users} memberInfo={memberInfo} annual={annual} onBack={() => setSection(null)} /><FloatBack onClick={() => setSection(null)} /></>;
+  if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={s => { setSection(s); window.scrollTo(0,0); }} leaveRequests={leaveRequests} board={board} reads={reads} />;
+  if (section === "attendance") return <><AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={() => { setSection(null); window.scrollTo(0,0); }} /><FloatBack onClick={() => { setSection(null); window.scrollTo(0,0); }} /></>;
+  if (section === "wage") return <><AdminWage users={users} records={records} leaves={leaves} settings={settings} memberInfo={memberInfo} annual={annual} leaveRequests={leaveRequests} onBack={() => { setSection(null); window.scrollTo(0,0); }} /><FloatBack onClick={() => { setSection(null); window.scrollTo(0,0); }} /></>;
+  if (section === "members") return <><AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={() => { setSection(null); window.scrollTo(0,0); }} /><FloatBack onClick={() => { setSection(null); window.scrollTo(0,0); }} /></>;
+  if (section === "general") return <><AdminGeneral user={user} users={users} settings={settings} notices={notices} board={board} payslips={payslips} reads={reads} onSaveSettings={onSaveSettings} onSaveUsers={onSaveUsers} onBack={() => { setSection(null); window.scrollTo(0,0); }} /><FloatBack onClick={() => { setSection(null); window.scrollTo(0,0); }} /></>;
+  if (section === "annual") return <><AnnualScreen user={user} users={users} annual={annual} leaveRequests={leaveRequests} onBack={() => { setSection(null); window.scrollTo(0,0); }} /><FloatBack onClick={() => { setSection(null); window.scrollTo(0,0); }} /></>;
+  if (section === "severance") return <><AdminSeverance users={users} memberInfo={memberInfo} annual={annual} onBack={() => { setSection(null); window.scrollTo(0,0); }} /><FloatBack onClick={() => { setSection(null); window.scrollTo(0,0); }} /></>;
   return null;
 }
 
@@ -3599,7 +3599,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
           <AnnualScreen user={user} users={users} annual={annual} leaveRequests={leaveRequests} />
         </>
       )}
-      <TabBar tab={tab} setTab={setTab} isAdmin={isAdmin} leaveRequests={leaveRequests} notices={notices} board={board} payslips={payslips} user={user} reads={reads} />
+      <TabBar tab={tab} setTab={t => { setTab(t); window.scrollTo(0, 0); }} isAdmin={isAdmin} leaveRequests={leaveRequests} notices={notices} board={board} payslips={payslips} user={user} reads={reads} />
     </div>
   );
 }
