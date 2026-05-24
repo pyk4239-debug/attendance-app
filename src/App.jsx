@@ -2760,7 +2760,7 @@ function AdminReminder({ reminders = [], users = [] }) {
   const DOW = ["일","월","화","수","목","금","토"];
 
   const openEdit = (r) => {
-    setForm({ title: r.title, time: r.time, repeat: r.repeat, monthDay: r.monthDay || 1, weekDay: r.weekDay || 1, target: r.target || "admin" });
+    setForm({ title: r.title, time: r.time, repeat: r.repeat, monthDay: r.monthDay || 1, weekDay: r.weekDay || 1, target: r.target || "admin", sendBeforeHoliday: r.sendBeforeHoliday || false });
     setEditId(r.id);
     setAdding(false); // 상단 추가 폼 닫기
   };
