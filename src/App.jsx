@@ -750,11 +750,11 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
           {(() => {
             const totalDeductMin = ms.lateMin + ms.earlyMin + (ms.outingMin||0);
             const parts = [];
-            if (ms.lateMin > 0) parts.push(`지각 ${fmtMinutes(ms.lateMin)}`);
-            if (ms.earlyMin > 0) parts.push(`조퇴 ${fmtMinutes(ms.earlyMin)}`);
+            if (ms.late > 0) parts.push(`지각 ${ms.late}회 ${fmtMinutes(ms.lateMin)}`);
+            if (ms.early > 0) parts.push(`조퇴 ${ms.early}회 ${fmtMinutes(ms.earlyMin)}`);
             if ((ms.outingMin||0) > 0) parts.push(`외출 ${fmtMinutes(ms.outingMin)}`);
             return (
-              <div style={{ background: totalDeductMin > 0 ? T.orangeBg : T.bg, borderRadius: 10, padding: "10px 14px", border: `1px solid ${totalDeductMin > 0 ? T.orange : T.border}` }}>
+              <div style={{ background: totalDeductMin > 0 ? T.orangeBg : T.bg, borderRadius: 10, padding: "10px 14px", marginBottom: 6, border: `1px solid ${totalDeductMin > 0 ? T.orange : T.border}` }}>
                 <div style={{ fontSize: 10, color: T.muted, marginBottom: 3, fontWeight: 500 }}>차감시간 (지각·조퇴·외출)</div>
                 <div style={{ fontSize: 15, fontWeight: 800, color: totalDeductMin > 0 ? T.orange : T.muted }}>
                   {totalDeductMin > 0 ? fmtMinutes(totalDeductMin) : "-"}
@@ -763,6 +763,10 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
               </div>
             );
           })()}
+          {/* 전체/휴무일 한 줄 */}
+          <div style={{ fontSize: 11, color: T.muted, textAlign: "right", paddingRight: 2 }}>
+            {monthLabel(selectedMonth)} · 전체 {ms.totalDays||0}일 · 휴무 {ms.offDays||0}일 · 근무 {(ms.totalDays||0) - (ms.offDays||0)}일
+          </div>
         </div>
 
         {/* 이번달 기록 */}
@@ -1017,11 +1021,11 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
         {(() => {
           const totalDeductMin = ms.lateMin + ms.earlyMin + (ms.outingMin||0);
           const parts = [];
-          if (ms.lateMin > 0) parts.push(`지각 ${fmtMinutes(ms.lateMin)}`);
-          if (ms.earlyMin > 0) parts.push(`조퇴 ${fmtMinutes(ms.earlyMin)}`);
+          if (ms.late > 0) parts.push(`지각 ${ms.late}회 ${fmtMinutes(ms.lateMin)}`);
+          if (ms.early > 0) parts.push(`조퇴 ${ms.early}회 ${fmtMinutes(ms.earlyMin)}`);
           if ((ms.outingMin||0) > 0) parts.push(`외출 ${fmtMinutes(ms.outingMin)}`);
           return (
-            <div style={{ background: totalDeductMin > 0 ? T.orangeBg : T.bg, borderRadius: 10, padding: "10px 14px", marginBottom: 12, border: `1px solid ${totalDeductMin > 0 ? T.orange : T.border}` }}>
+            <div style={{ background: totalDeductMin > 0 ? T.orangeBg : T.bg, borderRadius: 10, padding: "10px 14px", marginBottom: 6, border: `1px solid ${totalDeductMin > 0 ? T.orange : T.border}` }}>
               <div style={{ fontSize: 10, color: T.muted, marginBottom: 3, fontWeight: 500 }}>차감시간 (지각·조퇴·외출)</div>
               <div style={{ fontSize: 15, fontWeight: 800, color: totalDeductMin > 0 ? T.orange : T.muted }}>
                 {totalDeductMin > 0 ? fmtMinutes(totalDeductMin) : "-"}
@@ -1030,6 +1034,10 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
             </div>
           );
         })()}
+        {/* 전체/휴무일 한 줄 */}
+        <div style={{ fontSize: 11, color: T.muted, textAlign: "right", paddingRight: 2, marginBottom: 12 }}>
+          {monthLabel(selectedMonth)} · 전체 {ms.totalDays||0}일 · 휴무 {ms.offDays||0}일 · 근무 {(ms.totalDays||0) - (ms.offDays||0)}일
+        </div>
         <div style={{ fontSize: 12, color: T.muted, marginBottom: 10, fontWeight: 600 }}>날짜별 상세</div>
         {(() => {
           // 출근 기록 + 연차만 있는 날짜 합치기
