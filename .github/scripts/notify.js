@@ -158,8 +158,8 @@ async function main() {
   const matchesRepeat = (r, dateStr, dow) => {
     const date = new Date(dateStr + 'T00:00:00Z');
     const dom = date.getUTCDate();
-    if (r.repeat === 'weekly' && r.weekDay !== dow) return false;
-    if (r.repeat === 'monthly' && r.monthDay !== dom) return false;
+    if (r.repeat === 'weekly' && Number(r.weekDay) !== dow) return false;
+    if (r.repeat === 'monthly' && Number(r.monthDay) !== dom) return false;
     return true;
   };
 
@@ -235,7 +235,8 @@ async function main() {
 
   for (const r of reminders) {
     if (!r.active) continue;
-    console.log(`리마인더 확인: ${r.title} / 시간: ${r.time} / 반복: ${r.repeat}`);
+    const todayDom = kst.getUTCDate();
+    console.log(`리마인더 확인: ${r.title} / 시간: ${r.time} / 반복: ${r.repeat} / monthDay: ${r.monthDay} / 오늘날짜: ${todayDom}`);
     if (!shouldSendToday(r)) continue;
     const targetIds = r.target === 'all' ? allIds : adminIds;
     if (targetIds.length === 0) continue;
