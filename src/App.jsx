@@ -3632,7 +3632,7 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
             : myRequests.filter(r => r.date?.startsWith(selectedYear)).map(r => (
               <div key={r.id} style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{r.date} · {r.type}</div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{r.date} · {r.type}{r.type === "시간연차" && r.hours ? ` (${r.hours}시간)` : ""}</div>
                   {r.note && <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{r.note}</div>}
                 </div>
                 <Badge label={r.status} color={statusColor[r.status] || "gray"} />
