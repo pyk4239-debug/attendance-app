@@ -127,8 +127,11 @@ async function main() {
   };
 
   const shouldSendToday = (r) => {
-    // 시간 체크
-    if (r.time !== currentHHMM) return false;
+    // 시간 체크 (±4분 허용 - GitHub Actions 지연 대응)
+    const [rh, rm] = r.time.split(':').map(Number);
+    const rMin = rh * 60 + rm;
+    const nowMin = hh * 60 + mm;
+    if (Math.abs(rMin - nowMin) > 4) return false;
 
     // 오늘 공휴일 아니면 → 오늘 날짜로 반복 조건 체크
     if (!isHolidayDate(today)) {
@@ -156,8 +159,8 @@ async function main() {
     const currentMinutes = hh * 60 + mm;
     const startMinutes = startH * 60 + startM;
     const endMinutes = endH * 60 + endM;
-    const isCheckinAlert = currentMinutes === startMinutes - 5;
-    const isCheckoutAlert = currentMinutes === endMinutes + 1;
+    const isCheckinAlert = currentMinutes >= startMinutes - 7 && currentMinutes <= startMinutes - 3;
+    const isCheckoutAlert = currentMinutes >= endMinutes - 1 && currentMinutes <= endMinutes + 3;
 
     console.log(`현재: ${currentMinutes}분, 출근알림: ${isCheckinAlert}, 퇴근알림: ${isCheckoutAlert}`);
 
@@ -216,13 +219,27 @@ async function main() {
 
   for (const r of reminders) {
     if (!r.active) continue;
-    const timeMatch = r.time === currentHHMM;
+    const [rh2, rm2] = r.time.split(':').map(Number); const timeMatch = Math.abs((rh2*60+rm2) - (hh*60+mm)) <= 4;
     const domMatch = r.repeat !== 'monthly' || Number(r.monthDay) === todayDom;
     const dowMatch = r.repeat !== 'weekly' || Number(r.weekDay) === dayOfWeek;
     console.log(`리마인더: ${r.title} | 시간:${r.time}==${currentHHMM}(${timeMatch}) | 날짜:${r.monthDay}==${todayDom}(${domMatch}) | 요일:${r.weekDay}==${dayOfWeek}(${dowMatch})`);
     if (!shouldSendToday(r)) { console.log(`  → 스킵`); continue; }
     const targetIds = r.target === 'all' ? allIds : adminIds;
     if (targetIds.length === 0) continue;
+    // 중복 발송 방지 - Firestore에 오늘 발송 기록 저장
+    const firedDocId = `reminder_${r.id}_${today}`;
+    const firedUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/reminder_fired/${firedDocId}?key=${FIREBASE_API_KEY}`;
+    const firedCheck = await httpsGet(firedUrl);
+    if (firedCheck.fields) { console.log(`  → 오늘 이미 발송됨 스킵`); continue; }
+    // 발송 기록 저장
+    await new Promise((resolve, reject) => {
+      const body = JSON.stringify({ fields: { firedAt: { stringValue: new Date().toISOString() } } });
+      const url = new URL(firedUrl);
+      const req = https.request({ hostname: url.hostname, path: url.pathname + url.search, method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+      }, res => { res.on('data', () => {}); res.on('end', resolve); });
+      req.on('error', reject); req.write(body); req.end();
+    });
     console.log(`  → 발송! ${r.title}`);
     await sendPush(`🔔 ${r.title}`, r.title, targetIds);
   }
