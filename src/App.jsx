@@ -3498,6 +3498,7 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
   const [reqType, setReqType] = useState("연차");
   const [reqNote, setReqNote] = useState("");
   const [reqMsg, setReqMsg] = useState("");
+  const [reqHours, setReqHours] = useState(1);
 
   const myAnnual = annual[user.id] || { total: 0, used: 0 };
   const myRemain = (myAnnual.total || 0) - (myAnnual.used || 0);
@@ -3520,6 +3521,7 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
     await addDoc(collection(db, COL_LEAVE_REQ), {
       userId: user.id, userName: user.name,
       date: reqDate, type: reqType, note: reqNote,
+      ...(reqType === "시간연차" ? { hours: reqHours } : {}),
       status: "대기", createdAt: new Date().toISOString()
     });
     await sendPush({ title: "📅 연차 신청", message: `${user.name}님이 ${reqDate} ${reqType}을 신청했습니다.`, targetUserId: "admin" });
@@ -3589,6 +3591,15 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
                   style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box", marginBottom: 10 }}>
                   {LEAVE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
+                {reqType === "시간연차" && (
+                  <>
+                    <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 5 }}>⏱ 시간 선택</div>
+                    <select value={reqHours} onChange={e => setReqHours(Number(e.target.value))}
+                      style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box", marginBottom: 10 }}>
+                      {[1,2,3].map(h => <option key={h} value={h}>{h}시간</option>)}
+                    </select>
+                  </>
+                )}
                 <input value={reqNote} onChange={e => setReqNote(e.target.value)} placeholder="사유 (선택)"
                   style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", marginBottom: 10, fontFamily: "inherit" }} />
                 {reqMsg && <div style={{ fontSize: 12, color: reqMsg.includes("✓") ? T.green : T.red, marginBottom: 8, fontWeight: 600 }}>{reqMsg}</div>}
