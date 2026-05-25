@@ -3571,7 +3571,7 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
           <div style={{ background: T.card, borderRadius: 16, padding: "16px 20px", marginBottom: 16, border: `1px solid ${T.border}` }}>
             <div style={{ fontSize: 13, color: T.muted, marginBottom: 12, fontWeight: 600 }}>내 연차 현황</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
-              {[["총 연차", myAnnual.total||0+"일", T.blue], ["사용", myAnnual.used||0+"일", T.orange], ["잔여", myRemain+"일", T.green]].map(([l,v,c])=>(
+              {[["총 연차", (myAnnual.total||0)+"일", T.blue], ["사용", (myAnnual.used||0)+"일", T.orange], ["잔여", myRemain+"일", T.green]].map(([l,v,c])=>(
                 <StatBox key={l} label={l} value={v} color={c}/>
               ))}
             </div>
