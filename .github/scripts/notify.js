@@ -117,50 +117,32 @@ async function main() {
     return holidays.some(h => (typeof h === 'string' ? h : h.date) === dateStr);
   };
 
-  // 특정 날짜의 리마인더 발송 대상 날짜 계산 (전날 대신 발송 로직)
-  // originalDate의 리마인더를 오늘 발송해야 하는지 확인
-  const shouldSendToday = (r) => {
-    const currentHHMM = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
-    if (r.time !== currentHHMM) return false;
+  const currentHHMM = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  const todayDom = kst.getUTCDate();
 
-    // 오늘이 공휴일/주말이면 리마인더 발송 안 함 (단, 전날대신 발송 옵션 있는 것들은 아래서 처리)
-    // 반복 조건 체크할 날짜 결정
-    // "전날 대신 발송" 옵션이 있으면: 내일~최대 7일 후까지 공휴일인 날의 리마인더를 오늘 발송
-    if (r.sendBeforeHoliday) {
-      // 내일부터 최대 7일 후까지 공휴일인지 확인, 첫 번째 공휴일의 전날(=오늘)이면 발송
-      for (let i = 1; i <= 7; i++) {
-        const targetDate = new Date(kst.getTime() + i * 24 * 60 * 60 * 1000);
-        const targetStr = targetDate.toISOString().slice(0, 10);
-        const targetDow = targetDate.getUTCDay();
-        if (!isHolidayDate(targetStr)) {
-          // 첫 번째 평일이 i일 후면, i-1일 전(오늘)이 전날
-          if (i === 1) break; // 내일이 평일이면 해당 없음
-          // i>1 이면 오늘이 공휴일 직전 평일인지 확인
-          // 오늘은 이미 평일(주말/공휴일 return 안 했으면)
-          // targetDate가 첫 번째 평일이고 i>1이면 중간에 공휴일 있음
-          // 그 공휴일들의 날짜 중 반복 조건 맞는 게 있으면 오늘 발송
-          for (let j = 1; j < i; j++) {
-            const holidayDate = new Date(kst.getTime() + j * 24 * 60 * 60 * 1000);
-            const holidayStr = holidayDate.toISOString().slice(0, 10);
-            const holidayDow = holidayDate.getUTCDay();
-            if (matchesRepeat(r, holidayStr, holidayDow)) return true;
-          }
-          break;
-        }
-      }
-    }
-
-    // 오늘 발송 조건 (오늘이 공휴일이면 해당 없음 - 이미 위에서 걸림)
-    if (isHolidayDate(today)) return false;
-    return matchesRepeat(r, today, dayOfWeek);
+  const matchesRepeat = (r, dom2, dow2) => {
+    if (r.repeat === 'weekly' && Number(r.weekDay) !== dow2) return false;
+    if (r.repeat === 'monthly' && Number(r.monthDay) !== dom2) return false;
+    return true;
   };
 
-  const matchesRepeat = (r, dateStr, dow) => {
-    const date = new Date(dateStr + 'T00:00:00Z');
-    const dom = date.getUTCDate();
-    if (r.repeat === 'weekly' && Number(r.weekDay) !== dow) return false;
-    if (r.repeat === 'monthly' && Number(r.monthDay) !== dom) return false;
-    return true;
+  const shouldSendToday = (r) => {
+    // 시간 체크
+    if (r.time !== currentHHMM) return false;
+
+    // 오늘 공휴일 아니면 → 오늘 날짜로 반복 조건 체크
+    if (!isHolidayDate(today)) {
+      if (!matchesRepeat(r, todayDom, dayOfWeek)) return false;
+      return true;
+    }
+
+    // 오늘이 공휴일인데 전날발송 옵션 없으면 → 발송 안 함
+    if (!r.sendBeforeHoliday) return false;
+
+    // 오늘이 공휴일 + 전날발송: 오늘이 공휴일 바로 다음 평일이 있는 연속 공휴일의 마지막 전날인지 확인
+    // 어제가 평일이어야 함 (오늘이 첫 번째 공휴일의 전날 = 어제가 평일)
+    // 사실상 공휴일 당일에는 발송 안 함 - 전날(평일)에 발송하는 구조
+    return false;
   };
 
   const todayIsHoliday = isHolidayDate(today);
@@ -235,12 +217,14 @@ async function main() {
 
   for (const r of reminders) {
     if (!r.active) continue;
-    const todayDom = kst.getUTCDate();
-    console.log(`리마인더 확인: ${r.title} / 시간: ${r.time} / 반복: ${r.repeat} / monthDay: ${r.monthDay} / 오늘날짜: ${todayDom}`);
-    if (!shouldSendToday(r)) continue;
+    const timeMatch = r.time === currentHHMM;
+    const domMatch = r.repeat !== 'monthly' || Number(r.monthDay) === todayDom;
+    const dowMatch = r.repeat !== 'weekly' || Number(r.weekDay) === dayOfWeek;
+    console.log(`리마인더: ${r.title} | 시간:${r.time}==${currentHHMM}(${timeMatch}) | 날짜:${r.monthDay}==${todayDom}(${domMatch}) | 요일:${r.weekDay}==${dayOfWeek}(${dowMatch})`);
+    if (!shouldSendToday(r)) { console.log(`  → 스킵`); continue; }
     const targetIds = r.target === 'all' ? allIds : adminIds;
     if (targetIds.length === 0) continue;
-    console.log(`리마인더 발송: ${r.title} → ${r.target}`);
+    console.log(`  → 발송! ${r.title}`);
     await sendPush(`🔔 ${r.title}`, r.title, targetIds);
   }
 }
