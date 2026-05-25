@@ -1632,9 +1632,10 @@ function AdminSeverance({ users, memberInfo, annual, onBack }) {
     // ⑤ 퇴직금 = 평균임금 × 30 × (근속일수/365)
     const severancePay = Math.round(avgDailyWage * 30 * workYears);
 
-    // ⑥ 잔여연차수당 - 당해연도 일할계산
-    const totalAnnual = annualData.total || 0;
-    const usedAnnual = annualData.used || 0;
+    // ⑥ 잔여연차수당 - 당해연도 일할계산 (최신 annual 데이터 직접 참조)
+    const latestAnnual = annual[selUser] || { total: 0, used: 0 };
+    const totalAnnual = latestAnnual.total || 0;
+    const usedAnnual = latestAnnual.used || 0;
     const yearStart = new Date(retire.getFullYear(), 0, 1);
     const workedDaysThisYear = Math.floor((retire - yearStart) / (1000 * 60 * 60 * 24));
     // 당해연도 발생 연차 = 총연차 × (당해연도 근무일수/365), 소수점 1자리
@@ -1789,8 +1790,8 @@ function AdminSeverance({ users, memberInfo, annual, onBack }) {
                 <div style={{ fontSize: 13, color: T.muted, fontWeight: 700, marginBottom: 10 }}>💰 퇴직금</div>
                 <Row label="퇴직금" value={result.severancePay}
                   calc={`평균임금 ${result.avgDailyWage.toLocaleString()} × 30 × (${result.workDays}일 ÷ 365)`} bold />
-                {result.annualRemain > 0 && <Row label="잔여연차수당" value={result.annualAllowance}
-                  calc={`총연차 ${result.totalAnnual}일 × ${result.workedDaysThisYear}일/365 = ${result.earnedThisYear}일 발생, 사용 ${result.usedAnnual}일, 잔여 ${result.annualRemain}일 × 시급×8`} />}
+                <Row label="잔여연차수당" value={result.annualAllowance}
+                  calc={`총연차 ${result.totalAnnual}일 × ${result.workedDaysThisYear}일/365 = ${result.earnedThisYear}일 발생, 사용 ${result.usedAnnual}일, 잔여 ${result.annualRemain}일 × 시급×8`} />
               </div>
 
               {/* 퇴직소득세 계산식 */}
@@ -1828,10 +1829,10 @@ function AdminSeverance({ users, memberInfo, annual, onBack }) {
                   <span style={{ fontSize: 13, color: T.muted }}>퇴직금</span>
                   <span style={{ fontSize: 13, fontWeight: 700 }}>{result.severancePay.toLocaleString()}원</span>
                 </div>
-                {result.annualRemain > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                   <span style={{ fontSize: 13, color: T.muted }}>잔여연차수당</span>
                   <span style={{ fontSize: 13, fontWeight: 700 }}>+{result.annualAllowance.toLocaleString()}원</span>
-                </div>}
+                </div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                   <span style={{ fontSize: 13, color: T.muted }}>퇴직소득세</span>
                   <span style={{ fontSize: 13, fontWeight: 700, color: T.red }}>-{result.retirementTax.toLocaleString()}원</span>
