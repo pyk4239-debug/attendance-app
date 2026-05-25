@@ -164,7 +164,9 @@ async function main() {
   };
 
   const todayIsHoliday = isHolidayDate(today);
-  if (todayIsHoliday) { console.log('공휴일 - 출퇴근 알림 생략'); }
+
+  // ── 출퇴근 알림 (평일+비공휴일만) ────────────────────────────
+  const allUsers = await fetchCollection('users');
 
   if (!todayIsHoliday) {
     const [startH, startM] = workStart.split(':').map(Number);
@@ -177,62 +179,63 @@ async function main() {
 
     console.log(`현재: ${currentMinutes}분, 출근알림: ${isCheckinAlert}, 퇴근알림: ${isCheckoutAlert}`);
 
-    const users = await fetchCollection('users');
-    const members = users.filter(u => u.role === 'member');
+    const members = allUsers.filter(u => u.role === 'member');
     console.log('팀원:', members.map(u => u.name));
 
-    const records = await fetchCollection('records');
-    const recordMap = {};
-    for (const rec of records) recordMap[rec.id] = rec;
+    if (isCheckinAlert || isCheckoutAlert) {
+      const records = await fetchCollection('records');
+      const recordMap = {};
+      for (const rec of records) recordMap[rec.id] = rec;
 
-    const leaves = await fetchCollection('leaves');
-    const todayLeaves = leaves.filter(l => l.date === today && !l.deleted);
-    const leaveSet = new Set(todayLeaves.map(l => l.userId));
-    const amLeaveSet = new Set(todayLeaves.filter(l => l.type && l.type.includes('오전')).map(l => l.userId));
-    const pmLeaveSet = new Set(todayLeaves.filter(l => l.type && l.type.includes('오후')).map(l => l.userId));
+      const leaves = await fetchCollection('leaves');
+      const todayLeaves = leaves.filter(l => l.date === today && !l.deleted);
+      const leaveSet = new Set(todayLeaves.map(l => l.userId));
+      const amLeaveSet = new Set(todayLeaves.filter(l => l.type && l.type.includes('오전')).map(l => l.userId));
+      const pmLeaveSet = new Set(todayLeaves.filter(l => l.type && l.type.includes('오후')).map(l => l.userId));
 
-    if (isCheckinAlert) {
-      const absentIds = members.filter(u => {
-        const rec = recordMap[`${u.id}_${today}`];
-        if (leaveSet.has(u.id)) return false;
-        if (amLeaveSet.has(u.id)) return false;
-        if (rec?.in) return false;
-        return true;
-      }).map(u => u.id);
-      console.log('출근 알림 대상:', absentIds);
-      if (absentIds.length > 0) await sendPush('⏰ 출근 시간 알림', `출근 시간 ${workStart} 5분 전입니다. 출근 기록을 해주세요!`, absentIds);
+      if (isCheckinAlert) {
+        const absentIds = members.filter(u => {
+          const rec = recordMap[`${u.id}_${today}`];
+          if (leaveSet.has(u.id)) return false;
+          if (amLeaveSet.has(u.id)) return false;
+          if (rec?.in) return false;
+          return true;
+        }).map(u => u.id);
+        console.log('출근 알림 대상:', absentIds);
+        if (absentIds.length > 0) await sendPush('⏰ 출근 시간 알림', `출근 시간 ${workStart} 5분 전입니다. 출근 기록을 해주세요!`, absentIds);
+      }
+
+      if (isCheckoutAlert) {
+        const notOutIds = members.filter(u => {
+          const rec = recordMap[`${u.id}_${today}`];
+          if (leaveSet.has(u.id)) return false;
+          if (pmLeaveSet.has(u.id)) return false;
+          if (!rec?.in) return false;
+          if (rec?.out) return false;
+          const outings = rec?.outing || [];
+          if (outings.length > 0 && !outings[outings.length - 1].in) return false;
+          return true;
+        }).map(u => u.id);
+        console.log('퇴근 알림 대상:', notOutIds);
+        if (notOutIds.length > 0) await sendPush('🏠 퇴근 시간 알림', `퇴근 시간 ${workEnd}이 지났습니다. 퇴근 기록을 해주세요!`, notOutIds);
+      }
     }
-
-    if (isCheckoutAlert) {
-      const notOutIds = members.filter(u => {
-        const rec = recordMap[`${u.id}_${today}`];
-        if (leaveSet.has(u.id)) return false;
-        if (pmLeaveSet.has(u.id)) return false;
-        if (!rec?.in) return false;
-        if (rec?.out) return false;
-        const outings = rec?.outing || [];
-        if (outings.length > 0 && !outings[outings.length - 1].in) return false;
-        return true;
-      }).map(u => u.id);
-      console.log('퇴근 알림 대상:', notOutIds);
-      if (notOutIds.length > 0) await sendPush('🏠 퇴근 시간 알림', `퇴근 시간 ${workEnd}이 지났습니다. 퇴근 기록을 해주세요!`, notOutIds);
-    }
-
-    // users 변수 재사용을 위해 위에서 선언한 경우 아래서 재사용
-    var _users = users;
   } else {
-    var _users = null;
+    console.log('공휴일 - 출퇴근 알림 생략');
   }
 
   // ── 리마인더 체크 (공휴일 여부 무관하게 항상 실행) ───────────────
+  console.log('리마인더 체크 시작');
   const reminders = await fetchCollection('reminders');
-  const reminderUsers = _users || await fetchCollection('users');
-  const adminIds = reminderUsers.filter(u => u.role === 'admin').map(u => u.id);
-  const allIds = reminderUsers.map(u => u.id);
+  console.log('리마인더 수:', reminders.length);
+  const adminIds = allUsers.filter(u => u.role === 'admin').map(u => u.id);
+  const allIds = allUsers.map(u => u.id);
   const currentHHMM = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  console.log('현재시간(HHMM):', currentHHMM);
 
   for (const r of reminders) {
     if (!r.active) continue;
+    console.log(`리마인더 확인: ${r.title} / 시간: ${r.time} / 반복: ${r.repeat}`);
     if (!shouldSendToday(r)) continue;
     const targetIds = r.target === 'all' ? allIds : adminIds;
     if (targetIds.length === 0) continue;
