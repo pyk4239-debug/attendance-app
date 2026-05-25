@@ -215,6 +215,8 @@ function calcMonthStats(days, settings, userLeaves, leaveRequests, userId, month
         } else if (l.type?.includes("반차")) {
           stats.annualDays += 0.5;
           if (!hasClockIn) stats.days++;
+        } else if (l.type === "시간연차") {
+          stats.annualDays += (l.hours || 1) / 8;
         }
       });
   }
@@ -2602,7 +2604,7 @@ function LeaveRequestItem({ r, statusColor, setDelConfirm }) {
     setDone("승인");
     const leaveData = { userId: r.userId, date: r.date, type: r.type };
     if (r.hours) leaveData.hours = r.hours;
-    const delta = r.type?.includes("반차") ? 0.5 : 1;
+    const delta = r.type === "시간연차" ? (r.hours || 1) / 8 : r.type?.includes("반차") ? 0.5 : 1;
     await Promise.all([
       setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "승인" }, { merge: true }),
       setDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`), leaveData),
@@ -2615,7 +2617,7 @@ function LeaveRequestItem({ r, statusColor, setDelConfirm }) {
   const handleReject = async () => {
     setProcessing("반려");
     setDone("반려");
-    const delta = r.type?.includes("반차") ? -0.5 : -1;
+    const delta = r.type === "시간연차" ? -((r.hours || 1) / 8) : r.type?.includes("반차") ? -0.5 : -1;
     await Promise.all([
       setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true }),
       setDoc(doc(db, COL_LEAVES, `${r.userId}_${r.date}`), { userId: r.userId, date: r.date, deleted: true }),
@@ -3537,7 +3539,7 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
       const annualRef = doc(db, COL_ANNUAL, r.userId);
       const snap = await getDoc(annualRef);
       const current = snap.exists() ? snap.data() : { total: 0, used: 0 };
-      const delta = r.type?.includes("반차") ? -0.5 : -1;
+      const delta = r.type === "시간연차" ? -((r.hours || 1) / 8) : r.type?.includes("반차") ? -0.5 : -1;
       const newUsed = Math.max(0, Number(current.used || 0) + delta);
       tasks.push(setDoc(annualRef, { ...current, used: newUsed }));
     }
