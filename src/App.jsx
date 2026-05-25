@@ -2601,7 +2601,6 @@ function LeaveRequestItem({ r, statusColor, setDelConfirm }) {
 
   const handleApprove = async () => {
     setProcessing("승인");
-    setDone("승인");
     const leaveData = { userId: r.userId, date: r.date, type: r.type };
     if (r.hours) leaveData.hours = r.hours;
     const delta = r.type === "시간연차" ? (r.hours || 1) / 8 : r.type?.includes("반차") ? 0.5 : 1;
@@ -2612,11 +2611,12 @@ function LeaveRequestItem({ r, statusColor, setDelConfirm }) {
       sendNotice("승인"),
     ]);
     setProcessing(null);
+    setDone("승인");
+    setTimeout(() => setDone(null), 1500);
   };
 
   const handleReject = async () => {
     setProcessing("반려");
-    setDone("반려");
     const delta = r.type === "시간연차" ? -((r.hours || 1) / 8) : r.type?.includes("반차") ? -0.5 : -1;
     await Promise.all([
       setDoc(doc(db, COL_LEAVE_REQ, r.id), { status: "반려" }, { merge: true }),
@@ -2625,12 +2625,14 @@ function LeaveRequestItem({ r, statusColor, setDelConfirm }) {
       ...(r.status === "승인" ? [updateAnnualUsed(delta)] : []),
     ]);
     setProcessing(null);
+    setDone("반려");
+    setTimeout(() => setDone(null), 1500);
   };
 
   return (
     <div style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${done ? (done === "승인" ? T.green : T.red) : T.border}`, transition: "border 0.3s" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, color: T.text, flex: 1 }}>{r.userName} · {r.date} · {r.type}</div>
+        <div style={{ fontWeight: 700, fontSize: 13, color: T.text, flex: 1 }}>{r.userName} · {r.date} · {r.type}{r.type === "시간연차" && r.hours ? ` (${r.hours}시간)` : ""}</div>
         <Badge label={done || r.status} color={statusColor[done || r.status] || "gray"} />
       </div>
       {r.note && <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>📝 {r.note}</div>}
