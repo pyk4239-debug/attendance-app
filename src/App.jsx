@@ -231,10 +231,10 @@ function calcMonthStats(days, settings, userLeaves, leaveRequests, userId, month
     const absentDates = [];
     for (let i = 1; i <= daysInMonth; i++) {
       const dateStr = `${month}-${String(i).padStart(2,"0")}`;
-      if (dateStr > kstToday) continue; // 미래 날짜 제외
       const dow = new Date(y, m - 1, i).getDay();
       const isOff = dow === 0 || dow === 6 || isHoliday(dateStr, settings.holidays || []);
-      if (isOff) { offDays++; continue; }
+      if (isOff) { offDays++; continue; } // 공휴일/주말은 미래도 포함
+      if (dateStr > kstToday) continue; // 소정근로일 중 미래 날짜는 결근 계산 제외
       // 소정근로일 중 출근기록도 연차도 없으면 결근
       const hasRecord = days.some(([d, rec]) => d === dateStr && rec.in);
       const hasLeave = !!(userLeaves?.[dateStr]);
