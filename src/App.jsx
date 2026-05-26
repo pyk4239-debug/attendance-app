@@ -1583,7 +1583,8 @@ function AdminSeverance({ users, memberInfo, annual, onBack }) {
       }).catch(() => null);
     }
     const jsPDF = window.jspdf?.jsPDF;
-    if (!jsPDF) { alert("PDF 생성 실패"); return; }
+    if (!jsPDF) { alert("PDF 생성 실패: jsPDF 로드 안됨"); return; }
+    alert("PDF 생성 시작: " + name);
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const L = 20, W = 170, lh = 7;
     let y = 20;
