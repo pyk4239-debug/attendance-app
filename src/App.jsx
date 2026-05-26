@@ -3509,9 +3509,7 @@ function PayslipScreen({ user, users, payslips, reads }) {
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                     style={{ background: T.blueBg, color: T.blue, borderRadius: 8, padding: "5px 10px", fontSize: 11, fontWeight: 700, textDecoration: "none" }}>보기</a>}
-                  {p.wageData && <button onClick={e => { e.stopPropagation(); e.preventDefault(); downloadPDF(p); }}
-                    onTouchEnd={e => { e.stopPropagation(); e.preventDefault(); downloadPDF(p); }}
-                    style={{ background: "#dcfce7", border: "none", color: "#16a34a", borderRadius: 8, padding: "5px 10px", fontSize: 11, cursor: "pointer", fontWeight: 700, zIndex: 10, position: "relative" }}>PDF⬇</button>}
+
                   {isAdmin && <button onClick={e => { e.stopPropagation(); deleteDoc(doc(db, COL_PAYSLIPS, p.id)); }}
                     style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 8px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>삭제</button>}
                   <span style={{ color: T.muted, fontSize: 14 }}>{isOpen ? "▲" : "▼"}</span>
@@ -3589,6 +3587,8 @@ function PayslipScreen({ user, users, payslips, reads }) {
                     <span style={{ fontSize: 16, fontWeight: 800, color: "#16a34a" }}>{Number(w.netPay||0).toLocaleString()}원</span>
                   </div>
                   {w.memo && <div style={{ fontSize: 11, color: T.muted, marginTop: 6 }}>📝 {w.memo}</div>}
+                  <button onClick={() => downloadPDF(p)}
+                    style={{ width: "100%", marginTop: 12, background: "#16a34a", border: "none", color: "#fff", borderRadius: 10, padding: "11px 0", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>⬇ PDF 다운로드</button>
                 </div>
               )}
             </div>
