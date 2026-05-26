@@ -79,6 +79,7 @@ async function sendPush(title, message, userIds) {
   }
   const body = JSON.stringify(payload);
   console.log('sendPush body:', body);
+  console.log('API_KEY 앞8자:', ONESIGNAL_API_KEY.slice(0,8), '길이:', ONESIGNAL_API_KEY.length);
 
   const options = {
     hostname: 'onesignal.com',
@@ -86,7 +87,7 @@ async function sendPush(title, message, userIds) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Basic ${ONESIGNAL_API_KEY}`,
+      'Authorization': `Key ${ONESIGNAL_API_KEY}`,
       'Content-Length': Buffer.byteLength(body)
     }
   };
