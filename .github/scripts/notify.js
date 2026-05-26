@@ -83,7 +83,7 @@ async function sendPush(title, message, userIds) {
 
   const options = {
     hostname: 'onesignal.com',
-    path: '/api/v1/notifications',
+    path: '/api/v2/notifications',
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
