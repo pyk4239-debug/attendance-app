@@ -215,6 +215,7 @@ async function main() {
   console.log('리마인더 수:', reminders.length);
   const adminIds = allUsers.filter(u => u.role === 'admin').map(u => u.id);
   const allIds = allUsers.map(u => u.id);
+  console.log('adminIds:', adminIds, 'allIds:', allIds);
   console.log('현재시간(HHMM):', currentHHMM);
 
   for (const r of reminders) {
