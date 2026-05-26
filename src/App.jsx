@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db, storage } from "./firebase";
+import { jsPDF } from "jspdf";
 import {
   doc, onSnapshot, setDoc, getDoc, collection,
   getDocs, writeBatch, addDoc, deleteDoc, query, orderBy
@@ -3324,16 +3325,7 @@ function PayslipScreen({ user, users, payslips, reads }) {
     if (!w) { alert("명세서 데이터 없음"); return; }
     const member = users.find(u => u.id === p.userId);
     const name = member?.name || "팀원";
-    if (!window.jspdf) {
-      await new Promise((resolve, reject) => {
-        const s = document.createElement("script");
-        s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-        s.onload = resolve; s.onerror = reject;
-        document.head.appendChild(s);
-      }).catch(() => null);
-    }
-    const jsPDF = window.jspdf?.jsPDF;
-    if (!jsPDF) { alert("PDF 라이브러리 로드 실패"); return; }
+
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const L = 20, W = 170, lh = 7;
     let y = 20;
