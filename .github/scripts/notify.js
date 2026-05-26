@@ -232,6 +232,7 @@ async function main() {
     const dowMatch = r.repeat !== 'weekly' || Number(r.weekDay) === dayOfWeek;
     console.log(`리마인더: ${r.title} | 시간:${r.time}==${currentHHMM}(${timeMatch}) | 날짜:${r.monthDay}==${todayDom}(${domMatch}) | 요일:${r.weekDay}==${dayOfWeek}(${dowMatch})`);
     if (!shouldSendToday(r)) { console.log(`  → 스킵`); continue; }
+    console.log(`r.target: '${r.target}'`);
     const targetIds = r.target === 'all' ? allIds : adminIds;
     if (targetIds.length === 0) continue;
     // 중복 발송 방지 - Firestore에 오늘 발송 기록 저장
