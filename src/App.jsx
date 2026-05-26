@@ -3333,10 +3333,10 @@ function PayslipScreen({ user, users, payslips, reads }) {
       const el = document.getElementById(`payslip-content-${p.id}`);
       if (!el) { alert("명세서 영역 없음"); setPdfLoading(null); return; }
       // PDF 버튼 임시 숨기기
-      const pdfBtn = el.querySelector(".pdf-btn");
-      if (pdfBtn) pdfBtn.style.display = "none";
+      const pdfBtn = document.getElementById(`pdf-btn-${p.id}`);
+      if (pdfBtn) pdfBtn.style.visibility = "hidden";
       const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
-      if (pdfBtn) pdfBtn.style.display = "";
+      if (pdfBtn) pdfBtn.style.visibility = "visible";
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageW = pdf.internal.pageSize.getWidth();
@@ -3523,7 +3523,7 @@ function PayslipScreen({ user, users, payslips, reads }) {
                     <span style={{ fontSize: 16, fontWeight: 800, color: "#16a34a" }}>{Number(w.netPay||0).toLocaleString()}원</span>
                   </div>
                   {w.memo && <div style={{ fontSize: 11, color: T.muted, marginTop: 6 }}>📝 {w.memo}</div>}
-                  <button className="pdf-btn" onClick={() => downloadPDF(p)} disabled={pdfLoading === p.id}
+                  <button id={`pdf-btn-${p.id}`} onClick={() => downloadPDF(p)} disabled={pdfLoading === p.id}
                     style={{ width: "100%", marginTop: 12, background: "#16a34a", border: "none", color: "#fff", borderRadius: 10, padding: "11px 0", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: pdfLoading === p.id ? 0.6 : 1 }}>{pdfLoading === p.id ? "생성 중..." : "⬇ PDF 다운로드"}</button>
                 </div>
               )}
