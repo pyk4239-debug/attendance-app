@@ -1573,8 +1573,16 @@ function AdminSeverance({ users, memberInfo, annual, onBack }) {
     if (!w) return;
     const member = users.find(u => u.id === p.userId);
     const name = member?.name || "팀원";
-    // jsPDF 동적 로드
-    const { jsPDF } = await import("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js").catch(() => ({}));
+    // jsPDF 스크립트 로드
+    if (!window.jspdf) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      }).catch(() => null);
+    }
+    const jsPDF = window.jspdf?.jsPDF;
     if (!jsPDF) { alert("PDF 생성 실패"); return; }
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const L = 20, W = 170, lh = 7;
