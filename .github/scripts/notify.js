@@ -196,25 +196,33 @@ async function main() {
     const rMin = rh * 60 + rm;
     if (Math.abs(rMin - nowMin) > 4) continue;
 
-    // 반복 조건 체크
-    if (r.repeat === 'weekly'  && Number(r.weekDay)  !== dayOfWeek) continue;
-    if (r.repeat === 'monthly' && Number(r.monthDay) !== todayDom)  continue;
+    // 오늘이 공휴일이면 리마인더 발송 안 함 (전날발송도 공휴일 당일엔 안 보냄)
+    if (todayIsHoliday) continue;
 
-    // 공휴일 처리
-    if (todayIsHoliday) {
-      if (!r.sendBeforeHoliday) continue;
-      // 전날발송: 오늘이 공휴일이면 어제(평일)에 발송했어야 함 → 오늘은 스킵
-      continue;
-    }
-
-    // 전날발송: 내일이 공휴일이면 오늘 발송
+    // 전날발송 옵션: 내일~최대7일 후 중 첫 공휴일이 있으면 오늘 그 날짜의 리마인더 발송
     if (r.sendBeforeHoliday) {
-      const tomorrow = new Date(kst.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      if (!isHolidayDate(tomorrow)) {
-        // 내일이 평일이면 전날발송 불필요 → 원래 날짜에만 발송
-        if (Number(r.monthDay) !== todayDom && r.repeat === 'monthly') continue;
-        if (Number(r.weekDay)  !== dayOfWeek && r.repeat === 'weekly')  continue;
+      let sent = false;
+      for (let i = 1; i <= 7; i++) {
+        const checkDate = new Date(kst.getTime() + i * 24 * 60 * 60 * 1000);
+        const checkStr  = checkDate.toISOString().slice(0, 10);
+        if (!isHolidayDate(checkStr)) break; // 첫 번째 평일 만나면 종료
+        // checkDate가 공휴일 → 이 날의 반복 조건 확인
+        const checkDom = checkDate.getUTCDate();
+        const checkDow = checkDate.getUTCDay();
+        const matches = (r.repeat === 'daily') ||
+                        (r.repeat === 'weekly'  && Number(r.weekDay)  === checkDow) ||
+                        (r.repeat === 'monthly' && Number(r.monthDay) === checkDom);
+        if (matches) { sent = true; break; }
       }
+      if (!sent) {
+        // 전날발송 조건 미해당 → 원래 날짜로 체크
+        if (r.repeat === 'weekly'  && Number(r.weekDay)  !== dayOfWeek) continue;
+        if (r.repeat === 'monthly' && Number(r.monthDay) !== todayDom)  continue;
+      }
+    } else {
+      // 반복 조건 체크 (일반)
+      if (r.repeat === 'weekly'  && Number(r.weekDay)  !== dayOfWeek) continue;
+      if (r.repeat === 'monthly' && Number(r.monthDay) !== todayDom)  continue;
     }
 
     // 중복 발송 방지
