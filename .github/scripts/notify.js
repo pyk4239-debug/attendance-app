@@ -248,8 +248,9 @@ async function main() {
       }, res => { res.on('data', () => {}); res.on('end', resolve); });
       req.on('error', reject); req.write(body); req.end();
     });
-    console.log(`  → 발송! ${r.title}`);
-    await sendPush(`🔔 ${r.title}`, r.title, targetIds);
+    console.log(`  → 발송! ${r.title} / targetIds: ${JSON.stringify(targetIds)} / ONESIGNAL_APP_ID: ${ONESIGNAL_APP_ID ? ONESIGNAL_APP_ID.slice(0,8)+'...' : 'UNDEFINED'}`);
+    const pushResult = await sendPush(`🔔 ${r.title}`, r.title, targetIds);
+    console.log('발송결과2:', JSON.stringify(pushResult));
   }
 }
 
