@@ -20,7 +20,11 @@ function httpsPost(options, body) {
     const req = https.request(options, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
-      res.on('end', () => resolve(JSON.parse(data)));
+      res.on('end', () => {
+        console.log('HTTP Status:', res.statusCode);
+        console.log('Raw response:', data.slice(0, 200));
+        try { resolve(JSON.parse(data)); } catch(e) { resolve({ error: data.slice(0, 200) }); }
+      });
     });
     req.on('error', reject);
     req.write(body);
@@ -83,11 +87,11 @@ async function sendPush(title, message, userIds) {
 
   const options = {
     hostname: 'onesignal.com',
-    path: '/api/v2/notifications',
+    path: '/api/v1/notifications',
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${ONESIGNAL_API_KEY}`,
+      'Authorization': `Basic ${ONESIGNAL_API_KEY}`,
       'Content-Length': Buffer.byteLength(body)
     }
   };
