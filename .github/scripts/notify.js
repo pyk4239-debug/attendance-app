@@ -1,9 +1,9 @@
 import https from 'https';
 
-const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY;
-const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
-const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
-const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
+const FIREBASE_API_KEY = (process.env.FIREBASE_API_KEY || '').trim();
+const FIREBASE_PROJECT_ID = (process.env.FIREBASE_PROJECT_ID || '').trim();
+const ONESIGNAL_APP_ID = (process.env.ONESIGNAL_APP_ID || '').trim();
+const ONESIGNAL_API_KEY = (process.env.ONESIGNAL_API_KEY || '').trim();
 
 function httpsGet(url) {
   return new Promise((resolve, reject) => {
