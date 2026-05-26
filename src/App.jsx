@@ -3453,6 +3453,13 @@ function PayslipScreen({ user, users, payslips, reads }) {
               </div>
               {isOpen && w && (
                 <div id={`payslip-content-${p.id}`} style={{ background: T.bg, padding: "12px 16px", borderTop: `1px solid ${T.border}` }}>
+                  {/* PDF 헤더 */}
+                  <div style={{ textAlign: "center", marginBottom: 14, paddingBottom: 12, borderBottom: `2px solid ${T.border}` }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: T.text, letterSpacing: 2 }}>급 여 명 세 서</div>
+                    <div style={{ fontSize: 12, color: T.muted, marginTop: 4 }}>
+                      {isAdmin ? `${users.find(u => u.id === p.userId)?.name} · ` : ""}{monthLabel(p.month)} · 지급일 {w.payDate || "-"}
+                    </div>
+                  </div>
                   {/* 근태 내역 */}
                   <div style={{ fontSize: 11, color: T.muted, fontWeight: 700, marginBottom: 6 }}>근태 내역</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 4, marginBottom: 10 }}>
