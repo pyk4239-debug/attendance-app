@@ -3336,9 +3336,17 @@ function PayslipScreen({ user, users, payslips, reads }) {
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageW = pdf.internal.pageSize.getWidth();
-      const imgW = pageW - 20;
-      const imgH = (canvas.height * imgW) / canvas.width;
-      pdf.addImage(imgData, "PNG", 10, 10, imgW, imgH);
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+      const ratio = canvas.width / canvas.height;
+      let imgW = maxW;
+      let imgH = imgW / ratio;
+      if (imgH > maxH) { imgH = maxH; imgW = imgH * ratio; }
+      const x = (pageW - imgW) / 2;
+      const y = (pageH - imgH) / 2;
+      pdf.addImage(imgData, "PNG", x, y, imgW, imgH);
       pdf.save(`${name}_${monthLabel(p.month)}_급여명세서.pdf`);
     } catch(e) {
       alert("PDF 생성 실패: " + e.message);
