@@ -1570,6 +1570,7 @@ function AdminSeverance({ users, memberInfo, annual, onBack }) {
 
   const downloadPDF = async (p) => {
     const w = p.wageData;
+    alert("downloadPDF 호출됨 / wageData: " + (w ? "있음" : "없음"));
     if (!w) return;
     const member = users.find(u => u.id === p.userId);
     const name = member?.name || "팀원";
