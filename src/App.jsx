@@ -3335,7 +3335,7 @@ function PayslipScreen({ user, users, payslips, reads }) {
       // PDF 버튼 임시 숨기기
       const pdfBtn = document.getElementById(`pdf-btn-${p.id}`);
       if (pdfBtn) pdfBtn.style.visibility = "hidden";
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+      const canvas = await html2canvas(el, { scale: 3, useCORS: true, backgroundColor: "#ffffff" });
       if (pdfBtn) pdfBtn.style.visibility = "visible";
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
