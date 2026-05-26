@@ -134,8 +134,8 @@ async function main() {
     const [endH, endM] = workEnd.split(':').map(Number);
     const startMin = startH * 60 + startM;
     const endMin = endH * 60 + endM;
-    const isCheckinAlert  = nowMin >= startMin - 7 && nowMin <= startMin - 3;
-    const isCheckoutAlert = nowMin >= endMin - 1   && nowMin <= endMin + 3;
+    const isCheckinAlert  = nowMin >= startMin - 5 && nowMin <= startMin - 3;
+    const isCheckoutAlert = nowMin >= endMin       && nowMin <= endMin + 3;
 
     console.log(`현재: ${nowMin}분, 출근알림: ${isCheckinAlert}, 퇴근알림: ${isCheckoutAlert}`);
 
