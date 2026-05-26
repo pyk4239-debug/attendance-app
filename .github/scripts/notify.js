@@ -61,17 +61,24 @@ async function fetchCollection(collection) {
 
 async function sendPush(title, message, userIds) {
   if (!userIds || userIds.length === 0) return;
-  const filters = userIds.map((id, i) => [
-    ...(i > 0 ? [{ operator: 'OR' }] : []),
-    { field: 'tag', key: 'userId', relation: '=', value: id }
-  ]).flat();
 
-  const body = JSON.stringify({
-    app_id: ONESIGNAL_APP_ID,
-    headings: { en: title, ko: title },
-    contents: { en: message, ko: message },
-    filters
-  });
+  // userIds가 null이면 전체 발송
+  const body = userIds === null
+    ? JSON.stringify({
+        app_id: ONESIGNAL_APP_ID,
+        headings: { en: title, ko: title },
+        contents: { en: message, ko: message },
+        included_segments: ['All']
+      })
+    : JSON.stringify({
+        app_id: ONESIGNAL_APP_ID,
+        headings: { en: title, ko: title },
+        contents: { en: message, ko: message },
+        filters: userIds.map((id, i) => [
+          ...(i > 0 ? [{ operator: 'OR' }] : []),
+          { field: 'tag', key: 'userId', relation: '=', value: String(id) }
+        ]).flat()
+      });
 
   const options = {
     hostname: 'onesignal.com',
