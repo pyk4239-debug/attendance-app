@@ -62,23 +62,23 @@ async function fetchCollection(collection) {
 async function sendPush(title, message, userIds) {
   if (!userIds || userIds.length === 0) return;
 
-  // userIds가 null이면 전체 발송
-  const body = userIds === null
-    ? JSON.stringify({
-        app_id: ONESIGNAL_APP_ID,
-        headings: { en: title, ko: title },
-        contents: { en: message, ko: message },
-        included_segments: ['All']
-      })
-    : JSON.stringify({
-        app_id: ONESIGNAL_APP_ID,
-        headings: { en: title, ko: title },
-        contents: { en: message, ko: message },
-        filters: userIds.map((id, i) => [
-          ...(i > 0 ? [{ operator: 'OR' }] : []),
-          { field: 'tag', key: 'userId', relation: '=', value: String(id) }
-        ]).flat()
-      });
+  // userIds가 null이면 전체 발송, 아니면 태그 필터
+  const payload = {
+    app_id: ONESIGNAL_APP_ID,
+    headings: { en: title, ko: title },
+    contents: { en: message, ko: message },
+  };
+  if (userIds === null) {
+    payload.included_segments = ['All'];
+  } else {
+    payload.filters = userIds.reduce((acc, id, i) => {
+      if (i > 0) acc.push({ operator: 'OR' });
+      acc.push({ field: 'tag', key: 'userId', relation: '=', value: String(id) });
+      return acc;
+    }, []);
+  }
+  const body = JSON.stringify(payload);
+  console.log('sendPush body:', body);
 
   const options = {
     hostname: 'onesignal.com',
@@ -232,7 +232,6 @@ async function main() {
     const dowMatch = r.repeat !== 'weekly' || Number(r.weekDay) === dayOfWeek;
     console.log(`리마인더: ${r.title} | 시간:${r.time}==${currentHHMM}(${timeMatch}) | 날짜:${r.monthDay}==${todayDom}(${domMatch}) | 요일:${r.weekDay}==${dayOfWeek}(${dowMatch})`);
     if (!shouldSendToday(r)) { console.log(`  → 스킵`); continue; }
-    console.log(`r.target: '${r.target}'`);
     const targetIds = r.target === 'all' ? allIds : adminIds;
     if (targetIds.length === 0) continue;
     // 중복 발송 방지 - Firestore에 오늘 발송 기록 저장
@@ -249,9 +248,8 @@ async function main() {
       }, res => { res.on('data', () => {}); res.on('end', resolve); });
       req.on('error', reject); req.write(body); req.end();
     });
-    console.log(`  → 발송! ${r.title} / targetIds: ${JSON.stringify(targetIds)} / ONESIGNAL_APP_ID: ${ONESIGNAL_APP_ID ? ONESIGNAL_APP_ID.slice(0,8)+'...' : 'UNDEFINED'}`);
-    const pushResult = await sendPush(`🔔 ${r.title}`, r.title, targetIds);
-    console.log('발송결과2:', JSON.stringify(pushResult));
+    console.log(`  → 발송! ${r.title}`);
+    await sendPush(`🔔 ${r.title}`, r.title, targetIds);
   }
 }
 
