@@ -3320,65 +3320,32 @@ function PayslipScreen({ user, users, payslips, reads }) {
   const members = users.filter(u => u.role === "member");
   const myPayslips = isAdmin ? payslips : payslips.filter(p => p.userId === user.id);
 
+  const [pdfLoading, setPdfLoading] = useState(null);
+
   const downloadPDF = async (p) => {
     const w = p.wageData;
-    if (!w) { alert("명세서 데이터 없음"); return; }
+    if (!w) return;
     const member = users.find(u => u.id === p.userId);
     const name = member?.name || "팀원";
-
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const L = 20, W = 170, lh = 7;
-    let y = 20;
-    const row = (label, value) => {
-      doc.setFontSize(9); doc.setFont("helvetica", "normal");
-      doc.text(label, L, y);
-      doc.setFont("helvetica", "bold");
-      doc.text(String(value), L + W, y, { align: "right" });
-      y += lh;
-    };
-    const divider = (thick) => {
-      doc.setLineWidth(thick ? 0.5 : 0.2);
-      doc.line(L, y, L + W, y); y += 3;
-    };
-    doc.setFontSize(16); doc.setFont("helvetica", "bold");
-    doc.text("Pay Slip", L + W/2, y, { align: "center" }); y += 12;
-    divider(true);
-    doc.setFontSize(10); doc.setFont("helvetica", "normal");
-    doc.text("Name: " + name, L, y);
-    doc.text("Month: " + monthLabel(p.month), L + W/2, y); y += lh;
-    doc.text("Pay Date: " + (w.payDate || "-"), L, y); y += lh;
-    divider(true);
-    doc.setFont("helvetica", "bold"); doc.text("Attendance", L, y); y += lh; divider();
-    const ms = w.monthStats || {};
-    [["Work Days",(ms.days||0)+"d"],["OT",fmtMinutes(ms.otMin||0)],["Holiday",(ms.holiday||0)+"d"],
-     ["Late",fmtMinutes(ms.lateMin||0)],["Early Leave",fmtMinutes(ms.earlyMin||0)],["Out",fmtMinutes(ms.outingMin||0)]]
-      .forEach(([l,v]) => row(l,v));
-    divider(true);
-    doc.setFont("helvetica","bold"); doc.text("Income", L, y); y += lh; divider();
-    [["Base Pay",Number(w.monthlyBase||0).toLocaleString()],["OT Pay",Number(w.otPay||0).toLocaleString()],
-     ["Holiday Pay",Number(w.holidayPay||0).toLocaleString()],
-     ...(Number(w.bonus)>0?[["Bonus",Number(w.bonus||0).toLocaleString()]]:[]),
-     ...(Number(w.otherIncome)>0?[["Other Income",Number(w.otherIncome||0).toLocaleString()]]:[])
-    ].forEach(([l,v]) => row(l,v));
-    doc.setFont("helvetica","bold"); row("Total Income", Number(w.totalIncome||0).toLocaleString());
-    divider(true);
-    doc.setFont("helvetica","bold"); doc.text("Deductions", L, y); y += lh; divider();
-    [["Income Tax",Number(w.incomeTax||0).toLocaleString()],["Resident Tax",Number(w.residentTax||0).toLocaleString()],
-     ["Pension",Number(w.nationalPension||0).toLocaleString()],["Health Ins.",Number(w.health||0).toLocaleString()],
-     ["Employment",Number(w.employment||0).toLocaleString()],["LTC",Number(w.longCare||0).toLocaleString()],
-     ...(Number(w.deductPay)>0?[["Late/Early",Number(w.deductPay||0).toLocaleString()]]:[]),
-     ...(Number(w.absentPay)>0?[["Absent",Number(w.absentPay||0).toLocaleString()]]:[]),
-    ].forEach(([l,v]) => row(l,v));
-    doc.setFont("helvetica","bold"); row("Total Deduct", Number(w.totalDeduct||0).toLocaleString());
-    divider(true);
-    y += 3;
-    doc.setFontSize(13); doc.setFont("helvetica","bold");
-    doc.text("Net Pay", L, y);
-    doc.text(Number(w.netPay||0).toLocaleString()+" KRW", L+W, y, { align: "right" });
-    doc.save(name+"_"+monthLabel(p.month)+"_payslip.pdf");
+    setPdfLoading(p.id);
+    try {
+      const el = document.getElementById(`payslip-content-${p.id}`);
+      if (!el) { alert("명세서 영역 없음"); setPdfLoading(null); return; }
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const imgW = pageW - 20;
+      const imgH = (canvas.height * imgW) / canvas.width;
+      pdf.addImage(imgData, "PNG", 10, 10, imgW, imgH);
+      pdf.save(`${name}_${monthLabel(p.month)}_급여명세서.pdf`);
+    } catch(e) {
+      alert("PDF 생성 실패: " + e.message);
+    }
+    setPdfLoading(null);
   };
 
-  const upload = async () => {
+    const upload = async () => {
     if (!selUser || !file) { setMsg("팀원과 파일을 선택해주세요"); return; }
     setUploading(true);
     try {
@@ -3472,7 +3439,7 @@ function PayslipScreen({ user, users, payslips, reads }) {
                 </div>
               </div>
               {isOpen && w && (
-                <div style={{ background: T.bg, padding: "12px 16px", borderTop: `1px solid ${T.border}` }}>
+                <div id={`payslip-content-${p.id}`} style={{ background: T.bg, padding: "12px 16px", borderTop: `1px solid ${T.border}` }}>
                   {/* 근태 내역 */}
                   <div style={{ fontSize: 11, color: T.muted, fontWeight: 700, marginBottom: 6 }}>근태 내역</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 4, marginBottom: 10 }}>
@@ -3543,8 +3510,8 @@ function PayslipScreen({ user, users, payslips, reads }) {
                     <span style={{ fontSize: 16, fontWeight: 800, color: "#16a34a" }}>{Number(w.netPay||0).toLocaleString()}원</span>
                   </div>
                   {w.memo && <div style={{ fontSize: 11, color: T.muted, marginTop: 6 }}>📝 {w.memo}</div>}
-                  <button onClick={() => downloadPDF(p)}
-                    style={{ width: "100%", marginTop: 12, background: "#16a34a", border: "none", color: "#fff", borderRadius: 10, padding: "11px 0", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>⬇ PDF 다운로드</button>
+                  <button onClick={() => downloadPDF(p)} disabled={pdfLoading === p.id}
+                    style={{ width: "100%", marginTop: 12, background: "#16a34a", border: "none", color: "#fff", borderRadius: 10, padding: "11px 0", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: pdfLoading === p.id ? 0.6 : 1 }}>{pdfLoading === p.id ? "생성 중..." : "⬇ PDF 다운로드"}</button>
                 </div>
               )}
             </div>
