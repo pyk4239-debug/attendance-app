@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { db, storage } from "./firebase";
 import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 import {
   doc, onSnapshot, setDoc, getDoc, collection,
   getDocs, writeBatch, addDoc, deleteDoc, query, orderBy
