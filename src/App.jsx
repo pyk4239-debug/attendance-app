@@ -1567,6 +1567,103 @@ function calcIncomeTax(taxBase) {
 // ── 퇴직금 계산 ────────────────────────────────────────────────
 function AdminSeverance({ users, memberInfo, annual, onBack }) {
   const members = users.filter(u => u.role === "member");
+
+  const downloadPDF = async (p) => {
+    const w = p.wageData;
+    if (!w) return;
+    const member = users.find(u => u.id === p.userId);
+    const name = member?.name || "팀원";
+    // jsPDF 동적 로드
+    const { jsPDF } = await import("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js").catch(() => ({}));
+    if (!jsPDF) { alert("PDF 생성 실패"); return; }
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const L = 20, W = 170, lh = 7;
+    let y = 20;
+    const line = (text, x, bold, size) => {
+      doc.setFontSize(size || 10);
+      doc.setFont("helvetica", bold ? "bold" : "normal");
+      doc.text(text, x || L, y);
+    };
+    const row = (label, value, color) => {
+      doc.setFontSize(9); doc.setFont("helvetica", "normal");
+      doc.text(label, L, y);
+      doc.setFont("helvetica", "bold");
+      doc.text(String(value), L + W, y, { align: "right" });
+      y += lh;
+    };
+    const divider = (thick) => {
+      doc.setLineWidth(thick ? 0.5 : 0.2);
+      doc.line(L, y, L + W, y); y += 3;
+    };
+
+    // 헤더
+    line("급  여  명  세  서", L + W/2, true, 16); doc.setFont("helvetica", "bold");
+    doc.text("급  여  명  세  서", L + W/2, y, { align: "center" }); y += 12;
+    divider(true);
+
+    // 기본 정보
+    doc.setFontSize(10); doc.setFont("helvetica", "normal");
+    doc.text(`성    명: ${name}`, L, y);
+    doc.text(`지급월: ${monthLabel(p.month)}`, L + W/2, y); y += lh;
+    doc.text(`지급일: ${w.payDate || "-"}`, L, y); y += lh;
+    divider(true);
+
+    // 근태
+    doc.setFontSize(10); doc.setFont("helvetica", "bold");
+    doc.text("[ 근태 내역 ]", L, y); y += lh;
+    divider();
+    const ms = w.monthStats || {};
+    [
+      ["출근일수", (ms.days||0)+"일"],
+      ["연장시간", fmtMinutes(ms.otMin||0)],
+      ["휴일근무", (ms.holiday||0)+"일"],
+      ["지각", fmtMinutes(ms.lateMin||0)],
+      ["조퇴", fmtMinutes(ms.earlyMin||0)],
+      ["외출", fmtMinutes(ms.outingMin||0)],
+    ].forEach(([l,v]) => row(l, v));
+    divider(true);
+
+    // 소득
+    doc.setFont("helvetica", "bold"); doc.text("[ 소득 내역 ]", L, y); y += lh; divider();
+    [
+      ["기본급", Number(w.monthlyBase||0).toLocaleString()+"원"],
+      ["연장수당", Number(w.otPay||0).toLocaleString()+"원"],
+      ["휴일수당", Number(w.holidayPay||0).toLocaleString()+"원"],
+      ...(Number(w.bonus)>0 ? [["상여금", Number(w.bonus||0).toLocaleString()+"원"]] : []),
+      ...(Number(w.carryOver)>0 ? [["이월분", Number(w.carryOver||0).toLocaleString()+"원"]] : []),
+      ...(Number(w.otherIncome)>0 ? [["기타", Number(w.otherIncome||0).toLocaleString()+"원"]] : []),
+    ].forEach(([l,v]) => row(l, v));
+    doc.setFont("helvetica", "bold");
+    row("소득 합계", Number(w.totalIncome||0).toLocaleString()+"원");
+    divider(true);
+
+    // 공제
+    doc.setFont("helvetica", "bold"); doc.text("[ 공제 내역 ]", L, y); y += lh; divider();
+    [
+      ["소득세", Number(w.incomeTax||0).toLocaleString()+"원"],
+      ["주민세", Number(w.residentTax||0).toLocaleString()+"원"],
+      ["국민연금", Number(w.nationalPension||0).toLocaleString()+"원"],
+      ["건강보험", Number(w.health||0).toLocaleString()+"원"],
+      ["고용보험", Number(w.employment||0).toLocaleString()+"원"],
+      ["장기요양", Number(w.longCare||0).toLocaleString()+"원"],
+      ...(Number(w.deductPay)>0 ? [["지각/조퇴차감", Number(w.deductPay||0).toLocaleString()+"원"]] : []),
+      ...(Number(w.absentPay)>0 ? [["결근공제", Number(w.absentPay||0).toLocaleString()+"원"]] : []),
+      ...(Number(w.otherDeduct)>0 ? [["기타공제", Number(w.otherDeduct||0).toLocaleString()+"원"]] : []),
+    ].filter(([,v]) => v !== "0원").forEach(([l,v]) => row(l, v));
+    doc.setFont("helvetica", "bold");
+    row("공제 합계", Number(w.totalDeduct||0).toLocaleString()+"원");
+    divider(true);
+
+    // 실지급
+    y += 3;
+    doc.setFontSize(13); doc.setFont("helvetica", "bold");
+    doc.text("실  지  급  액", L, y);
+    doc.text(Number(w.netPay||0).toLocaleString()+"원", L+W, y, { align: "right" });
+    y += lh;
+    if (w.memo) { doc.setFontSize(9); doc.setFont("helvetica","normal"); doc.text("메모: "+w.memo, L, y); }
+
+    doc.save(`${name}_${monthLabel(p.month)}_급여명세서.pdf`);
+  };
   const [selUser, setSelUser] = useState(members[0]?.id || "");
   const [retireDate, setRetireDate] = useState("");
   const [loading, setLoading] = useState(false);
@@ -3404,6 +3501,8 @@ function PayslipScreen({ user, users, payslips, reads }) {
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                     style={{ background: T.blueBg, color: T.blue, borderRadius: 8, padding: "5px 10px", fontSize: 11, fontWeight: 700, textDecoration: "none" }}>보기</a>}
+                  {p.wageData && <button onClick={e => { e.stopPropagation(); downloadPDF(p); }}
+                    style={{ background: "#dcfce7", border: "none", color: "#16a34a", borderRadius: 8, padding: "5px 8px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>PDF</button>}
                   {isAdmin && <button onClick={e => { e.stopPropagation(); deleteDoc(doc(db, COL_PAYSLIPS, p.id)); }}
                     style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 8px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>삭제</button>}
                   <span style={{ color: T.muted, fontSize: 14 }}>{isOpen ? "▲" : "▼"}</span>
