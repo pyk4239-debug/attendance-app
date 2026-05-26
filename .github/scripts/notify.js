@@ -10,7 +10,9 @@ function httpsGet(url) {
     https.get(url, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
-      res.on('end', () => resolve(JSON.parse(data)));
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); } catch(e) { resolve({}); }
+      });
     }).on('error', reject);
   });
 }
@@ -21,8 +23,6 @@ function httpsPost(options, body) {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
-        console.log('HTTP Status:', res.statusCode);
-        console.log('Raw response:', data.slice(0, 200));
         try { resolve(JSON.parse(data)); } catch(e) { resolve({ error: data.slice(0, 200) }); }
       });
     });
@@ -64,9 +64,7 @@ async function fetchCollection(collection) {
 }
 
 async function sendPush(title, message, userIds) {
-  if (!userIds || userIds.length === 0) return;
-
-  // userIds가 null이면 전체 발송, 아니면 태그 필터
+  // userIds: string[] → 특정 유저, null → 전체
   const payload = {
     app_id: ONESIGNAL_APP_ID,
     headings: { en: title, ko: title },
@@ -75,6 +73,7 @@ async function sendPush(title, message, userIds) {
   if (userIds === null) {
     payload.included_segments = ['All'];
   } else {
+    if (!userIds || userIds.length === 0) return;
     payload.filters = userIds.reduce((acc, id, i) => {
       if (i > 0) acc.push({ operator: 'OR' });
       acc.push({ field: 'tag', key: 'userId', relation: '=', value: String(id) });
@@ -82,20 +81,16 @@ async function sendPush(title, message, userIds) {
     }, []);
   }
   const body = JSON.stringify(payload);
-  console.log('sendPush body:', body);
-  console.log('API_KEY 앞8자:', ONESIGNAL_API_KEY.slice(0,8), '길이:', ONESIGNAL_API_KEY.length);
-
   const options = {
     hostname: 'onesignal.com',
     path: '/api/v1/notifications',
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Basic ${ONESIGNAL_API_KEY}`,
+      'Authorization': `Key ${ONESIGNAL_API_KEY}`,
       'Content-Length': Buffer.byteLength(body)
     }
   };
-
   const result = await httpsPost(options, body);
   console.log('발송 결과:', JSON.stringify(result));
 }
@@ -107,8 +102,10 @@ async function main() {
   const mm = kst.getUTCMinutes();
   const today = kst.toISOString().slice(0, 10);
   const dayOfWeek = kst.getUTCDay();
+  const todayDom = kst.getUTCDate();
+  const nowMin = hh * 60 + mm;
 
-  console.log(`KST: ${hh}:${String(mm).padStart(2, '0')} (${today}) 요일:${dayOfWeek}`);
+  console.log(`KST: ${hh}:${String(mm).padStart(2,'0')} (${today}) 요일:${dayOfWeek}`);
 
   if (dayOfWeek === 0 || dayOfWeek === 6) { console.log('주말'); return; }
 
@@ -121,60 +118,26 @@ async function main() {
 
   console.log(`출근: ${workStart}, 퇴근: ${workEnd}`);
 
-  // 날짜가 공휴일/주말인지 확인하는 헬퍼
+  // 공휴일 여부 확인
   const isHolidayDate = (dateStr) => {
     const d = new Date(dateStr + 'T00:00:00Z');
-    const dow = d.getUTCDay();
-    if (dow === 0 || dow === 6) return true;
+    if (d.getUTCDay() === 0 || d.getUTCDay() === 6) return true;
     return holidays.some(h => (typeof h === 'string' ? h : h.date) === dateStr);
   };
 
-  const currentHHMM = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
-  const todayDom = kst.getUTCDate();
-
-  const matchesRepeat = (r, dom2, dow2) => {
-    if (r.repeat === 'weekly' && Number(r.weekDay) !== dow2) return false;
-    if (r.repeat === 'monthly' && Number(r.monthDay) !== dom2) return false;
-    return true;
-  };
-
-  const shouldSendToday = (r) => {
-    // 시간 체크 (±4분 허용 - GitHub Actions 지연 대응)
-    const [rh, rm] = r.time.split(':').map(Number);
-    const rMin = rh * 60 + rm;
-    const nowMin = hh * 60 + mm;
-    if (Math.abs(rMin - nowMin) > 4) return false;
-
-    // 오늘 공휴일 아니면 → 오늘 날짜로 반복 조건 체크
-    if (!isHolidayDate(today)) {
-      if (!matchesRepeat(r, todayDom, dayOfWeek)) return false;
-      return true;
-    }
-
-    // 오늘이 공휴일인데 전날발송 옵션 없으면 → 발송 안 함
-    if (!r.sendBeforeHoliday) return false;
-
-    // 오늘이 공휴일 + 전날발송: 오늘이 공휴일 바로 다음 평일이 있는 연속 공휴일의 마지막 전날인지 확인
-    // 어제가 평일이어야 함 (오늘이 첫 번째 공휴일의 전날 = 어제가 평일)
-    // 사실상 공휴일 당일에는 발송 안 함 - 전날(평일)에 발송하는 구조
-    return false;
-  };
-
   const todayIsHoliday = isHolidayDate(today);
-
-  // ── 출퇴근 알림 (평일+비공휴일만) ────────────────────────────
   const allUsers = await fetchCollection('users');
 
+  // ── 출퇴근 알림 (평일/비공휴일만) ─────────────────────────────
   if (!todayIsHoliday) {
     const [startH, startM] = workStart.split(':').map(Number);
     const [endH, endM] = workEnd.split(':').map(Number);
-    const currentMinutes = hh * 60 + mm;
-    const startMinutes = startH * 60 + startM;
-    const endMinutes = endH * 60 + endM;
-    const isCheckinAlert = currentMinutes >= startMinutes - 7 && currentMinutes <= startMinutes - 3;
-    const isCheckoutAlert = currentMinutes >= endMinutes - 1 && currentMinutes <= endMinutes + 3;
+    const startMin = startH * 60 + startM;
+    const endMin = endH * 60 + endM;
+    const isCheckinAlert  = nowMin >= startMin - 7 && nowMin <= startMin - 3;
+    const isCheckoutAlert = nowMin >= endMin - 1   && nowMin <= endMin + 3;
 
-    console.log(`현재: ${currentMinutes}분, 출근알림: ${isCheckinAlert}, 퇴근알림: ${isCheckoutAlert}`);
+    console.log(`현재: ${nowMin}분, 출근알림: ${isCheckinAlert}, 퇴근알림: ${isCheckoutAlert}`);
 
     const members = allUsers.filter(u => u.role === 'member');
     console.log('팀원:', members.map(u => u.name));
@@ -186,35 +149,32 @@ async function main() {
 
       const leaves = await fetchCollection('leaves');
       const todayLeaves = leaves.filter(l => l.date === today && !l.deleted);
-      const leaveSet = new Set(todayLeaves.map(l => l.userId));
-      const amLeaveSet = new Set(todayLeaves.filter(l => l.type && l.type.includes('오전')).map(l => l.userId));
-      const pmLeaveSet = new Set(todayLeaves.filter(l => l.type && l.type.includes('오후')).map(l => l.userId));
+      const leaveSet   = new Set(todayLeaves.map(l => l.userId));
+      const amLeaveSet = new Set(todayLeaves.filter(l => l.type?.includes('오전')).map(l => l.userId));
+      const pmLeaveSet = new Set(todayLeaves.filter(l => l.type?.includes('오후')).map(l => l.userId));
 
       if (isCheckinAlert) {
-        const absentIds = members.filter(u => {
+        const ids = members.filter(u => {
           const rec = recordMap[`${u.id}_${today}`];
-          if (leaveSet.has(u.id)) return false;
-          if (amLeaveSet.has(u.id)) return false;
+          if (leaveSet.has(u.id) || amLeaveSet.has(u.id)) return false;
           if (rec?.in) return false;
           return true;
         }).map(u => u.id);
-        console.log('출근 알림 대상:', absentIds);
-        if (absentIds.length > 0) await sendPush('⏰ 출근 시간 알림', `출근 시간 ${workStart} 5분 전입니다. 출근 기록을 해주세요!`, absentIds);
+        console.log('출근 알림 대상:', ids);
+        if (ids.length > 0) await sendPush('⏰ 출근 시간 알림', `출근 시간 ${workStart} 5분 전입니다. 출근 기록을 해주세요!`, ids);
       }
 
       if (isCheckoutAlert) {
-        const notOutIds = members.filter(u => {
+        const ids = members.filter(u => {
           const rec = recordMap[`${u.id}_${today}`];
-          if (leaveSet.has(u.id)) return false;
-          if (pmLeaveSet.has(u.id)) return false;
-          if (!rec?.in) return false;
-          if (rec?.out) return false;
+          if (leaveSet.has(u.id) || pmLeaveSet.has(u.id)) return false;
+          if (!rec?.in || rec?.out) return false;
           const outings = rec?.outing || [];
           if (outings.length > 0 && !outings[outings.length - 1].in) return false;
           return true;
         }).map(u => u.id);
-        console.log('퇴근 알림 대상:', notOutIds);
-        if (notOutIds.length > 0) await sendPush('🏠 퇴근 시간 알림', `퇴근 시간 ${workEnd}이 지났습니다. 퇴근 기록을 해주세요!`, notOutIds);
+        console.log('퇴근 알림 대상:', ids);
+        if (ids.length > 0) await sendPush('🏠 퇴근 시간 알림', `퇴근 시간 ${workEnd}이 지났습니다. 퇴근 기록을 해주세요!`, ids);
       }
     }
   } else {
@@ -222,38 +182,60 @@ async function main() {
   }
 
   // ── 리마인더 체크 (공휴일 여부 무관하게 항상 실행) ───────────────
-  console.log('리마인더 체크 시작');
   const reminders = await fetchCollection('reminders');
-  console.log('리마인더 수:', reminders.length);
+  console.log(`리마인더 ${reminders.length}개, 현재 ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`);
+
   const adminIds = allUsers.filter(u => u.role === 'admin').map(u => u.id);
-  const allIds = allUsers.map(u => u.id);
-  console.log('adminIds:', adminIds, 'allIds:', allIds);
-  console.log('현재시간(HHMM):', currentHHMM);
+  const allIds   = allUsers.map(u => u.id);
 
   for (const r of reminders) {
     if (!r.active) continue;
-    const [rh2, rm2] = r.time.split(':').map(Number); const timeMatch = Math.abs((rh2*60+rm2) - (hh*60+mm)) <= 4;
-    const domMatch = r.repeat !== 'monthly' || Number(r.monthDay) === todayDom;
-    const dowMatch = r.repeat !== 'weekly' || Number(r.weekDay) === dayOfWeek;
-    console.log(`리마인더: ${r.title} | 시간:${r.time}==${currentHHMM}(${timeMatch}) | 날짜:${r.monthDay}==${todayDom}(${domMatch}) | 요일:${r.weekDay}==${dayOfWeek}(${dowMatch})`);
-    if (!shouldSendToday(r)) { console.log(`  → 스킵`); continue; }
-    const targetIds = r.target === 'all' ? allIds : adminIds;
-    if (targetIds.length === 0) continue;
-    // 중복 발송 방지 - Firestore에 오늘 발송 기록 저장
+
+    // 시간 체크 (±4분 허용)
+    const [rh, rm] = r.time.split(':').map(Number);
+    const rMin = rh * 60 + rm;
+    if (Math.abs(rMin - nowMin) > 4) continue;
+
+    // 반복 조건 체크
+    if (r.repeat === 'weekly'  && Number(r.weekDay)  !== dayOfWeek) continue;
+    if (r.repeat === 'monthly' && Number(r.monthDay) !== todayDom)  continue;
+
+    // 공휴일 처리
+    if (todayIsHoliday) {
+      if (!r.sendBeforeHoliday) continue;
+      // 전날발송: 오늘이 공휴일이면 어제(평일)에 발송했어야 함 → 오늘은 스킵
+      continue;
+    }
+
+    // 전날발송: 내일이 공휴일이면 오늘 발송
+    if (r.sendBeforeHoliday) {
+      const tomorrow = new Date(kst.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      if (!isHolidayDate(tomorrow)) {
+        // 내일이 평일이면 전날발송 불필요 → 원래 날짜에만 발송
+        if (Number(r.monthDay) !== todayDom && r.repeat === 'monthly') continue;
+        if (Number(r.weekDay)  !== dayOfWeek && r.repeat === 'weekly')  continue;
+      }
+    }
+
+    // 중복 발송 방지
     const firedDocId = `reminder_${r.id}_${today}`;
     const firedUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/reminder_fired/${firedDocId}?key=${FIREBASE_API_KEY}`;
     const firedCheck = await httpsGet(firedUrl);
-    if (firedCheck.fields) { console.log(`  → 오늘 이미 발송됨 스킵`); continue; }
+    if (firedCheck.fields) { console.log(`  이미 발송됨: ${r.title}`); continue; }
+
     // 발송 기록 저장
     await new Promise((resolve, reject) => {
       const body = JSON.stringify({ fields: { firedAt: { stringValue: new Date().toISOString() } } });
       const url = new URL(firedUrl);
-      const req = https.request({ hostname: url.hostname, path: url.pathname + url.search, method: 'PATCH',
+      const req = https.request({
+        hostname: url.hostname, path: url.pathname + url.search, method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
       }, res => { res.on('data', () => {}); res.on('end', resolve); });
       req.on('error', reject); req.write(body); req.end();
     });
-    console.log(`  → 발송! ${r.title}`);
+
+    const targetIds = r.target === 'all' ? allIds : adminIds;
+    console.log(`리마인더 발송: ${r.title} → ${r.target}`);
     await sendPush(`🔔 ${r.title}`, r.title, targetIds);
   }
 }
