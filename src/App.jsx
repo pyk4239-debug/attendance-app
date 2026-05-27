@@ -656,6 +656,8 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
 
   const thisMonth = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(thisMonth);
+  const [calView, setCalView] = useState("list"); // "list" | "calendar"
+  const [scrollToDate, setScrollToDate] = useState(null);
   const isCurrentMonth = selectedMonth === thisMonth;
   const prevMonth = () => {
     const [y, m] = selectedMonth.split("-").map(Number);
@@ -783,8 +785,28 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
         </div>
 
         {/* 이번달 기록 */}
-        <div style={{ fontSize: 13, color: T.muted, marginBottom: 10, fontWeight: 600 }}>{monthLabel(selectedMonth)} 기록</div>
-        {monthDays.length === 0
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ fontSize: 13, color: T.muted, fontWeight: 600 }}>{monthLabel(selectedMonth)} 기록</div>
+          <div style={{ display: "flex", gap: 4 }}>
+            {[["목록", "list"], ["캘린더", "calendar"]].map(([label, key]) => (
+              <button key={key} onClick={() => setCalView(key)}
+                style={{ padding: "4px 12px", borderRadius: 16, border: `1px solid ${calView === key ? T.headerBg : T.border}`, fontSize: 11, fontWeight: 700, cursor: "pointer",
+                  background: calView === key ? T.headerBg : T.card, color: calView === key ? "#fff" : T.muted }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {calView === "calendar" && (
+          <CalendarView
+            monthDays={monthDays}
+            leaves={leaves[user.id] || {}}
+            selectedMonth={selectedMonth}
+            settings={settings}
+            onSelectDate={(date) => { setCalView("list"); setScrollToDate(date); setTimeout(() => setScrollToDate(null), 1000); }}
+          />
+        )}
+        {calView === "list" && (monthDays.length === 0
           ? <div style={{ textAlign: "center", color: T.muted, padding: 30, fontSize: 14, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>기록 없음</div>
           : monthDays.map(([date, rec]) => {
             const leave = leaves[user.id]?.[date];
@@ -795,7 +817,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
             const weekend = isHoliday(date, settings.holidays);
             const isNormal = !late && !early && !ot && !weekend && rec.in && rec.out;
             return (
-              <div key={date} style={{ background: T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${T.border}` }}>
+              <div key={date} id={`rec-${date}`} style={{ background: scrollToDate === date ? "#eff6ff" : T.card, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${scrollToDate === date ? "#2563eb" : T.border}`, transition: "all 0.3s" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: rec.in ? 6 : 0 }}>
                   <div style={{ fontSize: 13, color: weekend ? T.red : T.sub, minWidth: 76, fontWeight: 600 }}>{formatDate(date)}</div>
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -819,7 +841,105 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
               </div>
             );
           })
-        }
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── 캘린더 뷰 컴포넌트 ───────────────────────────────────────────
+function CalendarView({ monthDays, leaves, selectedMonth, settings, onSelectDate }) {
+  const T_local = T;
+  const [y, m] = selectedMonth.split("-").map(Number);
+  const firstDay = new Date(y, m - 1, 1).getDay();
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const recMap = Object.fromEntries(monthDays);
+  const holidayList = settings.holidays || [];
+
+  const statusConfig = {
+    normal:      { color: "#16a34a", label: "출근" },
+    overtime:    { color: "#2563eb", label: "잔업" },
+    annual:      { color: "#7c3aed", label: "연차" },
+    holidayWork: { color: "#ea580c", label: "휴일근무" },
+    holiday:     { color: "#9ca3af", label: "휴일" },
+  };
+
+  const getStatus = (dateStr) => {
+    const rec = recMap[dateStr];
+    const leave = leaves[dateStr];
+    const isHol = isHoliday(dateStr, holidayList);
+    if (leave) return "annual";
+    if (!rec) return isHol ? "holiday" : null;
+    if (isHol && rec.in) return "holidayWork";
+    const om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
+    if (om >= 30) return "overtime";
+    return "normal";
+  };
+
+  const getHolidayMemo = (dateStr) => {
+    const h = holidayList.find(h => (typeof h === "string" ? h : h.date) === dateStr);
+    return h && typeof h === "object" ? h.memo : null;
+  };
+
+  const weeks = [];
+  let days = [];
+  for (let i = 0; i < firstDay; i++) days.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    days.push(d);
+    if (days.length === 7) { weeks.push(days); days = []; }
+  }
+  while (days.length < 7) days.push(null);
+  if (days.some(d => d)) weeks.push(days);
+
+  const pad = (n) => String(n).padStart(2, "0");
+  const getDateStr = (d) => `${y}-${pad(m)}-${pad(d)}`;
+
+  return (
+    <div>
+      {/* 범례 - 대각선 배치 */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 10px", marginBottom: 10 }}>
+        {Object.entries(statusConfig).map(([k, v]) => (
+          <div key={k} style={{ fontSize: 10, fontWeight: 700, color: v.color }}>{v.label}</div>
+        ))}
+      </div>
+      {/* 캘린더 */}
+      <div style={{ background: T_local.card, borderRadius: 14, border: `1px solid ${T_local.border}`, overflow: "hidden", marginBottom: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
+          {["일","월","화","수","목","금","토"].map((d, i) => (
+            <div key={d} style={{ textAlign: "center", padding: "7px 0", fontSize: 10, fontWeight: 700,
+              color: i === 0 ? "#dc2626" : i === 6 ? "#2563eb" : T_local.muted,
+              borderBottom: `1px solid ${T_local.border}` }}>{d}</div>
+          ))}
+        </div>
+        {weeks.map((week, wi) => (
+          <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
+            {week.map((d, di) => {
+              const dateStr = d ? getDateStr(d) : null;
+              const status = d ? getStatus(dateStr) : null;
+              const cfg = status ? statusConfig[status] : null;
+              const memo = d ? getHolidayMemo(dateStr) : null;
+              const isWeekend = di === 0 || di === 6;
+              let dateColor = T_local.text;
+              if (cfg) dateColor = cfg.color;
+              else if (isWeekend) dateColor = di === 0 ? "#dc2626" : "#2563eb";
+              else dateColor = T_local.muted;
+              return (
+                <div key={di} onClick={() => d && recMap[dateStr] && onSelectDate(dateStr)}
+                  style={{ padding: "5px 3px", borderBottom: `1px solid ${T_local.border}`,
+                    borderRight: di < 6 ? `1px solid ${T_local.border}` : "none",
+                    minHeight: 48, display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
+                    cursor: d && recMap[dateStr] ? "pointer" : "default",
+                    background: d && recMap[dateStr] ? "transparent" : "transparent" }}>
+                  {d && <>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: dateColor }}>{d}</div>
+                    {cfg && <div style={{ fontSize: 9, fontWeight: 700, color: cfg.color }}>{cfg.label}</div>}
+                    {memo && <div style={{ fontSize: 8, color: T_local.muted, textAlign: "center", lineHeight: 1.2 }}>{memo}</div>}
+                  </>}
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </div>
     </div>
   );
