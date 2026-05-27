@@ -861,7 +861,6 @@ function CalendarView({ monthDays, leaves, selectedMonth, settings, onSelectDate
     overtime:    { color: "#2563eb", label: "잔업" },
     annual:      { color: "#7c3aed", label: "연차" },
     holidayWork: { color: "#ea580c", label: "휴일근무" },
-    holiday:     { color: "#9ca3af", label: "휴일" },
   };
 
   const getStatus = (dateStr) => {
@@ -869,7 +868,7 @@ function CalendarView({ monthDays, leaves, selectedMonth, settings, onSelectDate
     const leave = leaves[dateStr];
     const isHol = isHoliday(dateStr, holidayList);
     if (leave) return "annual";
-    if (!rec) return isHol ? "holiday" : null;
+    if (!rec) return null;
     if (isHol && rec.in) return "holidayWork";
     const om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
     if (om >= 30) return "overtime";
@@ -896,12 +895,6 @@ function CalendarView({ monthDays, leaves, selectedMonth, settings, onSelectDate
 
   return (
     <div>
-      {/* 범례 - 대각선 배치 */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 10px", marginBottom: 10 }}>
-        {Object.entries(statusConfig).map(([k, v]) => (
-          <div key={k} style={{ fontSize: 10, fontWeight: 700, color: v.color }}>{v.label}</div>
-        ))}
-      </div>
       {/* 캘린더 */}
       <div style={{ background: T_local.card, borderRadius: 14, border: `1px solid ${T_local.border}`, overflow: "hidden", marginBottom: 12 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
@@ -919,9 +912,12 @@ function CalendarView({ monthDays, leaves, selectedMonth, settings, onSelectDate
               const cfg = status ? statusConfig[status] : null;
               const memo = d ? getHolidayMemo(dateStr) : null;
               const isWeekend = di === 0 || di === 6;
+              const isHolDay = d ? isHoliday(dateStr, holidayList) : false;
               let dateColor = T_local.text;
               if (cfg) dateColor = cfg.color;
-              else if (isWeekend) dateColor = di === 0 ? "#dc2626" : "#2563eb";
+              else if (di === 0) dateColor = "#dc2626";
+              else if (di === 6) dateColor = "#2563eb";
+              else if (isHolDay) dateColor = "#dc2626";
               else dateColor = T_local.muted;
               return (
                 <div key={di} onClick={() => d && recMap[dateStr] && onSelectDate(dateStr)}
@@ -939,6 +935,12 @@ function CalendarView({ monthDays, leaves, selectedMonth, settings, onSelectDate
               );
             })}
           </div>
+        ))}
+      </div>
+      {/* 범례 - 오른쪽 아래 */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 10px", marginBottom: 10, justifyContent: "flex-end" }}>
+        {Object.entries(statusConfig).map(([k, v]) => (
+          <div key={k} style={{ fontSize: 10, fontWeight: 700, color: v.color }}>{v.label}</div>
         ))}
       </div>
     </div>
