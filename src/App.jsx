@@ -1001,12 +1001,12 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
     const ms = calcMonthStats(days, settings, mLeavesObj, leaveRequests, drillUser.id, selectedMonth);
 
     const handleDownload = () => {
-      const header = ["날짜", "요일", "출근", "퇴근", "지각", "지각시간", "조퇴", "조퇴시간", "잔업", "잔업시간", "외출", "연차/반차", "메모"];
+      const header = ["날짜", "요일", "출근", "퇴근", "지각", "지각시간", "조퇴", "조퇴시간", "잔업", "잔업시간", "외출횟수", "외출시간", "연차/반차", "메모"];
       const rows = days.map(([date, rec]) => {
         const dow = new Date(date).toLocaleDateString("ko-KR", { weekday: "short" });
         const lm = calcLateMin(rec.in, settings.workStart), em = calcEarlyOutMin(rec.out, settings.workEnd), om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
         const leave = userLeaves[date];
-        return [date, dow, formatTime(rec.in), formatTime(rec.out), lm > 0 ? "O" : "", lm > 0 ? fmtMinutes(lm) : "", em > 0 ? "O" : "", em > 0 ? fmtMinutes(em) : "", om >= 30 ? "O" : "", om >= 30 ? fmtMinutes(roundTo30(om)) : "", (rec.outing || []).length > 0 ? `${(rec.outing || []).length}회` : "", leave ? leave.type : "", rec.note || ""];
+        const outings = rec.outing || []; const outingStr = outings.map(o => `${formatTime(o.out)}~${formatTime(o.in)}`).join(" / "); return [date, dow, formatTime(rec.in), formatTime(rec.out), lm > 0 ? "O" : "", lm > 0 ? fmtMinutes(lm) : "", em > 0 ? "O" : "", em > 0 ? fmtMinutes(em) : "", om >= 30 ? "O" : "", om >= 30 ? fmtMinutes(roundTo30(om)) : "", outings.length > 0 ? outings.length + "회" : "", outingStr, leave ? leave.type : "", rec.note || ""];
       });
       downloadCSV(`${drillUser.name}_${monthLabel(selectedMonth)}_근태.csv`, [header, ...rows]);
     };
@@ -1122,7 +1122,7 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
       </div>
       {/* 전체 직원 CSV 다운로드 */}
       <button onClick={() => {
-        const header = ["이름", "날짜", "요일", "출근", "퇴근", "지각", "지각시간", "조퇴", "조퇴시간", "잔업", "잔업시간", "외출", "연차/반차", "메모"];
+        const header = ["이름", "날짜", "요일", "출근", "퇴근", "지각", "지각시간", "조퇴", "조퇴시간", "잔업", "잔업시간", "외출횟수", "외출시간", "연차/반차", "메모"];
         const rows = [];
         members.forEach(u => {
           const days = Object.entries(records[u.id] || {}).filter(([d]) => d.startsWith(selectedMonth)).sort(([a],[b])=>a.localeCompare(b));
@@ -1140,8 +1140,8 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
               finalLate?"O":"", finalLate?fmtMinutes(lm):"",
               finalEarly?"O":"", finalEarly?fmtMinutes(em):"",
               finalOt?"O":"", finalOt?fmtMinutes(roundTo30(om)):"",
-              (rec.outing||[]).length>0?`${(rec.outing||[]).length}회`:"",
-              leave?leave.type:"", rec.note||""]);
+              (rec.outing||[]).length>0?(rec.outing||[]).length+"회":"",
+              (rec.outing||[]).map(o=>`${formatTime(o.out)}~${formatTime(o.in)}`).join(" / "),
           });
         });
         downloadCSV(`전체직원_${monthLabel(selectedMonth)}_근태.csv`, [header, ...rows]);
@@ -1160,7 +1160,7 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
               <button onClick={() => setDrillUser(u)} style={{ background: T.headerBg, border: "none", color: "#fff", borderRadius: 10, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}>상세 →</button>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6 }}>
-              {[["출근", ms.days + "일", T.green], ["지각", ms.late + "회", T.yellow], ["조퇴", ms.early + "회", T.orange], ["잔업", ms.ot + "일", T.purple], ["휴일", ms.holiday + "일", T.red]].map(([l, v, c]) => (
+              {[["전체", (ms.totalDays||0) + "일", T.text], ["근무", ((ms.totalDays||0)-(ms.offDays||0)) + "일", T.green], ["출근", ms.days + "일", "#2563eb"], ["휴일", ms.holiday + "일", T.red], ["연차", ms.annualDays > 0 ? ms.annualDays + "일" : "0일", "#7c3aed"]].map(([l, v, c]) => (
                 <StatBox key={l} label={l} value={v} color={c} />
               ))}
             </div>
