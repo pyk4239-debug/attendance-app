@@ -1006,7 +1006,7 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
         const dow = new Date(date).toLocaleDateString("ko-KR", { weekday: "short" });
         const lm = calcLateMin(rec.in, settings.workStart), em = calcEarlyOutMin(rec.out, settings.workEnd), om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
         const leave = userLeaves[date];
-        const outings = rec.outing || []; const outingStr = outings.map(o => `${formatTime(o.out)}~${formatTime(o.in)}`).join(" / "); return [date, dow, formatTime(rec.in), formatTime(rec.out), lm > 0 ? "O" : "", lm > 0 ? fmtMinutes(lm) : "", em > 0 ? "O" : "", em > 0 ? fmtMinutes(em) : "", om >= 30 ? "O" : "", om >= 30 ? fmtMinutes(roundTo30(om)) : "", outings.length > 0 ? outings.length + "회" : "", outingStr, leave ? leave.type : "", rec.note || ""];
+        const outings = rec.outing || []; const outingStr = outings.map(o => formatTime(o.out) + "~" + formatTime(o.in)).join(" | "); return [date, dow, formatTime(rec.in), formatTime(rec.out), lm > 0 ? "O" : "", lm > 0 ? fmtMinutes(lm) : "", em > 0 ? "O" : "", em > 0 ? fmtMinutes(em) : "", om >= 30 ? "O" : "", om >= 30 ? fmtMinutes(roundTo30(om)) : "", outings.length > 0 ? outings.length + "회" : "", outingStr, leave ? leave.type : "", rec.note || ""];
       });
       downloadCSV(`${drillUser.name}_${monthLabel(selectedMonth)}_근태.csv`, [header, ...rows]);
     };
@@ -1141,8 +1141,9 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
               finalEarly?"O":"", finalEarly?fmtMinutes(em):"",
               finalOt?"O":"", finalOt?fmtMinutes(roundTo30(om)):"",
               (rec.outing||[]).length>0?(rec.outing||[]).length+"회":"",
-              (rec.outing||[]).map(o=>`${formatTime(o.out)}~${formatTime(o.in)}`).join(" / "),
+              (rec.outing||[]).map(o=>formatTime(o.out)+"~"+formatTime(o.in)).join(" | "),
               leave?leave.type:"", rec.note||""]);
+          });
         });
         downloadCSV(`전체직원_${monthLabel(selectedMonth)}_근태.csv`, [header, ...rows]);
       }} style={{ width: "100%", padding: "11px 0", borderRadius: 12, border: "none", background: T.green, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 14 }}>
