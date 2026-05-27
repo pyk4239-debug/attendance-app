@@ -1142,7 +1142,7 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
               finalOt?"O":"", finalOt?fmtMinutes(roundTo30(om)):"",
               (rec.outing||[]).length>0?(rec.outing||[]).length+"회":"",
               (rec.outing||[]).map(o=>`${formatTime(o.out)}~${formatTime(o.in)}`).join(" / "),
-          });
+              leave?leave.type:"", rec.note||""]);
         });
         downloadCSV(`전체직원_${monthLabel(selectedMonth)}_근태.csv`, [header, ...rows]);
       }} style={{ width: "100%", padding: "11px 0", borderRadius: 12, border: "none", background: T.green, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 14 }}>
