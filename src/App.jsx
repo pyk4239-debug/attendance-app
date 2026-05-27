@@ -2349,7 +2349,7 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 800, fontSize: 16, color: T.text }}>{u.name}</div>
                 </div>
-                <span style={{ fontSize: 14, fontWeight: 800, padding: "5px 14px", borderRadius: 10, background: saved ? "#dcfce7" : "#f3f4f6", color: saved ? "#16a34a" : "#6b7280", whiteSpace: "nowrap" }}>{saved ? "✅ 확정" : "⏳ 미확정"}</span>
+                <span style={{ fontSize: 14, fontWeight: 800, padding: "5px 14px", borderRadius: 10, background: saved ? "#dcfce7" : "#f3f4f6", color: saved ? "#16a34a" : "#6b7280", whiteSpace: "nowrap" }}>{saved ? "확정" : "미확정"}</span>
               </div>
               {saved && (
                 <div style={{ background: T.bg, borderRadius: 10, padding: "10px 14px", marginBottom: 10 }}>
@@ -2402,7 +2402,7 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: s ? 10 : 0 }}>
                     <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff" }}>{u.name[0]}</div>
                     <div style={{ flex: 1, fontWeight: 800, fontSize: 15, color: T.text }}>{u.name}</div>
-                    <Badge label={s ? "확정" : "미확정"} color={s ? "green" : "gray"} />
+                    <span style={{ fontSize: 14, fontWeight: 800, padding: "5px 14px", borderRadius: 10, background: s ? "#dcfce7" : "#f3f4f6", color: s ? "#16a34a" : "#6b7280", whiteSpace: "nowrap" }}>{s ? "확정" : "미확정"}</span>
                   </div>
                   {s ? (
                     <div>
