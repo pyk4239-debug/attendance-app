@@ -650,7 +650,6 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
     else if (type === "outing_in") newRec = { ...newRec, outing: outings.map((o, i) => i === outings.length - 1 ? { ...o, in: iso, inGps: gps } : o) };
     await onSaveRecord(user.id, today, newRec);
     const msgs = { in: "출근 완료! 👍", out: "퇴근 완료! 수고하셨어요 🙌", outing_out: "외출 처리됐어요 🚶", outing_in: "복귀 완료! 💪" };
-    if (type === "in") await sendPush({ title: "🏢 출근", message: `${user.name}님이 출근했습니다.`, targetUserId: "admin" });
     if (type === "out") await sendPush({ title: "🏠 퇴근", message: `${user.name}님이 퇴근했습니다.`, targetUserId: "admin" });
     setFlash(msgs[type]); setTimeout(() => setFlash(null), 2500);
   };
