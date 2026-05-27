@@ -1140,8 +1140,7 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
               finalLate?"O":"", finalLate?fmtMinutes(lm):"",
               finalEarly?"O":"", finalEarly?fmtMinutes(em):"",
               finalOt?"O":"", finalOt?fmtMinutes(roundTo30(om)):"",
-              (rec.outing||[]).length>0?(rec.outing||[]).length+"회":"",
-              (rec.outing||[]).map(o=>formatTime(o.out)+"~"+formatTime(o.in)).join(" | "),
+              (rec.outing||[]).length>0?(rec.outing||[]).length+"회":"", (rec.outing||[]).map(o=>formatTime(o.out)+"~"+formatTime(o.in)).join(" | "),
               leave?leave.type:"", rec.note||""]);
           });
         });
@@ -2335,9 +2334,6 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
           <div style={{ flex: 1, textAlign: "center", fontSize: 16, fontWeight: 800, color: T.text }}>{monthLabel(selectedMonth)}</div>
           <button onClick={nextMonth} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 16px", fontSize: 16, cursor: "pointer", fontWeight: 700, color: isCurrentMonth ? T.muted : T.text, opacity: isCurrentMonth ? 0.3 : 1 }}>›</button>
         </div>
-        <div style={{ fontSize: 12, color: T.muted, marginBottom: 14, textAlign: "center" }}>
-          지급일 <strong style={{ color: T.text }}>{getPayDate(selectedMonth)}</strong>
-        </div>
 
         {/* 급여 계산 탭 */}
         {tab === "calc" && members.map(u => {
@@ -2352,14 +2348,8 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
                 <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: "#fff" }}>{u.name[0]}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 800, fontSize: 16, color: T.text }}>{u.name}</div>
-                  <div style={{ fontSize: 12, color: T.muted }}>{hourlyWage ? `시급 ${hourlyWage.toLocaleString()}원` : "⚠ 시급 미입력"}</div>
                 </div>
-                <Badge label={saved ? "확정" : "미확정"} color={saved ? "green" : "gray"} />
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: 12 }}>
-                {[["출근", ms.days+"일", T.green], ["연장", fmtMinutes(ms.otMin), T.purple], ["휴일", ms.holiday+"일", T.red]].map(([l,v,c]) => (
-                  <StatBox key={l} label={l} value={v} color={c} />
-                ))}
+                <span style={{ fontSize: 14, fontWeight: 800, padding: "5px 14px", borderRadius: 10, background: saved ? "#dcfce7" : "#f3f4f6", color: saved ? "#16a34a" : "#6b7280", whiteSpace: "nowrap" }}>{saved ? "✅ 확정" : "⏳ 미확정"}</span>
               </div>
               {saved && (
                 <div style={{ background: T.bg, borderRadius: 10, padding: "10px 14px", marginBottom: 10 }}>
@@ -2384,7 +2374,7 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
               )}
               <div style={{ display: "grid", gridTemplateColumns: saved ? "1fr 1fr" : "1fr", gap: 8 }}>
                 <button onClick={() => setWageModal({ user: u })}
-                  style={{ padding: "10px 0", borderRadius: 10, border: "none", background: saved ? "#16a34a22" : "#16a34a", color: saved ? "#16a34a" : "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  style={{ padding: "10px 0", borderRadius: 10, border: "none", background: saved ? "#e5e7eb" : "#16a34a", color: saved ? "#6b7280" : "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                   {saved ? "✏ 수정" : "급여 계산"}
                 </button>
                 {saved && (
