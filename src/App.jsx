@@ -3094,19 +3094,20 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
                     {/* 날짜 숫자 */}
                     <div style={{
                       fontSize: 12, fontWeight: isToday ? 900 : 600,
-                      color: isToday ? "#7c3aed" : dateColor,
+                      color: (di === 0 || isHol || hasHol) ? "#dc2626" : di === 6 ? "#2563eb" : isToday ? "#7c3aed" : dateColor,
                       width: 20, height: 20, borderRadius: "50%",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      background: isToday ? "#ede9fe" : "transparent",
+                      background: isToday ? (di === 6 ? "#dbeafe" : di === 0 || isHol || hasHol ? "#fee2e2" : "#ede9fe") : "transparent",
                       flexShrink: 0, alignSelf: "center"
                     }}>{d}</div>
-                    {/* 이벤트 레이블 — 텍스트 표시, 칸 넘치면 숨김 */}
+                    {/* 이벤트 레이블 — 왼쪽 컬러 선 + 투명 배경 + 검정 텍스트 */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 1, overflow: "hidden", flex: 1 }}>
                       {events.slice(0, 3).map((ev, ei) => (
                         <div key={ei} style={{
-                          fontSize: 9, fontWeight: 700, color: "#fff",
-                          background: ev.color,
-                          borderRadius: 3, padding: "1px 3px",
+                          fontSize: 9, fontWeight: 700, color: T.text,
+                          background: "transparent",
+                          borderLeft: `2px solid ${ev.color}`,
+                          paddingLeft: 3,
                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                           lineHeight: 1.5, flexShrink: 0
                         }}>
