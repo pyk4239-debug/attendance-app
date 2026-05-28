@@ -807,7 +807,15 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
             leaves={leaves[user.id] || {}}
             selectedMonth={selectedMonth}
             settings={settings}
-            onSelectDate={(date) => { setCalView("list"); setScrollToDate(date); setTimeout(() => setScrollToDate(null), 1000); }}
+            onSelectDate={(date) => {
+              setCalView("list");
+              setScrollToDate(date);
+              setTimeout(() => {
+                const el = document.getElementById(`rec-${date}`);
+                if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+              }, 100);
+              setTimeout(() => setScrollToDate(null), 1500);
+            }}
           />
         )}
         {calView === "list" && (monthDays.length === 0
