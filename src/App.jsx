@@ -38,6 +38,7 @@ const COL_LEAVE_REQ = "leave_requests";
 const COL_MEMBER_INFO = "member_info";
 const COL_READS = "reads"; // 읽음 기록
 const COL_REMINDERS = "reminders";
+const COL_EVENTS   = "schedule_events";
 const DOC_SETTINGS = "app/settings";
 
 // ── 초기 데이터 ────────────────────────────────────────────────
@@ -407,6 +408,7 @@ function AppLoader() {
   const [memberInfo, setMemberInfo] = useState({});
   const [reads, setReads] = useState({});
   const [reminders, setReminders] = useState([]);
+  const [scheduleEvents, setScheduleEvents] = useState([]);
 
   useEffect(() => {
     let unsubs = [];
@@ -505,6 +507,11 @@ function AppLoader() {
       setReminders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }));
 
+    // 일정 이벤트 구독
+    unsubs.push(onSnapshot(query(collection(db, COL_EVENTS), orderBy("date", "asc")), snap => {
+      setScheduleEvents(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }));
+
     return () => unsubs.forEach(u => u());
   }, []);
 
@@ -522,7 +529,7 @@ function AppLoader() {
 
   return <App users={users} settings={settings} records={records} leaves={leaves}
     notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} reads={reads}
-    reminders={reminders}
+    reminders={reminders} scheduleEvents={scheduleEvents}
     onSaveUsers={fbSaveUsers} onSaveSettings={fbSaveSettings}
     onSaveRecord={fbSaveRecord} onSaveLeave={fbSaveLeave} />;
 }
@@ -2007,7 +2014,7 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
     { key: "board",      icon: "💬", label: "게시판", desc: "자유게시판",              color: "#0891b2",
       badge: board.filter(b => !reads[`${user.id}_board_${b.id}`]).length },
     { key: "settings",   icon: "⚙",  label: "설정",   desc: "근무시간 · GPS · 공휴일", color: "#6b7280" },
-    { key: "schedule",   icon: "📆", label: "일정",    desc: "캘린더 · 리마인더",     color: "#7c3aed" },
+    { key: "schedule",   icon: "🗓", label: "일정",    desc: "캘린더 · 리마인더",     color: "#7c3aed" },
     { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#b45309" },
   ];
 
@@ -2883,15 +2890,15 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
 // ── 관리자 일반 섹션 ───────────────────────────────────────────
 
 // ── 일정 (캘린더 + 리마인더) ─────────────────────────────────────
-function AdminSchedule({ reminders = [], users = [], settings = {} }) {
-  const [subTab, setSubTab] = useState("calendar"); // "calendar" | "reminder"
-  const [calClickDate, setCalClickDate] = useState(null); // 날짜 클릭으로 빠른 추가
+function AdminSchedule({ reminders = [], users = [], settings = {}, scheduleEvents = [] }) {
+  const [subTab, setSubTab] = useState("calendar");
+  const [calClickDate, setCalClickDate] = useState(null);
 
   return (
     <div>
       {/* 서브탭 */}
       <div style={{ display: "flex", background: T.card, borderBottom: `1px solid ${T.border}` }}>
-        {[["calendar","📅 캘린더"],["reminder","🔔 리마인더"]].map(([key,label]) => (
+        {[["calendar","🗓 캘린더"],["reminder","🔔 리마인더"]].map(([key,label]) => (
           <button key={key} onClick={() => setSubTab(key)}
             style={{ flex: 1, padding: "12px 0", border: "none", background: "none", cursor: "pointer",
               fontWeight: subTab === key ? 800 : 500, fontSize: 13,
@@ -2906,7 +2913,8 @@ function AdminSchedule({ reminders = [], users = [], settings = {} }) {
         <ScheduleCalendar
           reminders={reminders}
           settings={settings}
-          onRequestAdd={(date) => { setCalClickDate(date); setSubTab("reminder"); }}
+          scheduleEvents={scheduleEvents}
+          onSwitchToReminder={(date) => { setCalClickDate(date); setSubTab("reminder"); }}
         />
       )}
       {subTab === "reminder" && (
@@ -2922,48 +2930,67 @@ function AdminSchedule({ reminders = [], users = [], settings = {} }) {
 }
 
 // ── 일정 캘린더 뷰 ───────────────────────────────────────────────
-function ScheduleCalendar({ reminders = [], settings = {}, onRequestAdd }) {
+function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], onSwitchToReminder }) {
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const currentMonth = kstNow.toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [selDate, setSelDate] = useState(null);
+
+  // 이벤트 편집 상태
+  const [editMode, setEditMode] = useState(null); // null | "add" | "edit"
+  const [editTarget, setEditTarget] = useState(null); // 수정 대상 event
+  const [evTitle, setEvTitle] = useState("");
+  const [evColor, setEvColor] = useState("#7c3aed");
+  const [evNote, setEvNote]   = useState("");
+  const [saving, setSaving]   = useState(false);
+
   const [y, m] = selectedMonth.split("-").map(Number);
   const holidays = settings.holidays || [];
+  const pad = (n) => String(n).padStart(2, "0");
+  const getDateStr = (d) => `${y}-${pad(m)}-${pad(d)}`;
+  const firstDay   = new Date(y, m - 1, 1).getDay();
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const today = kstNow.toISOString().slice(0, 10);
 
   const prevMonth = () => {
     const d = new Date(y, m - 2, 1);
     setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    setSelDate(null); setEditMode(null);
   };
   const nextMonth = () => {
     const d = new Date(y, m, 1);
     setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    setSelDate(null); setEditMode(null);
   };
 
-  const pad = (n) => String(n).padStart(2, "0");
-  const getDateStr = (d) => `${y}-${pad(m)}-${pad(d)}`;
-  const firstDay = new Date(y, m - 1, 1).getDay();
-  const daysInMonth = new Date(y, m, 0).getDate();
-  const today = kstNow.toISOString().slice(0, 10);
-
-  // 날짜별 이벤트 맵 빌드
+  // 날짜별 이벤트 맵
   const eventMap = {};
-  reminders.forEach(r => {
-    if (!r.active) return;
-    const dates = getOccurrencesInMonth(r, y, m, daysInMonth, holidays);
-    dates.forEach(d => {
-      if (!eventMap[d]) eventMap[d] = [];
-      eventMap[d].push({ type: "reminder", label: r.title, color: "#7c3aed" });
-    });
-  });
+  // 1) 공휴일
   holidays.forEach(h => {
     const date = typeof h === "string" ? h : h.date;
     const memo = typeof h === "object" ? h.memo : null;
     if (date?.startsWith(selectedMonth)) {
       if (!eventMap[date]) eventMap[date] = [];
-      eventMap[date].unshift({ type: "holiday", label: memo || "공휴일", color: "#dc2626" });
+      eventMap[date].push({ type: "holiday", label: memo || "공휴일", color: "#dc2626", id: null });
+    }
+  });
+  // 2) 리마인더 (반복 규칙)
+  reminders.forEach(r => {
+    if (!r.active) return;
+    getOccurrencesInMonth(r, y, m, daysInMonth, holidays).forEach(d => {
+      if (!eventMap[d]) eventMap[d] = [];
+      eventMap[d].push({ type: "reminder", label: r.title, color: "#7c3aed", id: r.id });
+    });
+  });
+  // 3) 단건 일정 이벤트
+  scheduleEvents.forEach(ev => {
+    if (ev.date?.startsWith(selectedMonth)) {
+      if (!eventMap[ev.date]) eventMap[ev.date] = [];
+      eventMap[ev.date].push({ type: "event", label: ev.title, color: ev.color || "#0891b2", id: ev.id, note: ev.note });
     }
   });
 
-  // 주간 그리드 빌드
+  // 주간 그리드
   const weeks = [];
   let days = [];
   for (let i = 0; i < firstDay; i++) days.push(null);
@@ -2974,9 +3001,48 @@ function ScheduleCalendar({ reminders = [], settings = {}, onRequestAdd }) {
   while (days.length < 7) days.push(null);
   if (days.some(d => d)) weeks.push(days);
 
-  // 선택 날짜 상세
-  const [selDate, setSelDate] = useState(null);
   const selEvents = selDate ? (eventMap[selDate] || []) : [];
+
+  const openAdd = () => {
+    setEvTitle(""); setEvColor("#0891b2"); setEvNote("");
+    setEditTarget(null); setEditMode("add");
+  };
+  const openEdit = (ev) => {
+    if (ev.type !== "event") return; // 공휴일·리마인더는 인라인 수정 불가
+    setEvTitle(ev.label); setEvColor(ev.color || "#0891b2"); setEvNote(ev.note || "");
+    setEditTarget(ev); setEditMode("edit");
+  };
+  const cancelEdit = () => { setEditMode(null); setEditTarget(null); };
+
+  const saveEvent = async () => {
+    if (!evTitle.trim() || !selDate) return;
+    setSaving(true);
+    try {
+      if (editMode === "add") {
+        await addDoc(collection(db, COL_EVENTS), {
+          date: selDate, title: evTitle.trim(), color: evColor, note: evNote.trim(),
+          createdAt: new Date().toISOString()
+        });
+      } else if (editMode === "edit" && editTarget?.id) {
+        await setDoc(doc(db, COL_EVENTS, editTarget.id), {
+          date: selDate, title: evTitle.trim(), color: evColor, note: evNote.trim(),
+          createdAt: editTarget.createdAt || new Date().toISOString()
+        });
+      }
+      cancelEdit();
+    } catch(e) { console.error(e); }
+    setSaving(false);
+  };
+
+  const deleteEvent = async (id) => {
+    if (!id) return;
+    await deleteDoc(doc(db, COL_EVENTS, id));
+  };
+
+  const EVENT_COLORS = [
+    ["#0891b2","청록"],["#7c3aed","보라"],["#16a34a","초록"],
+    ["#d97706","주황"],["#dc2626","빨강"],["#1d4ed8","파랑"],
+  ];
 
   return (
     <div style={{ padding: 16 }}>
@@ -2989,7 +3055,7 @@ function ScheduleCalendar({ reminders = [], settings = {}, onRequestAdd }) {
           style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "9px 14px", fontSize: 16, cursor: "pointer", fontWeight: 700, color: T.text }}>›</button>
       </div>
 
-      {/* 캘린더 그리드 */}
+      {/* 캘린더 그리드 — 날짜칸 고정 크기, 내용은 도트로만 */}
       <div style={{ background: T.card, borderRadius: 14, border: `1px solid ${T.border}`, overflow: "hidden", marginBottom: 12 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
           {["일","월","화","수","목","금","토"].map((d, i) => (
@@ -3002,39 +3068,46 @@ function ScheduleCalendar({ reminders = [], settings = {}, onRequestAdd }) {
           <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
             {week.map((d, di) => {
               const dateStr = d ? getDateStr(d) : null;
-              const events = d ? (eventMap[dateStr] || []) : [];
-              const hasHoliday = events.some(e => e.type === "holiday");
-              const hasReminder = events.some(e => e.type === "reminder");
-              const isToday = dateStr === today;
+              const events  = d ? (eventMap[dateStr] || []) : [];
+              const isToday    = dateStr === today;
               const isSelected = dateStr === selDate;
               const isHol = d ? isHoliday(dateStr, holidays) : false;
+              const hasHol = events.some(e => e.type === "holiday");
               let dateColor = T.muted;
-              if (di === 0 || isHol || hasHoliday) dateColor = "#dc2626";
+              if (di === 0 || isHol || hasHol) dateColor = "#dc2626";
               else if (di === 6) dateColor = "#2563eb";
+              // 도트: 이벤트 종류별 색상 최대 3개
+              const dotColors = [...new Map(events.map(e => [e.color, e.color])).values()].slice(0, 3);
               return (
                 <div key={di}
-                  onClick={() => { if (d) setSelDate(selDate === dateStr ? null : dateStr); }}
-                  style={{ padding: "5px 3px", borderBottom: wi < weeks.length - 1 ? `1px solid ${T.border}` : "none",
+                  onClick={() => { if (!d) return; setSelDate(selDate === dateStr ? null : dateStr); setEditMode(null); setEditTarget(null); }}
+                  style={{
+                    /* ▼ 고정 크기 — 내용 많아도 칸 유지 */
+                    height: 52, boxSizing: "border-box",
+                    padding: "4px 2px 4px",
+                    borderBottom: wi < weeks.length - 1 ? `1px solid ${T.border}` : "none",
                     borderRight: di < 6 ? `1px solid ${T.border}` : "none",
-                    minHeight: 54, display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
                     cursor: d ? "pointer" : "default",
                     background: isSelected ? "#ede9fe" : isToday ? "#f0f9ff" : "transparent",
-                    transition: "background 0.15s" }}>
+                    overflow: "hidden", transition: "background 0.15s"
+                  }}>
                   {d && <>
-                    <div style={{ fontSize: 12, fontWeight: isToday ? 900 : 600, color: isToday ? "#7c3aed" : dateColor,
-                      width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                      background: isToday ? "#ede9fe" : "transparent" }}>{d}</div>
-                    {/* 이벤트 도트 */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 1, width: "100%", alignItems: "center" }}>
-                      {events.slice(0, 2).map((ev, ei) => (
-                        <div key={ei} style={{ fontSize: 8, fontWeight: 700, color: ev.color,
-                          background: ev.color + "18", borderRadius: 3, padding: "1px 3px",
-                          maxWidth: "90%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>
-                          {ev.label}
-                        </div>
+                    <div style={{
+                      fontSize: 12, fontWeight: isToday ? 900 : 600,
+                      color: isToday ? "#7c3aed" : dateColor,
+                      width: 22, height: 22, borderRadius: "50%",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      background: isToday ? "#ede9fe" : "transparent",
+                      flexShrink: 0
+                    }}>{d}</div>
+                    {/* 도트 행 — 공간 고정 */}
+                    <div style={{ display: "flex", gap: 2, height: 6, alignItems: "center", justifyContent: "center" }}>
+                      {dotColors.map((c, ci) => (
+                        <div key={ci} style={{ width: 5, height: 5, borderRadius: "50%", background: c, flexShrink: 0 }} />
                       ))}
-                      {events.length > 2 && (
-                        <div style={{ fontSize: 8, color: T.muted, fontWeight: 700 }}>+{events.length - 2}</div>
+                      {events.length > 3 && (
+                        <div style={{ fontSize: 7, color: T.muted, fontWeight: 800, lineHeight: 1 }}>+</div>
                       )}
                     </div>
                   </>}
@@ -3046,38 +3119,123 @@ function ScheduleCalendar({ reminders = [], settings = {}, onRequestAdd }) {
       </div>
 
       {/* 범례 */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 14, justifyContent: "flex-end" }}>
-        {[["#dc2626","공휴일"],["#7c3aed","리마인더"]].map(([color,label]) => (
+      <div style={{ display: "flex", gap: 10, marginBottom: 14, justifyContent: "flex-end", flexWrap: "wrap" }}>
+        {[["#dc2626","공휴일"],["#7c3aed","리마인더"],["#0891b2","일정"]].map(([color,label]) => (
           <div key={label} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700 }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: color }} />
             <span style={{ color: T.muted }}>{label}</span>
           </div>
         ))}
       </div>
 
-      {/* 선택 날짜 상세 */}
+      {/* 선택 날짜 패널 */}
       {selDate && (
-        <div style={{ background: T.card, borderRadius: 14, border: `1px solid ${T.border}`, padding: 14, marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div style={{ background: T.card, borderRadius: 14, border: `1px solid ${T.border}`, overflow: "hidden", marginBottom: 12 }}>
+          {/* 패널 헤더 */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "12px 14px", borderBottom: `1px solid ${T.border}`, background: "#faf5ff" }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>{formatDate(selDate)}</div>
-            <button onClick={() => onRequestAdd(selDate)}
-              style={{ background: "#7c3aed", border: "none", color: "#fff", borderRadius: 10, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-              + 리마인더 추가
+            <button onClick={openAdd}
+              style={{ background: "#7c3aed", border: "none", color: "#fff", borderRadius: 10,
+                padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              + 일정 추가
             </button>
           </div>
-          {selEvents.length === 0 ? (
-            <div style={{ fontSize: 13, color: T.muted, textAlign: "center", padding: "12px 0" }}>등록된 일정 없음</div>
-          ) : selEvents.map((ev, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0",
-              borderTop: i > 0 ? `1px solid ${T.border}` : "none" }}>
-              <div style={{ width: 8, height: 8, borderRadius: "50%", background: ev.color, flexShrink: 0 }} />
-              <div style={{ fontSize: 13, fontWeight: 700, color: ev.type === "holiday" ? "#dc2626" : T.text }}>{ev.label}</div>
-              {ev.type === "reminder" && <div style={{ fontSize: 11, color: T.muted, marginLeft: "auto" }}>🔔</div>}
-              {ev.type === "holiday" && <div style={{ fontSize: 10, color: "#dc2626", marginLeft: "auto", fontWeight: 700 }}>공휴일</div>}
-            </div>
-          ))}
+
+          {/* 이벤트 목록 */}
+          <div style={{ padding: "8px 14px" }}>
+            {selEvents.length === 0 && editMode !== "add" ? (
+              <div style={{ fontSize: 13, color: T.muted, textAlign: "center", padding: "16px 0" }}>등록된 일정 없음</div>
+            ) : selEvents.map((ev, i) => (
+              <div key={i}>
+                {/* 이벤트 행 */}
+                {editMode === "edit" && editTarget?.id === ev.id ? (
+                  // 인라인 수정 폼
+                  <EventForm
+                    evTitle={evTitle} setEvTitle={setEvTitle}
+                    evColor={evColor} setEvColor={setEvColor}
+                    evNote={evNote}  setEvNote={setEvNote}
+                    EVENT_COLORS={EVENT_COLORS}
+                    saving={saving} onSave={saveEvent} onCancel={cancelEdit}
+                    label="수정"
+                  />
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 0",
+                    borderBottom: i < selEvents.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: ev.color, flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700,
+                        color: ev.type === "holiday" ? "#dc2626" : T.text }}>{ev.label}</div>
+                      {ev.note && <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{ev.note}</div>}
+                    </div>
+                    {ev.type === "holiday" && <span style={{ fontSize: 10, color: "#dc2626", fontWeight: 700 }}>공휴일</span>}
+                    {ev.type === "reminder" && (
+                      <span style={{ fontSize: 10, color: "#7c3aed", fontWeight: 700 }}>🔔</span>
+                    )}
+                    {ev.type === "event" && (
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button onClick={() => openEdit(ev)}
+                          style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.muted,
+                            borderRadius: 7, padding: "3px 9px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>수정</button>
+                        <button onClick={() => deleteEvent(ev.id)}
+                          style={{ background: T.redBg, border: "none", color: T.red,
+                            borderRadius: 7, padding: "3px 9px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>삭제</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* 추가 폼 */}
+            {editMode === "add" && (
+              <div style={{ borderTop: selEvents.length > 0 ? `1px solid ${T.border}` : "none", paddingTop: selEvents.length > 0 ? 10 : 0 }}>
+                <EventForm
+                  evTitle={evTitle} setEvTitle={setEvTitle}
+                  evColor={evColor} setEvColor={setEvColor}
+                  evNote={evNote}  setEvNote={setEvNote}
+                  EVENT_COLORS={EVENT_COLORS}
+                  saving={saving} onSave={saveEvent} onCancel={cancelEdit}
+                  label="추가"
+                />
+              </div>
+            )}
+          </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── 이벤트 입력 폼 (인라인) ───────────────────────────────────────
+function EventForm({ evTitle, setEvTitle, evColor, setEvColor, evNote, setEvNote, EVENT_COLORS, saving, onSave, onCancel, label }) {
+  const iS = { width: "100%", padding: "9px 12px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 13, fontWeight: 600, boxSizing: "border-box", fontFamily: "inherit" };
+  return (
+    <div style={{ background: "#f5f3ff", borderRadius: 10, padding: 12, marginTop: 4 }}>
+      <input value={evTitle} onChange={e => setEvTitle(e.target.value)}
+        placeholder="일정 제목" autoFocus style={{ ...iS, marginBottom: 8 }} />
+      <input value={evNote} onChange={e => setEvNote(e.target.value)}
+        placeholder="메모 (선택)" style={{ ...iS, marginBottom: 8 }} />
+      {/* 색상 선택 */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 10, alignItems: "center" }}>
+        <span style={{ fontSize: 11, color: T.muted, fontWeight: 600, whiteSpace: "nowrap" }}>색상</span>
+        {EVENT_COLORS.map(([c, name]) => (
+          <button key={c} onClick={() => setEvColor(c)} title={name}
+            style={{ width: 22, height: 22, borderRadius: "50%", background: c, border: evColor === c ? "3px solid #1a1a2e" : "2px solid #fff",
+              cursor: "pointer", flexShrink: 0, boxShadow: evColor === c ? "0 0 0 1px " + c : "none" }} />
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={onCancel}
+          style={{ flex: 1, background: "#fff", border: `1px solid ${T.border}`, color: T.muted,
+            borderRadius: 8, padding: "8px 0", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>취소</button>
+        <button onClick={onSave} disabled={saving || !evTitle.trim()}
+          style={{ flex: 2, background: saving ? T.muted : "#7c3aed", border: "none", color: "#fff",
+            borderRadius: 8, padding: "8px 0", fontSize: 12, fontWeight: 700,
+            cursor: saving ? "not-allowed" : "pointer", opacity: !evTitle.trim() ? 0.5 : 1 }}>
+          {saving ? "저장 중..." : label}
+        </button>
+      </div>
     </div>
   );
 }
@@ -3093,20 +3251,7 @@ function getOccurrencesInMonth(r, y, m, daysInMonth, holidays) {
     if (r.repeat === "daily") matches = true;
     else if (r.repeat === "weekly") matches = (dow === (r.weekDay ?? 1));
     else if (r.repeat === "monthly") matches = (d === (r.monthDay || 1));
-    if (matches) {
-      // 공휴일 전날 대신 발송 처리
-      if (r.sendBeforeHoliday) {
-        const nextDateStr = (() => {
-          const nd = new Date(y, m - 1, d + 1);
-          return nd.toISOString().slice(0, 10);
-        })();
-        const isNextHoliday = isHoliday(nextDateStr, holidays);
-        if (isNextHoliday) {
-          // 해당일 대신 이미 전날이 추가됐을 것 → 스킵하지 않고 그냥 표시
-        }
-      }
-      results.push(dateStr);
-    }
+    if (matches) results.push(dateStr);
   }
   return results;
 }
@@ -3369,7 +3514,7 @@ function AdminSectionWrap({ title, color, onBack, children }) {
 }
 
 // ── 관리자 화면 (라우터) ───────────────────────────────────────
-function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
+function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
   const [section, setSection] = useState(null);
 
 
@@ -3383,7 +3528,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "notice") return <AdminSectionWrap title="📢 공지사항" color="#ea580c" onBack={back}><NoticeScreen user={user} users={users} notices={notices} reads={reads} /></AdminSectionWrap>;
   if (section === "board") return <AdminSectionWrap title="💬 게시판" color="#0891b2" onBack={back}><BoardScreen user={user} board={board} reads={reads} /></AdminSectionWrap>;
   if (section === "settings") return <><SettingsModal settings={settings} onSave={async s => { await onSaveSettings(s); back(); }} onClose={back} /></>;
-  if (section === "schedule") return <AdminSectionWrap title="📆 일정" color="#7c3aed" onBack={back}><AdminSchedule reminders={reminders} users={users} settings={settings} /></AdminSectionWrap>;
+  if (section === "schedule") return <AdminSectionWrap title="🗓 일정" color="#7c3aed" onBack={back}><AdminSchedule reminders={reminders} users={users} settings={settings} scheduleEvents={scheduleEvents} /></AdminSectionWrap>;
   return null;
 }
 
@@ -4201,7 +4346,7 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips,
 }
 
 // ── 메인 App ───────────────────────────────────────────────────
-function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
+function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
   const [user, setUser] = useState(null);
   const [userLoaded, setUserLoaded] = useState(false);
   
@@ -4235,7 +4380,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
   if (isAdmin) return (
     <AdminScreen user={user} users={users} settings={settings} records={records} leaves={leaves}
       notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} reads={reads}
-      reminders={reminders}
+      reminders={reminders} scheduleEvents={scheduleEvents}
       onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave}
       onSaveUsers={onSaveUsers} onSaveSettings={onSaveSettings}
       onLogout={() => { setUserWithStorage(null); setTab("att"); }} />
