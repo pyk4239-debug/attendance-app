@@ -548,6 +548,10 @@ function LoginScreen({ users, onLogin, onUpdateUsers }) {
             }
             await OneSignal.User.addTag("userId", tagValue);
             console.log("OneSignal 태그 설정:", tagValue);
+            // 알림 클릭 시 앱이 열려있으면 화면 유지
+            OneSignal.Notifications.addEventListener("click", (e) => {
+              e.preventDefault();
+            });
           });
         }
       } catch(e) { console.log("OneSignal 태그 오류:", e); }
