@@ -3074,8 +3074,8 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
               const isHol = d ? isHoliday(dateStr, holidays) : false;
               const hasHol = events.some(e => e.type === "holiday");
               let dateColor = T.muted;
-              if (di === 0 || isHol || hasHol) dateColor = "#dc2626";
-              else if (di === 6) dateColor = "#2563eb";
+              if (di === 6) dateColor = "#2563eb";                          // 토요일 → 파랑 (최우선)
+              else if (di === 0 || isHol || hasHol) dateColor = "#dc2626";  // 일요일·공휴일 → 빨강
               return (
                 <div key={di}
                   onClick={() => { if (!d) return; setSelDate(selDate === dateStr ? null : dateStr); setEditMode(null); setEditTarget(null); }}
@@ -3094,10 +3094,10 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
                     {/* 날짜 숫자 */}
                     <div style={{
                       fontSize: 12, fontWeight: isToday ? 900 : 600,
-                      color: (di === 0 || isHol || hasHol) ? "#dc2626" : di === 6 ? "#2563eb" : isToday ? "#7c3aed" : dateColor,
+                      color: di === 6 ? "#2563eb" : (di === 0 || isHol || hasHol) ? "#dc2626" : isToday ? "#7c3aed" : dateColor,
                       width: 20, height: 20, borderRadius: "50%",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      background: isToday ? (di === 6 ? "#dbeafe" : di === 0 || isHol || hasHol ? "#fee2e2" : "#ede9fe") : "transparent",
+                      background: isToday ? (di === 6 ? "#dbeafe" : (di === 0 || isHol || hasHol) ? "#fee2e2" : "#ede9fe") : "transparent",
                       flexShrink: 0, alignSelf: "center"
                     }}>{d}</div>
                     {/* 이벤트 레이블 — 왼쪽 컬러 선 + 투명 배경 + 검정 텍스트 */}
