@@ -3954,12 +3954,24 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips,
 
 // ── 메인 App ───────────────────────────────────────────────────
 function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
-  const [user, setUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem("loggedInUser");
-      return saved ? JSON.parse(saved) : null;
-    } catch { return null; }
-  });
+  const [user, setUser] = useState(null);
+  const [userLoaded, setUserLoaded] = useState(false);
+  
+  useEffect(() => {
+    if (users && users.length > 0 && !userLoaded) {
+      setUserLoaded(true);
+      try {
+        const saved = localStorage.getItem("loggedInUser");
+        if (saved) {
+          const savedUser = JSON.parse(saved);
+          const freshUser = users.find(u => u.id === savedUser.id);
+          if (freshUser) setUser(freshUser);
+          else localStorage.removeItem("loggedInUser");
+        }
+      } catch { localStorage.removeItem("loggedInUser"); }
+    }
+  }, [users]);
+
   const setUserWithStorage = (u) => {
     if (u) localStorage.setItem("loggedInUser", JSON.stringify(u));
     else localStorage.removeItem("loggedInUser");
