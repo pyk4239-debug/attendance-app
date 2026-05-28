@@ -3076,38 +3076,45 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
               let dateColor = T.muted;
               if (di === 0 || isHol || hasHol) dateColor = "#dc2626";
               else if (di === 6) dateColor = "#2563eb";
-              // 도트: 이벤트 종류별 색상 최대 3개
-              const dotColors = [...new Map(events.map(e => [e.color, e.color])).values()].slice(0, 3);
               return (
                 <div key={di}
                   onClick={() => { if (!d) return; setSelDate(selDate === dateStr ? null : dateStr); setEditMode(null); setEditTarget(null); }}
                   style={{
-                    /* ▼ 고정 크기 — 내용 많아도 칸 유지 */
-                    height: 52, boxSizing: "border-box",
-                    padding: "4px 2px 4px",
+                    /* 고정 높이 — 내용 많아도 칸 크기 불변 */
+                    height: 80, boxSizing: "border-box",
+                    padding: "4px 3px 3px",
                     borderBottom: wi < weeks.length - 1 ? `1px solid ${T.border}` : "none",
                     borderRight: di < 6 ? `1px solid ${T.border}` : "none",
-                    display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                    display: "flex", flexDirection: "column", alignItems: "stretch", gap: 1,
                     cursor: d ? "pointer" : "default",
                     background: isSelected ? "#ede9fe" : isToday ? "#f0f9ff" : "transparent",
                     overflow: "hidden", transition: "background 0.15s"
                   }}>
                   {d && <>
+                    {/* 날짜 숫자 */}
                     <div style={{
                       fontSize: 12, fontWeight: isToday ? 900 : 600,
                       color: isToday ? "#7c3aed" : dateColor,
-                      width: 22, height: 22, borderRadius: "50%",
+                      width: 20, height: 20, borderRadius: "50%",
                       display: "flex", alignItems: "center", justifyContent: "center",
                       background: isToday ? "#ede9fe" : "transparent",
-                      flexShrink: 0
+                      flexShrink: 0, alignSelf: "center"
                     }}>{d}</div>
-                    {/* 도트 행 — 공간 고정 */}
-                    <div style={{ display: "flex", gap: 2, height: 6, alignItems: "center", justifyContent: "center" }}>
-                      {dotColors.map((c, ci) => (
-                        <div key={ci} style={{ width: 5, height: 5, borderRadius: "50%", background: c, flexShrink: 0 }} />
+                    {/* 이벤트 레이블 — 텍스트 표시, 칸 넘치면 숨김 */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 1, overflow: "hidden", flex: 1 }}>
+                      {events.slice(0, 3).map((ev, ei) => (
+                        <div key={ei} style={{
+                          fontSize: 9, fontWeight: 700, color: "#fff",
+                          background: ev.color,
+                          borderRadius: 3, padding: "1px 3px",
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                          lineHeight: 1.5, flexShrink: 0
+                        }}>
+                          {ev.label}
+                        </div>
                       ))}
                       {events.length > 3 && (
-                        <div style={{ fontSize: 7, color: T.muted, fontWeight: 800, lineHeight: 1 }}>+</div>
+                        <div style={{ fontSize: 8, color: T.muted, fontWeight: 800, paddingLeft: 2 }}>+{events.length - 3}개</div>
                       )}
                     </div>
                   </>}
