@@ -2007,7 +2007,7 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
     { key: "board",      icon: "💬", label: "게시판", desc: "자유게시판",              color: "#0891b2",
       badge: board.filter(b => !reads[`${user.id}_board_${b.id}`]).length },
     { key: "settings",   icon: "⚙",  label: "설정",   desc: "근무시간 · GPS · 공휴일", color: "#6b7280" },
-    { key: "reminder",   icon: "🔔", label: "리마인더", desc: "반복 알림 · 일정 관리",  color: "#7c3aed" },
+    { key: "schedule",   icon: "📆", label: "일정",    desc: "캘린더 · 리마인더",     color: "#7c3aed" },
     { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#b45309" },
   ];
 
@@ -2882,13 +2882,253 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
 
 // ── 관리자 일반 섹션 ───────────────────────────────────────────
 
+// ── 일정 (캘린더 + 리마인더) ─────────────────────────────────────
+function AdminSchedule({ reminders = [], users = [], settings = {} }) {
+  const [subTab, setSubTab] = useState("calendar"); // "calendar" | "reminder"
+  const [calClickDate, setCalClickDate] = useState(null); // 날짜 클릭으로 빠른 추가
+
+  return (
+    <div>
+      {/* 서브탭 */}
+      <div style={{ display: "flex", background: T.card, borderBottom: `1px solid ${T.border}` }}>
+        {[["calendar","📅 캘린더"],["reminder","🔔 리마인더"]].map(([key,label]) => (
+          <button key={key} onClick={() => setSubTab(key)}
+            style={{ flex: 1, padding: "12px 0", border: "none", background: "none", cursor: "pointer",
+              fontWeight: subTab === key ? 800 : 500, fontSize: 13,
+              color: subTab === key ? "#7c3aed" : T.muted,
+              borderBottom: subTab === key ? "3px solid #7c3aed" : "3px solid transparent",
+              fontFamily: "inherit" }}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {subTab === "calendar" && (
+        <ScheduleCalendar
+          reminders={reminders}
+          settings={settings}
+          onRequestAdd={(date) => { setCalClickDate(date); setSubTab("reminder"); }}
+        />
+      )}
+      {subTab === "reminder" && (
+        <AdminReminder
+          reminders={reminders}
+          users={users}
+          presetDate={calClickDate}
+          onClearPreset={() => setCalClickDate(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── 일정 캘린더 뷰 ───────────────────────────────────────────────
+function ScheduleCalendar({ reminders = [], settings = {}, onRequestAdd }) {
+  const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+  const currentMonth = kstNow.toISOString().slice(0, 7);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [y, m] = selectedMonth.split("-").map(Number);
+  const holidays = settings.holidays || [];
+
+  const prevMonth = () => {
+    const d = new Date(y, m - 2, 1);
+    setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
+  const nextMonth = () => {
+    const d = new Date(y, m, 1);
+    setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
+
+  const pad = (n) => String(n).padStart(2, "0");
+  const getDateStr = (d) => `${y}-${pad(m)}-${pad(d)}`;
+  const firstDay = new Date(y, m - 1, 1).getDay();
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const today = kstNow.toISOString().slice(0, 10);
+
+  // 날짜별 이벤트 맵 빌드
+  const eventMap = {};
+  reminders.forEach(r => {
+    if (!r.active) return;
+    const dates = getOccurrencesInMonth(r, y, m, daysInMonth, holidays);
+    dates.forEach(d => {
+      if (!eventMap[d]) eventMap[d] = [];
+      eventMap[d].push({ type: "reminder", label: r.title, color: "#7c3aed" });
+    });
+  });
+  holidays.forEach(h => {
+    const date = typeof h === "string" ? h : h.date;
+    const memo = typeof h === "object" ? h.memo : null;
+    if (date?.startsWith(selectedMonth)) {
+      if (!eventMap[date]) eventMap[date] = [];
+      eventMap[date].unshift({ type: "holiday", label: memo || "공휴일", color: "#dc2626" });
+    }
+  });
+
+  // 주간 그리드 빌드
+  const weeks = [];
+  let days = [];
+  for (let i = 0; i < firstDay; i++) days.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    days.push(d);
+    if (days.length === 7) { weeks.push(days); days = []; }
+  }
+  while (days.length < 7) days.push(null);
+  if (days.some(d => d)) weeks.push(days);
+
+  // 선택 날짜 상세
+  const [selDate, setSelDate] = useState(null);
+  const selEvents = selDate ? (eventMap[selDate] || []) : [];
+
+  return (
+    <div style={{ padding: 16 }}>
+      {/* 월 이동 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+        <button onClick={prevMonth}
+          style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "9px 14px", fontSize: 16, cursor: "pointer", fontWeight: 700, color: T.text }}>‹</button>
+        <div style={{ flex: 1, textAlign: "center", fontSize: 16, fontWeight: 800, color: T.text }}>{y}년 {m}월</div>
+        <button onClick={nextMonth}
+          style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "9px 14px", fontSize: 16, cursor: "pointer", fontWeight: 700, color: T.text }}>›</button>
+      </div>
+
+      {/* 캘린더 그리드 */}
+      <div style={{ background: T.card, borderRadius: 14, border: `1px solid ${T.border}`, overflow: "hidden", marginBottom: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
+          {["일","월","화","수","목","금","토"].map((d, i) => (
+            <div key={d} style={{ textAlign: "center", padding: "7px 0", fontSize: 10, fontWeight: 700,
+              color: i === 0 ? "#dc2626" : i === 6 ? "#2563eb" : T.muted,
+              borderBottom: `1px solid ${T.border}` }}>{d}</div>
+          ))}
+        </div>
+        {weeks.map((week, wi) => (
+          <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
+            {week.map((d, di) => {
+              const dateStr = d ? getDateStr(d) : null;
+              const events = d ? (eventMap[dateStr] || []) : [];
+              const hasHoliday = events.some(e => e.type === "holiday");
+              const hasReminder = events.some(e => e.type === "reminder");
+              const isToday = dateStr === today;
+              const isSelected = dateStr === selDate;
+              const isHol = d ? isHoliday(dateStr, holidays) : false;
+              let dateColor = T.muted;
+              if (di === 0 || isHol || hasHoliday) dateColor = "#dc2626";
+              else if (di === 6) dateColor = "#2563eb";
+              return (
+                <div key={di}
+                  onClick={() => { if (d) setSelDate(selDate === dateStr ? null : dateStr); }}
+                  style={{ padding: "5px 3px", borderBottom: wi < weeks.length - 1 ? `1px solid ${T.border}` : "none",
+                    borderRight: di < 6 ? `1px solid ${T.border}` : "none",
+                    minHeight: 54, display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                    cursor: d ? "pointer" : "default",
+                    background: isSelected ? "#ede9fe" : isToday ? "#f0f9ff" : "transparent",
+                    transition: "background 0.15s" }}>
+                  {d && <>
+                    <div style={{ fontSize: 12, fontWeight: isToday ? 900 : 600, color: isToday ? "#7c3aed" : dateColor,
+                      width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                      background: isToday ? "#ede9fe" : "transparent" }}>{d}</div>
+                    {/* 이벤트 도트 */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 1, width: "100%", alignItems: "center" }}>
+                      {events.slice(0, 2).map((ev, ei) => (
+                        <div key={ei} style={{ fontSize: 8, fontWeight: 700, color: ev.color,
+                          background: ev.color + "18", borderRadius: 3, padding: "1px 3px",
+                          maxWidth: "90%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>
+                          {ev.label}
+                        </div>
+                      ))}
+                      {events.length > 2 && (
+                        <div style={{ fontSize: 8, color: T.muted, fontWeight: 700 }}>+{events.length - 2}</div>
+                      )}
+                    </div>
+                  </>}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* 범례 */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 14, justifyContent: "flex-end" }}>
+        {[["#dc2626","공휴일"],["#7c3aed","리마인더"]].map(([color,label]) => (
+          <div key={label} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
+            <span style={{ color: T.muted }}>{label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* 선택 날짜 상세 */}
+      {selDate && (
+        <div style={{ background: T.card, borderRadius: 14, border: `1px solid ${T.border}`, padding: 14, marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>{formatDate(selDate)}</div>
+            <button onClick={() => onRequestAdd(selDate)}
+              style={{ background: "#7c3aed", border: "none", color: "#fff", borderRadius: 10, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              + 리마인더 추가
+            </button>
+          </div>
+          {selEvents.length === 0 ? (
+            <div style={{ fontSize: 13, color: T.muted, textAlign: "center", padding: "12px 0" }}>등록된 일정 없음</div>
+          ) : selEvents.map((ev, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0",
+              borderTop: i > 0 ? `1px solid ${T.border}` : "none" }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: ev.color, flexShrink: 0 }} />
+              <div style={{ fontSize: 13, fontWeight: 700, color: ev.type === "holiday" ? "#dc2626" : T.text }}>{ev.label}</div>
+              {ev.type === "reminder" && <div style={{ fontSize: 11, color: T.muted, marginLeft: "auto" }}>🔔</div>}
+              {ev.type === "holiday" && <div style={{ fontSize: 10, color: "#dc2626", marginLeft: "auto", fontWeight: 700 }}>공휴일</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 리마인더가 해당 월에 발생하는 날짜 목록 반환
+function getOccurrencesInMonth(r, y, m, daysInMonth, holidays) {
+  const pad = (n) => String(n).padStart(2, "0");
+  const results = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${y}-${pad(m)}-${pad(d)}`;
+    const dow = new Date(y, m - 1, d).getDay();
+    let matches = false;
+    if (r.repeat === "daily") matches = true;
+    else if (r.repeat === "weekly") matches = (dow === (r.weekDay ?? 1));
+    else if (r.repeat === "monthly") matches = (d === (r.monthDay || 1));
+    if (matches) {
+      // 공휴일 전날 대신 발송 처리
+      if (r.sendBeforeHoliday) {
+        const nextDateStr = (() => {
+          const nd = new Date(y, m - 1, d + 1);
+          return nd.toISOString().slice(0, 10);
+        })();
+        const isNextHoliday = isHoliday(nextDateStr, holidays);
+        if (isNextHoliday) {
+          // 해당일 대신 이미 전날이 추가됐을 것 → 스킵하지 않고 그냥 표시
+        }
+      }
+      results.push(dateStr);
+    }
+  }
+  return results;
+}
+
 // ── 리마인더 ────────────────────────────────────────────────────
-function AdminReminder({ reminders = [], users = [] }) {
+function AdminReminder({ reminders = [], users = [], presetDate = null, onClearPreset }) {
   const EMPTY = { title: "", time: "09:00", repeat: "daily", monthDay: 1, weekDay: 1, target: "admin", sendBeforeHoliday: false };
   const [form, setForm] = useState(EMPTY);
   const [editId, setEditId] = useState(null); // null=추가, id=수정
   const [adding, setAdding] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // 캘린더에서 날짜 클릭 시 자동으로 추가 폼 열기
+  useEffect(() => {
+    if (presetDate) {
+      const [, , dd] = presetDate.split("-").map(Number);
+      setForm(p => ({ ...p, repeat: "monthly", monthDay: dd }));
+      setAdding(true);
+      setEditId(null);
+      if (onClearPreset) onClearPreset();
+    }
+  }, [presetDate]);
 
   const DOW = ["일","월","화","수","목","금","토"];
 
@@ -3143,7 +3383,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "notice") return <AdminSectionWrap title="📢 공지사항" color="#ea580c" onBack={back}><NoticeScreen user={user} users={users} notices={notices} reads={reads} /></AdminSectionWrap>;
   if (section === "board") return <AdminSectionWrap title="💬 게시판" color="#0891b2" onBack={back}><BoardScreen user={user} board={board} reads={reads} /></AdminSectionWrap>;
   if (section === "settings") return <><SettingsModal settings={settings} onSave={async s => { await onSaveSettings(s); back(); }} onClose={back} /></>;
-  if (section === "reminder") return <AdminSectionWrap title="🔔 리마인더" color="#7c3aed" onBack={back}><AdminReminder reminders={reminders} users={users} /></AdminSectionWrap>;
+  if (section === "schedule") return <AdminSectionWrap title="📆 일정" color="#7c3aed" onBack={back}><AdminSchedule reminders={reminders} users={users} settings={settings} /></AdminSectionWrap>;
   return null;
 }
 
