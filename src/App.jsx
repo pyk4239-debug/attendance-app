@@ -3954,10 +3954,20 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips,
 
 // ── 메인 App ───────────────────────────────────────────────────
 function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem("loggedInUser");
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  const setUserWithStorage = (u) => {
+    if (u) localStorage.setItem("loggedInUser", JSON.stringify(u));
+    else localStorage.removeItem("loggedInUser");
+    setUser(u);
+  };
   const [tab, setTab] = useState("att");
 
-  if (!user) return <LoginScreen users={users} onLogin={setUser} onUpdateUsers={onSaveUsers} />;
+  if (!user) return <LoginScreen users={users} onLogin={setUserWithStorage} onUpdateUsers={onSaveUsers} />;
 
   const isAdmin = user.role === "admin";
 
@@ -3968,7 +3978,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
       reminders={reminders}
       onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave}
       onSaveUsers={onSaveUsers} onSaveSettings={onSaveSettings}
-      onLogout={() => { setUser(null); setTab("att"); }} />
+      onLogout={() => { setUserWithStorage(null); setTab("att"); }} />
   );
 
   // 팀원은 탭바 구조
@@ -3976,7 +3986,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 70 }}>
       {tab === "att" && (
         <MemberScreen user={user} settings={settings} records={records} leaves={leaves}
-          onSaveRecord={onSaveRecord} onLogout={() => { setUser(null); setTab("att"); }} />
+          onSaveRecord={onSaveRecord} onLogout={() => { setUserWithStorage(null); setTab("att"); }} />
       )}
       {tab !== "att" && <FloatBack onClick={() => setTab("att")} />}
       {tab === "notice" && (
