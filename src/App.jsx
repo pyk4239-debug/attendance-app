@@ -1023,27 +1023,7 @@ function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) 
                       background: isToday ? "#dbeafe" : "transparent",
                       flexShrink: 0, alignSelf: "center"
                     }}>{d}</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 1, overflow: "hidden", flex: 1 }}>
-                      {(() => {
-                        const MAX = 4;
-                        const visible = events.slice(0, events.length > MAX ? MAX - 1 : MAX);
-                        const overflow = events.length > MAX;
-                        return <>
-                          {visible.map((ev, ei) => (
-                            <div key={ei} style={{
-                              fontSize: 9, fontWeight: 700,
-                              color: ev.type === "holiday" ? "#dc2626" : T.text,
-                              background: "transparent", borderLeft: `2px solid ${ev.color}`, paddingLeft: 3,
-                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                              lineHeight: 1.5, flexShrink: 0
-                            }}>{ev.label}</div>
-                          ))}
-                          {overflow && (
-                            <div style={{ fontSize: 8, color: T.muted, fontWeight: 800, paddingLeft: 3, lineHeight: 1.5 }}>···</div>
-                          )}
-                        </>;
-                      })()}
-                    </div>
+                    <CalEventLabels events={events} />
                   </>}
                 </div>
               );
@@ -1115,6 +1095,40 @@ function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) 
             )}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ── 캘린더 이벤트 라벨 — 우선순위 정렬 후 칸 여유만큼 표시 ────────
+// CELL_H: 칸 높이(px), DATE_H: 날짜 숫자 높이(px), ITEM_H: 이벤트 1줄 높이(px)
+const CELL_H = 80, DATE_H = 22, ITEM_H = 14;
+const CAL_MAX = Math.floor((CELL_H - DATE_H) / ITEM_H); // = 4
+
+function CalEventLabels({ events }) {
+  // 우선순위 정렬: 공휴일 → 리마인더 → 일정
+  const ORDER = { holiday: 0, reminder: 1, event: 2 };
+  const sorted = [...events].sort((a, b) => (ORDER[a.type] ?? 9) - (ORDER[b.type] ?? 9));
+  const visible = sorted.slice(0, CAL_MAX);
+  const overflow = sorted.length > CAL_MAX;
+  // 마지막 슬롯이 ···이면 visible에서 1개 빼기
+  const show = overflow ? visible.slice(0, CAL_MAX - 1) : visible;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 1, overflow: "hidden", flex: 1 }}>
+      {show.map((ev, ei) => (
+        <div key={ei} style={{
+          fontSize: 9, fontWeight: 700,
+          color: ev.type === "holiday" ? "#dc2626" : T.text,
+          background: "transparent",
+          borderLeft: `2px solid ${ev.color}`,
+          paddingLeft: 3,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          lineHeight: `${ITEM_H}px`, flexShrink: 0
+        }}>{ev.label}</div>
+      ))}
+      {overflow && (
+        <div style={{ fontSize: 8, color: T.muted, fontWeight: 800, paddingLeft: 3, lineHeight: `${ITEM_H}px` }}>···</div>
       )}
     </div>
   );
@@ -3354,27 +3368,7 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
                       background: isToday ? (di === 6 ? "#dbeafe" : (di === 0 || isHol || hasHol) ? "#fee2e2" : "#ede9fe") : "transparent",
                       flexShrink: 0, alignSelf: "center"
                     }}>{d}</div>
-                    {/* 이벤트 레이블 — 왼쪽 컬러 선 + 투명 배경 + 검정 텍스트 */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 1, overflow: "hidden", flex: 1 }}>
-                      {(() => {
-                        const MAX = 4;
-                        const visible = events.slice(0, events.length > MAX ? MAX - 1 : MAX);
-                        const overflow = events.length > MAX;
-                        return <>
-                          {visible.map((ev, ei) => (
-                            <div key={ei} style={{
-                              fontSize: 9, fontWeight: 700, color: ev.type === "holiday" ? "#dc2626" : T.text,
-                              background: "transparent", borderLeft: `2px solid ${ev.color}`, paddingLeft: 3,
-                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                              lineHeight: 1.5, flexShrink: 0
-                            }}>{ev.label}</div>
-                          ))}
-                          {overflow && (
-                            <div style={{ fontSize: 8, color: T.muted, fontWeight: 800, paddingLeft: 3, lineHeight: 1.5 }}>···</div>
-                          )}
-                        </>;
-                      })()}
-                    </div>
+                    <CalEventLabels events={events} />
                   </>}
                 </div>
               );
