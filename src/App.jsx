@@ -989,7 +989,7 @@ function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) 
               const dateStr = d ? getDateStr(d) : null;
               const events = d ? (eventMap[dateStr] || []) : [];
               const isToday = dateStr === today;
-              const isSelected = dateStr === selDate;
+              const isSelected = !!d && dateStr === selDate;
               const isHol = d ? isHoliday(dateStr, holidays) : false;
               const hasHol = events.some(e => e.type === "holiday");
               let dateColor = T.muted;
@@ -3330,7 +3330,7 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
               const dateStr = d ? getDateStr(d) : null;
               const events  = d ? (eventMap[dateStr] || []) : [];
               const isToday    = dateStr === today;
-              const isSelected = dateStr === selDate;
+              const isSelected = !!d && dateStr === selDate;
               const isHol = d ? isHoliday(dateStr, holidays) : false;
               const hasHol = events.some(e => e.type === "holiday");
               let dateColor = T.muted;
