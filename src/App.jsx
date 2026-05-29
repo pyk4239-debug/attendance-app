@@ -3105,7 +3105,7 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
                     <div style={{ display: "flex", flexDirection: "column", gap: 1, overflow: "hidden", flex: 1 }}>
                       {events.slice(0, 3).map((ev, ei) => (
                         <div key={ei} style={{
-                          fontSize: 9, fontWeight: 700, color: T.text,
+                          fontSize: 9, fontWeight: 700, color: ev.type === "holiday" ? "#dc2626" : T.text,
                           background: "transparent",
                           borderLeft: `2px solid ${ev.color}`,
                           paddingLeft: 3,
