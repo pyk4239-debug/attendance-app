@@ -1115,17 +1115,18 @@ function CalEventLabels({ events }) {
   const ORDER = { holiday: 0, reminder: 1, event: 2 };
   const sorted = [...events].sort((a, b) => (ORDER[a.type] ?? 9) - (ORDER[b.type] ?? 9));
 
+  // 이벤트 개수가 TOTAL_LINES 초과할 때만 ··· 표시
   const overflow = sorted.length > TOTAL_LINES;
   const showEvents = overflow ? sorted.slice(0, TOTAL_LINES - 1) : sorted;
-  let linesLeft = overflow ? TOTAL_LINES - 1 : TOTAL_LINES;
+  const linesLeft = overflow ? TOTAL_LINES - 1 : TOTAL_LINES;
 
-  // 1패스: 각 이벤트가 필요한 최소 줄 수 계산
-  const needed = showEvents.map(ev => neededLines(ev.label, linesLeft));
+  // 각 이벤트가 원하는 줄 수
+  const needed = showEvents.map(ev => neededLines(ev.label, TOTAL_LINES));
   const totalNeeded = needed.reduce((a, b) => a + b, 0);
 
-  // 2패스: 전체 필요량이 linesLeft 초과하면 뒤에서부터 줄임
   let allocated = [...needed];
   if (totalNeeded > linesLeft) {
+    // 줄이 부족하면 뒤에서부터 줄임 (최소 1줄 보장)
     let over = totalNeeded - linesLeft;
     for (let i = allocated.length - 1; i >= 0 && over > 0; i--) {
       const cut = Math.min(allocated[i] - 1, over);
@@ -1133,15 +1134,13 @@ function CalEventLabels({ events }) {
       over -= cut;
     }
   } else {
-    // 여유 줄은 텍스트가 가장 긴 이벤트에 추가
+    // 여유 줄은 텍스트가 가장 긴 이벤트에 배분
     let extra = linesLeft - totalNeeded;
     while (extra > 0) {
-      // 아직 필요한 줄이 남아있는 이벤트 중 가장 긴 것에 배분
       const wantMore = showEvents.map((ev, i) => neededLines(ev.label, TOTAL_LINES) - allocated[i]);
       const maxWant = Math.max(...wantMore);
-      if (maxWant <= 0) { allocated[0] += extra; break; } // 다 충족됐으면 첫번째에
-      const idx = wantMore.indexOf(maxWant);
-      allocated[idx]++;
+      if (maxWant <= 0) { allocated[0] += extra; break; }
+      allocated[wantMore.indexOf(maxWant)]++;
       extra--;
     }
   }
