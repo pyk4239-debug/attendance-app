@@ -1101,8 +1101,8 @@ function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) 
 }
 
 // ── 캘린더 이벤트 라벨 — 우선순위 정렬 후 칸 여유만큼 표시 ────────
-const CELL_H = 80, DATE_H = 22, LINE_H = 14;
-const TOTAL_LINES = Math.floor((CELL_H - DATE_H) / LINE_H); // = 4
+const CELL_H = 80, DATE_H = 22, LINE_H = 14, CELL_PAD = 8; // top+bottom padding
+const TOTAL_LINES = Math.floor((CELL_H - DATE_H - CELL_PAD) / LINE_H); // = 3
 
 function CalEventLabels({ events }) {
   const ORDER = { holiday: 0, reminder: 1, event: 2 };
