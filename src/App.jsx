@@ -1115,34 +1115,27 @@ function CalEventLabels({ events }) {
   const ORDER = { holiday: 0, reminder: 1, event: 2 };
   const sorted = [...events].sort((a, b) => (ORDER[a.type] ?? 9) - (ORDER[b.type] ?? 9));
 
-  // 이벤트 개수가 TOTAL_LINES 초과할 때만 ··· 표시
+  // ··· 는 이벤트 개수가 TOTAL_LINES 초과할 때만
   const overflow = sorted.length > TOTAL_LINES;
   const showEvents = overflow ? sorted.slice(0, TOTAL_LINES - 1) : sorted;
   const linesLeft = overflow ? TOTAL_LINES - 1 : TOTAL_LINES;
 
-  // 각 이벤트가 원하는 줄 수
-  const needed = showEvents.map(ev => neededLines(ev.label, TOTAL_LINES));
-  const totalNeeded = needed.reduce((a, b) => a + b, 0);
-
-  let allocated = [...needed];
-  if (totalNeeded > linesLeft) {
-    // 줄이 부족하면 뒤에서부터 줄임 (최소 1줄 보장)
-    let over = totalNeeded - linesLeft;
-    for (let i = allocated.length - 1; i >= 0 && over > 0; i--) {
-      const cut = Math.min(allocated[i] - 1, over);
-      allocated[i] -= cut;
-      over -= cut;
-    }
-  } else {
-    // 여유 줄은 텍스트가 가장 긴 이벤트에 배분
-    let extra = linesLeft - totalNeeded;
-    while (extra > 0) {
-      const wantMore = showEvents.map((ev, i) => neededLines(ev.label, TOTAL_LINES) - allocated[i]);
-      const maxWant = Math.max(...wantMore);
-      if (maxWant <= 0) { allocated[0] += extra; break; }
-      allocated[wantMore.indexOf(maxWant)]++;
-      extra--;
-    }
+  // 줄 배분: 텍스트 길이 비율로, 최소 1줄 보장
+  const lengths = showEvents.map(ev => Math.max(ev.label.length, 1));
+  const totalLen = lengths.reduce((a, b) => a + b, 0);
+  let allocated = lengths.map(l => Math.max(1, Math.round((l / totalLen) * linesLeft)));
+  // 합 보정
+  let diff = allocated.reduce((a, b) => a + b, 0) - linesLeft;
+  // 초과면 가장 많이 받은 것부터 줄임
+  while (diff > 0) {
+    const idx = allocated.indexOf(Math.max(...allocated));
+    if (allocated[idx] > 1) { allocated[idx]--; diff--; }
+    else break;
+  }
+  // 부족하면 가장 긴 텍스트에 추가
+  while (diff < 0) {
+    const idx = lengths.indexOf(Math.max(...lengths));
+    allocated[idx]++; diff++;
   }
 
   return (
