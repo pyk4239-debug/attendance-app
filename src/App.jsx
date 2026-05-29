@@ -1115,24 +1115,31 @@ function CalEventLabels({ events }) {
   const ORDER = { holiday: 0, reminder: 1, event: 2 };
   const sorted = [...events].sort((a, b) => (ORDER[a.type] ?? 9) - (ORDER[b.type] ?? 9));
 
-  // ··· 는 이벤트 개수가 TOTAL_LINES 초과할 때만
+  // 4개 이상이면 3개 + ···
   const overflow = sorted.length > TOTAL_LINES;
   const showEvents = overflow ? sorted.slice(0, TOTAL_LINES - 1) : sorted;
   const linesLeft = overflow ? TOTAL_LINES - 1 : TOTAL_LINES;
+  const count = showEvents.length;
 
-  // 줄 배분: 모두 1줄씩 시작, 남은 줄을 긴 텍스트 순서로 추가
-  const allocated = showEvents.map(() => 1);
-  let spare = linesLeft - showEvents.length; // 남은 줄
-  if (spare > 0) {
-    // 텍스트 길이 내림차순 인덱스
-    const order = showEvents
-      .map((ev, i) => ({ i, len: ev.label.length }))
-      .sort((a, b) => b.len - a.len);
-    for (const { i } of order) {
-      if (spare <= 0) break;
-      allocated[i]++;
-      spare--;
+  // 줄 배분: 앞 순위에 먼저 최대한, 뒤 순위는 나머지
+  // ex) 3줄 / 1개 → [3], / 2개 → [2,1] or [1,2] 긴쪽에, / 3개 → [1,1,1]
+  let allocated;
+  if (count === 0) return null;
+  else if (count === 1) {
+    allocated = [linesLeft]; // 1개면 전부
+  } else if (count === 2) {
+    // 긴 텍스트에 2줄, 짧은 텍스트에 1줄
+    const l0 = showEvents[0].label.length;
+    const l1 = showEvents[1].label.length;
+    if (linesLeft === 2) {
+      allocated = [1, 1];
+    } else {
+      // linesLeft = 3: 더 긴 쪽에 2줄
+      allocated = l1 > l0 ? [1, 2] : [2, 1];
     }
+  } else {
+    // 3개: 1줄씩
+    allocated = showEvents.map(() => 1);
   }
 
   return (
