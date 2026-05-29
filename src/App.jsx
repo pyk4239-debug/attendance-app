@@ -1024,20 +1024,25 @@ function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) 
                       flexShrink: 0, alignSelf: "center"
                     }}>{d}</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 1, overflow: "hidden", flex: 1 }}>
-                      {events.slice(0, 3).map((ev, ei) => (
-                        <div key={ei} style={{
-                          fontSize: 9, fontWeight: 700,
-                          color: ev.type === "holiday" ? "#dc2626" : T.text,
-                          background: "transparent",
-                          borderLeft: `2px solid ${ev.color}`,
-                          paddingLeft: 3,
-                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                          lineHeight: 1.5, flexShrink: 0
-                        }}>{ev.label}</div>
-                      ))}
-                      {events.length > 3 && (
-                        <div style={{ fontSize: 8, color: T.muted, fontWeight: 800, paddingLeft: 2 }}>+{events.length - 3}개</div>
-                      )}
+                      {(() => {
+                        const MAX = 4;
+                        const visible = events.slice(0, events.length > MAX ? MAX - 1 : MAX);
+                        const overflow = events.length > MAX;
+                        return <>
+                          {visible.map((ev, ei) => (
+                            <div key={ei} style={{
+                              fontSize: 9, fontWeight: 700,
+                              color: ev.type === "holiday" ? "#dc2626" : T.text,
+                              background: "transparent", borderLeft: `2px solid ${ev.color}`, paddingLeft: 3,
+                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                              lineHeight: 1.5, flexShrink: 0
+                            }}>{ev.label}</div>
+                          ))}
+                          {overflow && (
+                            <div style={{ fontSize: 8, color: T.muted, fontWeight: 800, paddingLeft: 3, lineHeight: 1.5 }}>···</div>
+                          )}
+                        </>;
+                      })()}
                     </div>
                   </>}
                 </div>
@@ -3351,21 +3356,24 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
                     }}>{d}</div>
                     {/* 이벤트 레이블 — 왼쪽 컬러 선 + 투명 배경 + 검정 텍스트 */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 1, overflow: "hidden", flex: 1 }}>
-                      {events.slice(0, 3).map((ev, ei) => (
-                        <div key={ei} style={{
-                          fontSize: 9, fontWeight: 700, color: ev.type === "holiday" ? "#dc2626" : T.text,
-                          background: "transparent",
-                          borderLeft: `2px solid ${ev.color}`,
-                          paddingLeft: 3,
-                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                          lineHeight: 1.5, flexShrink: 0
-                        }}>
-                          {ev.label}
-                        </div>
-                      ))}
-                      {events.length > 3 && (
-                        <div style={{ fontSize: 8, color: T.muted, fontWeight: 800, paddingLeft: 2 }}>+{events.length - 3}개</div>
-                      )}
+                      {(() => {
+                        const MAX = 4;
+                        const visible = events.slice(0, events.length > MAX ? MAX - 1 : MAX);
+                        const overflow = events.length > MAX;
+                        return <>
+                          {visible.map((ev, ei) => (
+                            <div key={ei} style={{
+                              fontSize: 9, fontWeight: 700, color: ev.type === "holiday" ? "#dc2626" : T.text,
+                              background: "transparent", borderLeft: `2px solid ${ev.color}`, paddingLeft: 3,
+                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                              lineHeight: 1.5, flexShrink: 0
+                            }}>{ev.label}</div>
+                          ))}
+                          {overflow && (
+                            <div style={{ fontSize: 8, color: T.muted, fontWeight: 800, paddingLeft: 3, lineHeight: 1.5 }}>···</div>
+                          )}
+                        </>;
+                      })()}
                     </div>
                   </>}
                 </div>
