@@ -800,7 +800,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout,
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <div style={{ fontSize: 13, color: T.muted, fontWeight: 600 }}>{monthLabel(selectedMonth)} 기록</div>
           <div style={{ display: "flex", gap: 4 }}>
-            {[["일자별", "list"], ["월별", "calendar"], ["일정", "schedule"]].map(([label, key]) => (
+            {[["일자별", "list"], ["월별", "calendar"]].map(([label, key]) => (
               <button key={key} onClick={() => setCalView(key)}
                 style={{ padding: "4px 12px", borderRadius: 16, border: `1px solid ${calView === key ? T.headerBg : T.border}`, fontSize: 11, fontWeight: 700, cursor: "pointer",
                   background: calView === key ? T.headerBg : T.card, color: calView === key ? "#fff" : T.muted }}>
@@ -824,13 +824,6 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout,
               }, 100);
               setTimeout(() => setScrollToDate(null), 1500);
             }}
-          />
-        )}
-        {calView === "schedule" && (
-          <MemberScheduleCalendar
-            settings={settings}
-            scheduleEvents={scheduleEvents}
-            userId={user.id}
           />
         )}
         {calView === "list" && (monthDays.length === 0
@@ -3791,6 +3784,29 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
 }
 
 // ── 공지사항 ────────────────────────────────────────────────────
+// ── 공지 + 게시판 통합 ────────────────────────────────────────────
+function NoticeBoardScreen({ user, users, notices, board, reads }) {
+  const [subTab, setSubTab] = useState("notice");
+  return (
+    <div>
+      <div style={{ display: "flex", background: T.card, borderBottom: `1px solid ${T.border}` }}>
+        {[["notice","📢 공지사항"],["board","💬 게시판"]].map(([key,label]) => (
+          <button key={key} onClick={() => setSubTab(key)}
+            style={{ flex: 1, padding: "12px 0", border: "none", background: "none", cursor: "pointer",
+              fontWeight: subTab === key ? 800 : 500, fontSize: 13,
+              color: subTab === key ? T.headerBg : T.muted,
+              borderBottom: subTab === key ? `3px solid ${T.headerBg}` : "3px solid transparent",
+              fontFamily: "inherit" }}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {subTab === "notice" && <NoticeScreen user={user} users={users} notices={notices} reads={reads} />}
+      {subTab === "board"  && <BoardScreen  user={user} board={board} reads={reads} />}
+    </div>
+  );
+}
+
 function NoticeScreen({ user, users, notices, reads }) {
   const isAdmin = user.role === "admin";
   const members = users.filter(u => u.role === "member");
@@ -4574,16 +4590,15 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips,
     ).length;
   };
 
-  const unreadNotice = unreadCount(notices, "notice");
-  const unreadBoard = unreadCount(board, "board");
+  const unreadNotice = unreadCount(notices, "notice") + unreadCount(board, "board");
   const unreadPayslip = unreadCount(payslips.filter(p => p.userId === user?.id), "payslip");
 
   const tabs = [
-    ["att", "🏠", "출퇴근", 0],
-    ["notice", "📢", "공지", unreadNotice],
-    ["board", "💬", "게시판", unreadBoard],
-    ["payslip", "💰", "명세서", unreadPayslip],
-    ["annual", "📅", "연차", isAdmin ? pendingCount : 0],
+    ["att",      "🏠", "출퇴근", 0],
+    ["notice",   "📢", "공지",   unreadNotice],
+    ["annual",   "📅", "연차",   isAdmin ? pendingCount : 0],
+    ["payslip",  "💰", "명세서", unreadPayslip],
+    ["schedule", "🗓", "일정",   0],
   ];
 
   return (
@@ -4657,18 +4672,18 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
         <>
           <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
             <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>공지사항</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>공지</div>
           </div>
-          <NoticeScreen user={user} users={users} notices={notices} reads={reads} />
+          <NoticeBoardScreen user={user} users={users} notices={notices} board={board} reads={reads} />
         </>
       )}
-      {tab === "board" && (
+      {tab === "annual" && (
         <>
           <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
             <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>자유게시판</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>연차</div>
           </div>
-          <BoardScreen user={user} board={board} reads={reads} />
+          <AnnualScreen user={user} users={users} annual={annual} leaveRequests={leaveRequests} />
         </>
       )}
       {tab === "payslip" && (
@@ -4680,13 +4695,15 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
           <PayslipScreen user={user} users={users} payslips={payslips} reads={reads} />
         </>
       )}
-      {tab === "annual" && (
+      {tab === "schedule" && (
         <>
           <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
             <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>연차</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>🗓 일정</div>
           </div>
-          <AnnualScreen user={user} users={users} annual={annual} leaveRequests={leaveRequests} />
+          <div style={{ padding: 16 }}>
+            <MemberScheduleCalendar settings={settings} scheduleEvents={scheduleEvents} userId={user?.id} />
+          </div>
         </>
       )}
       <TabBar tab={tab} setTab={t => { setTab(t); window.scrollTo(0, 0); }} isAdmin={isAdmin} leaveRequests={leaveRequests} notices={notices} board={board} payslips={payslips} user={user} reads={reads} />
