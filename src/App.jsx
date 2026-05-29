@@ -1128,15 +1128,8 @@ function CalEventLabels({ events }) {
   else if (count === 1) {
     allocated = [linesLeft]; // 1개면 전부
   } else if (count === 2) {
-    // 긴 텍스트에 2줄, 짧은 텍스트에 1줄
-    const l0 = showEvents[0].label.length;
-    const l1 = showEvents[1].label.length;
-    if (linesLeft === 2) {
-      allocated = [1, 1];
-    } else {
-      // linesLeft = 3: 더 긴 쪽에 2줄
-      allocated = l1 > l0 ? [1, 2] : [2, 1];
-    }
+    // 우선순위 높은 쪽(앞)에 2줄, 낮은 쪽에 1줄
+    allocated = linesLeft >= 3 ? [2, 1] : [1, 1];
   } else {
     // 3개: 1줄씩
     allocated = showEvents.map(() => 1);
