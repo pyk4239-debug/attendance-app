@@ -1101,15 +1101,8 @@ function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) 
 }
 
 // ── 캘린더 이벤트 라벨 — 우선순위 정렬 후 칸 여유만큼 표시 ────────
-const CELL_H = 80, DATE_H = 22, LINE_H = 14, CELL_PAD = 8;
-const TOTAL_LINES = Math.floor((CELL_H - DATE_H - CELL_PAD) / LINE_H); // = 3
-
-// 텍스트가 몇 줄 필요한지 추정 (칸 너비 약 40px, 글자 약 6px)
-function neededLines(text, maxLines) {
-  const charsPerLine = 6; // 9px 폰트 기준 한 칸에 들어가는 글자 수 (약)
-  const needed = Math.ceil(text.length / charsPerLine);
-  return Math.min(needed, maxLines);
-}
+const LINE_H = 14;
+const TOTAL_LINES = 3; // 칸 높이(80px) - 날짜(22px) - 패딩(8px) / 줄높이(14px)
 
 function CalEventLabels({ events }) {
   const ORDER = { holiday: 0, reminder: 1, event: 2 };
