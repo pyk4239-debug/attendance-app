@@ -1120,22 +1120,19 @@ function CalEventLabels({ events }) {
   const showEvents = overflow ? sorted.slice(0, TOTAL_LINES - 1) : sorted;
   const linesLeft = overflow ? TOTAL_LINES - 1 : TOTAL_LINES;
 
-  // 줄 배분: 텍스트 길이 비율로, 최소 1줄 보장
-  const lengths = showEvents.map(ev => Math.max(ev.label.length, 1));
-  const totalLen = lengths.reduce((a, b) => a + b, 0);
-  let allocated = lengths.map(l => Math.max(1, Math.round((l / totalLen) * linesLeft)));
-  // 합 보정
-  let diff = allocated.reduce((a, b) => a + b, 0) - linesLeft;
-  // 초과면 가장 많이 받은 것부터 줄임
-  while (diff > 0) {
-    const idx = allocated.indexOf(Math.max(...allocated));
-    if (allocated[idx] > 1) { allocated[idx]--; diff--; }
-    else break;
-  }
-  // 부족하면 가장 긴 텍스트에 추가
-  while (diff < 0) {
-    const idx = lengths.indexOf(Math.max(...lengths));
-    allocated[idx]++; diff++;
+  // 줄 배분: 모두 1줄씩 시작, 남은 줄을 긴 텍스트 순서로 추가
+  const allocated = showEvents.map(() => 1);
+  let spare = linesLeft - showEvents.length; // 남은 줄
+  if (spare > 0) {
+    // 텍스트 길이 내림차순 인덱스
+    const order = showEvents
+      .map((ev, i) => ({ i, len: ev.label.length }))
+      .sort((a, b) => b.len - a.len);
+    for (const { i } of order) {
+      if (spare <= 0) break;
+      allocated[i]++;
+      spare--;
+    }
   }
 
   return (
