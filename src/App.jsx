@@ -639,7 +639,7 @@ function LoginScreen({ users, onLogin, onUpdateUsers }) {
 }
 
 // ── 팀원 화면 ──────────────────────────────────────────────────
-function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout }) {
+function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout, scheduleEvents = [] }) {
   const [now, setNow] = useState(new Date());
   const [flash, setFlash] = useState(null);
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
@@ -668,7 +668,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
 
   const thisMonth = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(thisMonth);
-  const [calView, setCalView] = useState("list"); // "list" | "calendar"
+  const [calView, setCalView] = useState("list"); // "list" | "calendar" | "schedule"
   const [scrollToDate, setScrollToDate] = useState(null);
   const isCurrentMonth = selectedMonth === thisMonth;
   const prevMonth = () => {
@@ -800,7 +800,7 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <div style={{ fontSize: 13, color: T.muted, fontWeight: 600 }}>{monthLabel(selectedMonth)} 기록</div>
           <div style={{ display: "flex", gap: 4 }}>
-            {[["목록", "list"], ["캘린더", "calendar"]].map(([label, key]) => (
+            {[["일자별", "list"], ["월별", "calendar"], ["일정", "schedule"]].map(([label, key]) => (
               <button key={key} onClick={() => setCalView(key)}
                 style={{ padding: "4px 12px", borderRadius: 16, border: `1px solid ${calView === key ? T.headerBg : T.border}`, fontSize: 11, fontWeight: 700, cursor: "pointer",
                   background: calView === key ? T.headerBg : T.card, color: calView === key ? "#fff" : T.muted }}>
@@ -824,6 +824,13 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
               }, 100);
               setTimeout(() => setScrollToDate(null), 1500);
             }}
+          />
+        )}
+        {calView === "schedule" && (
+          <MemberScheduleCalendar
+            settings={settings}
+            scheduleEvents={scheduleEvents}
+            userId={user.id}
           />
         )}
         {calView === "list" && (monthDays.length === 0
@@ -863,6 +870,247 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout 
           })
         )}
       </div>
+    </div>
+  );
+}
+
+
+// ── 팀원 개인 일정 캘린더 ──────────────────────────────────────────
+function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) {
+  const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+  const currentMonth = kstNow.toISOString().slice(0, 10).slice(0, 7);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [selDate, setSelDate] = useState(null);
+  const [editMode, setEditMode] = useState(null); // null | "add" | "edit"
+  const [editTarget, setEditTarget] = useState(null);
+  const [evTitle, setEvTitle] = useState("");
+  const [evColor, setEvColor] = useState("#0891b2");
+  const [evNote, setEvNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const [y, m] = selectedMonth.split("-").map(Number);
+  const holidays = settings.holidays || [];
+  const pad = (n) => String(n).padStart(2, "0");
+  const getDateStr = (d) => `${y}-${pad(m)}-${pad(d)}`;
+  const firstDay = new Date(y, m - 1, 1).getDay();
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const today = kstNow.toISOString().slice(0, 10);
+
+  const prevMonth = () => {
+    const d = new Date(y, m - 2, 1);
+    setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    setSelDate(null); setEditMode(null);
+  };
+  const nextMonth = () => {
+    const d = new Date(y, m, 1);
+    setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    setSelDate(null); setEditMode(null);
+  };
+
+  // 날짜별 이벤트 맵 — 본인 일정 + 공휴일만
+  const eventMap = {};
+  holidays.forEach(h => {
+    const date = typeof h === "string" ? h : h.date;
+    const memo = typeof h === "object" ? h.memo : null;
+    if (date?.startsWith(selectedMonth)) {
+      if (!eventMap[date]) eventMap[date] = [];
+      eventMap[date].push({ type: "holiday", label: memo || "공휴일", color: "#dc2626", id: null });
+    }
+  });
+  scheduleEvents
+    .filter(ev => ev.userId === userId)
+    .forEach(ev => {
+      if (ev.date?.startsWith(selectedMonth)) {
+        if (!eventMap[ev.date]) eventMap[ev.date] = [];
+        eventMap[ev.date].push({ type: "event", label: ev.title, color: ev.color || "#0891b2", id: ev.id, note: ev.note });
+      }
+    });
+
+  // 주간 그리드
+  const weeks = [];
+  let days = [];
+  for (let i = 0; i < firstDay; i++) days.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    days.push(d);
+    if (days.length === 7) { weeks.push(days); days = []; }
+  }
+  while (days.length < 7) days.push(null);
+  if (days.some(d => d)) weeks.push(days);
+
+  const selEvents = selDate ? (eventMap[selDate] || []) : [];
+
+  const openAdd = () => { setEvTitle(""); setEvColor("#0891b2"); setEvNote(""); setEditTarget(null); setEditMode("add"); };
+  const openEdit = (ev) => { setEvTitle(ev.label); setEvColor(ev.color || "#0891b2"); setEvNote(ev.note || ""); setEditTarget(ev); setEditMode("edit"); };
+  const cancelEdit = () => { setEditMode(null); setEditTarget(null); };
+
+  const saveEvent = async () => {
+    if (!evTitle.trim() || !selDate) return;
+    setSaving(true);
+    try {
+      if (editMode === "add") {
+        await addDoc(collection(db, COL_EVENTS), {
+          date: selDate, title: evTitle.trim(), color: evColor, note: evNote.trim(),
+          userId, createdAt: new Date().toISOString()
+        });
+      } else if (editMode === "edit" && editTarget?.id) {
+        await setDoc(doc(db, COL_EVENTS, editTarget.id), {
+          date: selDate, title: evTitle.trim(), color: evColor, note: evNote.trim(),
+          userId, createdAt: editTarget.createdAt || new Date().toISOString()
+        });
+      }
+      cancelEdit();
+    } catch(e) { console.error(e); }
+    setSaving(false);
+  };
+
+  const deleteEvent = async (id) => { if (id) await deleteDoc(doc(db, COL_EVENTS, id)); };
+
+  const EVENT_COLORS = [
+    ["#0891b2","청록"],["#7c3aed","보라"],["#16a34a","초록"],
+    ["#d97706","주황"],["#dc2626","빨강"],["#1d4ed8","파랑"],
+  ];
+
+  return (
+    <div>
+      {/* 월 이동 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, marginTop: 4 }}>
+        <button onClick={prevMonth}
+          style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "8px 13px", fontSize: 15, cursor: "pointer", fontWeight: 700, color: T.text }}>‹</button>
+        <div style={{ flex: 1, textAlign: "center", fontSize: 15, fontWeight: 800, color: T.text }}>{y}년 {m}월</div>
+        <button onClick={nextMonth}
+          style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "8px 13px", fontSize: 15, cursor: "pointer", fontWeight: 700, color: T.text }}>›</button>
+      </div>
+
+      {/* 캘린더 그리드 */}
+      <div style={{ background: T.card, borderRadius: 14, border: `1px solid ${T.border}`, overflow: "hidden", marginBottom: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
+          {["일","월","화","수","목","금","토"].map((d, i) => (
+            <div key={d} style={{ textAlign: "center", padding: "7px 0", fontSize: 10, fontWeight: 700,
+              color: i === 0 ? "#dc2626" : i === 6 ? "#2563eb" : T.muted,
+              borderBottom: `1px solid ${T.border}` }}>{d}</div>
+          ))}
+        </div>
+        {weeks.map((week, wi) => (
+          <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
+            {week.map((d, di) => {
+              const dateStr = d ? getDateStr(d) : null;
+              const events = d ? (eventMap[dateStr] || []) : [];
+              const isToday = dateStr === today;
+              const isSelected = dateStr === selDate;
+              const isHol = d ? isHoliday(dateStr, holidays) : false;
+              const hasHol = events.some(e => e.type === "holiday");
+              let dateColor = T.muted;
+              if (di === 6) dateColor = "#2563eb";
+              else if (di === 0 || isHol || hasHol) dateColor = "#dc2626";
+              return (
+                <div key={di}
+                  onClick={() => { if (!d) return; setSelDate(selDate === dateStr ? null : dateStr); setEditMode(null); setEditTarget(null); }}
+                  style={{
+                    height: 80, boxSizing: "border-box", padding: "4px 3px 3px",
+                    borderBottom: wi < weeks.length - 1 ? `1px solid ${T.border}` : "none",
+                    borderRight: di < 6 ? `1px solid ${T.border}` : "none",
+                    display: "flex", flexDirection: "column", alignItems: "stretch", gap: 1,
+                    cursor: d ? "pointer" : "default",
+                    background: isSelected ? "#e0f2fe" : isToday ? "#f0f9ff" : "transparent",
+                    overflow: "hidden", transition: "background 0.15s"
+                  }}>
+                  {d && <>
+                    <div style={{
+                      fontSize: 12, fontWeight: isToday ? 900 : 600,
+                      color: di === 6 ? "#2563eb" : (di === 0 || isHol || hasHol) ? "#dc2626" : isToday ? T.headerBg : dateColor,
+                      width: 20, height: 20, borderRadius: "50%",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      background: isToday ? "#dbeafe" : "transparent",
+                      flexShrink: 0, alignSelf: "center"
+                    }}>{d}</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 1, overflow: "hidden", flex: 1 }}>
+                      {events.slice(0, 3).map((ev, ei) => (
+                        <div key={ei} style={{
+                          fontSize: 9, fontWeight: 700,
+                          color: ev.type === "holiday" ? "#dc2626" : T.text,
+                          background: "transparent",
+                          borderLeft: `2px solid ${ev.color}`,
+                          paddingLeft: 3,
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                          lineHeight: 1.5, flexShrink: 0
+                        }}>{ev.label}</div>
+                      ))}
+                      {events.length > 3 && (
+                        <div style={{ fontSize: 8, color: T.muted, fontWeight: 800, paddingLeft: 2 }}>+{events.length - 3}개</div>
+                      )}
+                    </div>
+                  </>}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* 범례 */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 14, justifyContent: "flex-end" }}>
+        {[["#dc2626","공휴일"],["#0891b2","내 일정"]].map(([color,label]) => (
+          <div key={label} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700 }}>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: color }} />
+            <span style={{ color: T.muted }}>{label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* 선택 날짜 패널 */}
+      {selDate && (
+        <div style={{ background: T.card, borderRadius: 14, border: `1px solid ${T.border}`, overflow: "hidden", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "12px 14px", borderBottom: `1px solid ${T.border}`, background: "#f0f9ff" }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>{formatDate(selDate)}</div>
+            <button onClick={openAdd}
+              style={{ background: T.headerBg, border: "none", color: "#fff", borderRadius: 10,
+                padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              + 일정 추가
+            </button>
+          </div>
+          <div style={{ padding: "8px 14px" }}>
+            {selEvents.length === 0 && editMode !== "add" ? (
+              <div style={{ fontSize: 13, color: T.muted, textAlign: "center", padding: "16px 0" }}>등록된 일정 없음</div>
+            ) : selEvents.map((ev, i) => (
+              <div key={i}>
+                {editMode === "edit" && editTarget?.id === ev.id ? (
+                  <EventForm evTitle={evTitle} setEvTitle={setEvTitle} evColor={evColor} setEvColor={setEvColor}
+                    evNote={evNote} setEvNote={setEvNote} EVENT_COLORS={EVENT_COLORS}
+                    saving={saving} onSave={saveEvent} onCancel={cancelEdit} label="수정" />
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 0",
+                    borderBottom: i < selEvents.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: ev.color, flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: ev.type === "holiday" ? "#dc2626" : T.text }}>{ev.label}</div>
+                      {ev.note && <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{ev.note}</div>}
+                    </div>
+                    {ev.type === "holiday" && <span style={{ fontSize: 10, color: "#dc2626", fontWeight: 700 }}>공휴일</span>}
+                    {ev.type === "event" && (
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button onClick={() => openEdit(ev)}
+                          style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.muted,
+                            borderRadius: 7, padding: "3px 9px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>수정</button>
+                        <button onClick={() => deleteEvent(ev.id)}
+                          style={{ background: T.redBg, border: "none", color: T.red,
+                            borderRadius: 7, padding: "3px 9px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>삭제</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+            {editMode === "add" && (
+              <div style={{ borderTop: selEvents.length > 0 ? `1px solid ${T.border}` : "none", paddingTop: selEvents.length > 0 ? 10 : 0 }}>
+                <EventForm evTitle={evTitle} setEvTitle={setEvTitle} evColor={evColor} setEvColor={setEvColor}
+                  evNote={evNote} setEvNote={setEvNote} EVENT_COLORS={EVENT_COLORS}
+                  saving={saving} onSave={saveEvent} onCancel={cancelEdit} label="추가" />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -4400,6 +4648,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 70 }}>
       {tab === "att" && (
         <MemberScreen user={user} settings={settings} records={records} leaves={leaves}
+          scheduleEvents={scheduleEvents}
           onSaveRecord={onSaveRecord} onLogout={() => { setUserWithStorage(null); setTab("att"); }} />
       )}
       {tab !== "att" && <FloatBack onClick={() => setTab("att")} />}
