@@ -1101,34 +1101,52 @@ function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) 
 }
 
 // ── 캘린더 이벤트 라벨 — 우선순위 정렬 후 칸 여유만큼 표시 ────────
-// CELL_H: 칸 높이(px), DATE_H: 날짜 숫자 높이(px), ITEM_H: 이벤트 1줄 높이(px)
-const CELL_H = 80, DATE_H = 22, ITEM_H = 14;
-const CAL_MAX = Math.floor((CELL_H - DATE_H) / ITEM_H); // = 4
+const CELL_H = 80, DATE_H = 22, LINE_H = 14;
+const TOTAL_LINES = Math.floor((CELL_H - DATE_H) / LINE_H); // = 4
 
 function CalEventLabels({ events }) {
-  // 우선순위 정렬: 공휴일 → 리마인더 → 일정
   const ORDER = { holiday: 0, reminder: 1, event: 2 };
   const sorted = [...events].sort((a, b) => (ORDER[a.type] ?? 9) - (ORDER[b.type] ?? 9));
-  const visible = sorted.slice(0, CAL_MAX);
-  const overflow = sorted.length > CAL_MAX;
-  // 마지막 슬롯이 ···이면 visible에서 1개 빼기
-  const show = overflow ? visible.slice(0, CAL_MAX - 1) : visible;
+
+  // 이벤트 개수에 따라 각 이벤트에 줄 수 배분
+  // 예) 4줄 / 이벤트1개 = 4줄씩, / 2개 = 2줄씩, / 3개 = 1줄씩(+1남음), / 4개+ = 1줄씩
+  const count = sorted.length;
+  if (count === 0) return null;
+
+  // 표시할 이벤트 수 결정 (넘치면 마지막 슬롯 ···로)
+  const overflow = count > TOTAL_LINES;
+  const showEvents = overflow ? sorted.slice(0, TOTAL_LINES - 1) : sorted;
+  const linesLeft = overflow ? TOTAL_LINES - 1 : TOTAL_LINES; // ···가 1줄 차지
+  // 각 이벤트에 줄 배분 (앞 이벤트에 더 많이)
+  const linesPerEvent = Math.floor(linesLeft / showEvents.length);
+  const extra = linesLeft % showEvents.length; // 남는 줄은 앞 이벤트에
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 1, overflow: "hidden", flex: 1 }}>
-      {show.map((ev, ei) => (
-        <div key={ei} style={{
-          fontSize: 9, fontWeight: 700,
-          color: ev.type === "holiday" ? "#dc2626" : T.text,
-          background: "transparent",
-          borderLeft: `2px solid ${ev.color}`,
-          paddingLeft: 3,
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          lineHeight: `${ITEM_H}px`, flexShrink: 0
-        }}>{ev.label}</div>
-      ))}
+    <div style={{ display: "flex", flexDirection: "column", gap: 0, overflow: "hidden", flex: 1 }}>
+      {showEvents.map((ev, ei) => {
+        const lines = linesPerEvent + (ei < extra ? 1 : 0);
+        const multiLine = lines > 1;
+        return (
+          <div key={ei} style={{
+            fontSize: 9, fontWeight: 700,
+            color: ev.type === "holiday" ? "#dc2626" : T.text,
+            background: "transparent",
+            borderLeft: `2px solid ${ev.color}`,
+            paddingLeft: 3,
+            height: `${lines * LINE_H}px`,
+            overflow: "hidden",
+            // 여유 있으면 줄바꿈 허용, 없으면 한줄 말줄임
+            whiteSpace: multiLine ? "normal" : "nowrap",
+            textOverflow: multiLine ? "clip" : "ellipsis",
+            wordBreak: "break-all",
+            lineHeight: `${LINE_H}px`,
+            flexShrink: 0,
+            display: multiLine ? "block" : "block",
+          }}>{ev.label}</div>
+        );
+      })}
       {overflow && (
-        <div style={{ fontSize: 8, color: T.muted, fontWeight: 800, paddingLeft: 3, lineHeight: `${ITEM_H}px` }}>···</div>
+        <div style={{ fontSize: 8, color: T.muted, fontWeight: 800, paddingLeft: 3, lineHeight: `${LINE_H}px`, height: LINE_H }}>···</div>
       )}
     </div>
   );
