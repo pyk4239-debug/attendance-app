@@ -1115,49 +1115,26 @@ function CalEventLabels({ events }) {
   const ORDER = { holiday: 0, reminder: 1, event: 2 };
   const sorted = [...events].sort((a, b) => (ORDER[a.type] ?? 9) - (ORDER[b.type] ?? 9));
 
-  // 4개 이상이면 3개 + ···
   const overflow = sorted.length > TOTAL_LINES;
   const showEvents = overflow ? sorted.slice(0, TOTAL_LINES - 1) : sorted;
-  const linesLeft = overflow ? TOTAL_LINES - 1 : TOTAL_LINES;
-  const count = showEvents.length;
-
-  // 줄 배분: 앞 순위에 먼저 최대한, 뒤 순위는 나머지
-  // ex) 3줄 / 1개 → [3], / 2개 → [2,1] or [1,2] 긴쪽에, / 3개 → [1,1,1]
-  let allocated;
-  if (count === 0) return null;
-  else if (count === 1) {
-    allocated = [linesLeft]; // 1개면 전부
-  } else if (count === 2) {
-    // 우선순위 높은 쪽(앞)에 2줄, 낮은 쪽에 1줄
-    allocated = linesLeft >= 3 ? [2, 1] : [1, 1];
-  } else {
-    // 3개: 1줄씩
-    allocated = showEvents.map(() => 1);
-  }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 0, overflow: "hidden", flex: 1 }}>
-      {showEvents.map((ev, ei) => {
-        const lines = allocated[ei];
-        return (
-          <div key={ei} style={{
-            fontSize: 9, fontWeight: 700,
-            color: ev.type === "holiday" ? "#dc2626" : T.text,
-            background: "transparent",
-            borderLeft: `2px solid ${ev.color}`,
-            paddingLeft: 3,
-            height: `${lines * LINE_H}px`,
-            overflow: "hidden",
-            whiteSpace: lines > 1 ? "normal" : "nowrap",
-            textOverflow: lines > 1 ? "clip" : "ellipsis",
-            wordBreak: "break-all",
-            lineHeight: `${LINE_H}px`,
-            flexShrink: 0,
-          }}>{ev.label}</div>
-        );
-      })}
+    <div style={{ display: "flex", flexDirection: "column", gap: 1, overflow: "hidden", flex: 1 }}>
+      {showEvents.map((ev, ei) => (
+        <div key={ei} style={{
+          fontSize: 9, fontWeight: 700,
+          color: ev.type === "holiday" ? "#dc2626" : T.text,
+          background: "transparent",
+          borderLeft: `2px solid ${ev.color}`,
+          paddingLeft: 3,
+          flex: 1,           // 남은 공간 균등 배분
+          overflow: "hidden",
+          wordBreak: "break-all",
+          lineHeight: `${LINE_H}px`,
+        }}>{ev.label}</div>
+      ))}
       {overflow && (
-        <div style={{ fontSize: 8, color: T.muted, fontWeight: 800, paddingLeft: 3, lineHeight: `${LINE_H}px`, height: LINE_H }}>···</div>
+        <div style={{ fontSize: 8, color: T.muted, fontWeight: 800, paddingLeft: 3, lineHeight: `${LINE_H}px`, flexShrink: 0 }}>···</div>
       )}
     </div>
   );
