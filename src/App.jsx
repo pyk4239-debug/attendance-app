@@ -52,6 +52,7 @@ const DEFAULT_USERS = [
 
 // ── OneSignal 푸시 알림 ──────────────────────────────────────────
 async function sendPush({ title, message, targetUserId = null }) {
+  return; // 임시 중지 (월요일 복구)
   try {
     await fetch("/api/notify", {
       method: "POST",
