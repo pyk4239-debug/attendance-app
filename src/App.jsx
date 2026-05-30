@@ -3722,10 +3722,26 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
       {/* 리마인더 목록 */}
       {reminders.length === 0 ? (
         <div style={{ textAlign: "center", color: T.muted, fontSize: 13, padding: "32px 0" }}>등록된 리마인더 없음</div>
-      ) : reminders.map(r => (
+      ) : [...reminders].sort((a, b) => {
+          // 매월→매주→매일 순, 같은 타입은 날짜/요일 순
+          const typeOrder = { monthly: 0, weekly: 1, daily: 2 };
+          const ta = typeOrder[a.repeat] ?? 9, tb = typeOrder[b.repeat] ?? 9;
+          if (ta !== tb) return ta - tb;
+          if (a.repeat === "monthly") return (a.monthDay || 1) - (b.monthDay || 1);
+          if (a.repeat === "weekly") return (a.weekDay ?? 0) - (b.weekDay ?? 0);
+          return 0;
+        }).map(r => {
+          // 날짜 동그라미 라벨
+          const DOW = ["일","월","화","수","목","금","토"];
+          const badgeLabel = r.repeat === "monthly" ? `${r.monthDay || 1}` : r.repeat === "weekly" ? DOW[r.weekDay ?? 1] : "매";
+        return (
         <div key={r.id} style={{ background: T.card, border: `1px solid ${editId === r.id ? "#7c3aed" : r.active ? "#7c3aed44" : T.border}`, borderRadius: 14, marginBottom: 10, overflow: "hidden", opacity: r.active ? 1 : 0.6 }}>
           {/* 요약 행 */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px" }}>
+            {/* 날짜 동그라미 */}
+            <div style={{ width: 36, height: 36, borderRadius: "50%", background: r.active ? "#7c3aed" : T.muted, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <span style={{ fontSize: r.repeat === "monthly" ? 11 : 13, fontWeight: 800, color: "#fff" }}>{badgeLabel}</span>
+            </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: r.active ? T.text : T.muted }}>{r.title}</div>
               <div style={{ fontSize: 11, color: "#7c3aed", fontWeight: 600, marginTop: 2 }}>
@@ -3798,7 +3814,7 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
             </div>
           )}
         </div>
-      ))}
+      )})}
     </div>
   );
 }
