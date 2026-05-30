@@ -2744,15 +2744,39 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
           const key = `${u.id}_${selectedMonth}`;
           const saved = savedWages[key];
           const hourlyWage = Number(info.hourlyWage || 0);
+
+          // 근태 변경 감지 — 확정 후 근태가 바뀌었으면 "재확인 필요"
+          const needsRecheck = saved && (() => {
+            const cur = ms;
+            const sv = saved.monthStats || {};
+            return (
+              cur.workDays !== sv.workDays ||
+              cur.lateMin !== sv.lateMin ||
+              cur.earlyMin !== sv.earlyMin ||
+              cur.overtimeMin !== sv.overtimeMin ||
+              cur.holidayDays !== sv.holidayDays
+            );
+          })();
+
+          // 상태: "미확정" | "재확인필요" | "확정"
+          const statusLabel = !saved ? "미확정" : needsRecheck ? "재확인 필요" : "확정";
+          const statusBg    = !saved ? "#f3f4f6" : needsRecheck ? "#fef9c3" : "#dcfce7";
+          const statusColor = !saved ? "#6b7280" : needsRecheck ? "#b45309" : "#16a34a";
+          const borderColor = !saved ? T.border : needsRecheck ? "#fde68a" : "#16a34a44";
           return (
-            <div key={u.id} style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${saved ? "#16a34a44" : T.border}`, boxShadow: "0 1px 4px #0000000a" }}>
+            <div key={u.id} style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${borderColor}`, boxShadow: "0 1px 4px #0000000a" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
                 <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: "#fff" }}>{u.name[0]}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 800, fontSize: 16, color: T.text }}>{u.name}</div>
                 </div>
-                <span style={{ fontSize: 14, fontWeight: 800, padding: "5px 14px", borderRadius: 10, background: saved ? "#dcfce7" : "#f3f4f6", color: saved ? "#16a34a" : "#6b7280", whiteSpace: "nowrap" }}>{saved ? "확정" : "미확정"}</span>
+                <span style={{ fontSize: 13, fontWeight: 800, padding: "5px 12px", borderRadius: 10, background: statusBg, color: statusColor, whiteSpace: "nowrap" }}>{statusLabel}</span>
               </div>
+              {needsRecheck && (
+                <div style={{ fontSize: 12, color: "#b45309", background: "#fef9c3", borderRadius: 8, padding: "8px 12px", marginBottom: 10 }}>
+                  ⚠ 확정 후 근태가 변경됐어요. 재확인 후 다시 확정해주세요.
+                </div>
+              )}
               {saved && (
                 <div style={{ background: T.bg, borderRadius: 10, padding: "10px 14px", marginBottom: 10 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
@@ -2776,8 +2800,8 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
               )}
               <div style={{ display: "grid", gridTemplateColumns: saved ? "1fr 1fr" : "1fr", gap: 8 }}>
                 <button onClick={() => setWageModal({ user: u })}
-                  style={{ padding: "10px 0", borderRadius: 10, border: "none", background: saved ? "#e5e7eb" : "#16a34a", color: saved ? "#6b7280" : "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                  {saved ? "✏ 수정" : "급여 계산"}
+                  style={{ padding: "10px 0", borderRadius: 10, border: "none", background: !saved ? "#16a34a" : needsRecheck ? "#b45309" : "#e5e7eb", color: !saved ? "#fff" : needsRecheck ? "#fff" : "#6b7280", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  {!saved ? "급여 계산" : needsRecheck ? "⚠ 재확정" : "✏ 수정"}
                 </button>
                 {saved && (
                   <button onClick={() => sendPayslip(u.id, u.name, saved)} disabled={sending === u.id}
