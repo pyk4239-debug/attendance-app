@@ -1374,6 +1374,8 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [drillUser, setDrillUser] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
+  const [addDateMode, setAddDateMode] = useState(false);
+  const [addDate, setAddDate] = useState("");
 
   const prevMonth = () => {
     const [y, m] = selectedMonth.split("-").map(Number);
@@ -1509,6 +1511,36 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
             rec={records[editTarget.user.id]?.[editTarget.date] || {}}
             settings={settings} userLeaves={leaves[editTarget.user.id] || {}}
             onSave={handleSaveRecord} onClose={() => setEditTarget(null)} />
+        )}
+
+        {/* 기록 없는 날짜 직접 추가 */}
+        {!editTarget && (
+          <div style={{ marginTop: 8 }}>
+            {!addDateMode ? (
+              <button onClick={() => setAddDateMode(true)}
+                style={{ width: "100%", padding: "11px 0", borderRadius: 12, border: `2px dashed ${T.border}`, background: "none", color: T.muted, fontSize: 13, cursor: "pointer", fontWeight: 600 }}>
+                + 날짜 직접 추가 (기록 없는 날)
+              </button>
+            ) : (
+              <div style={{ background: T.card, borderRadius: 12, padding: 14, border: `1px solid ${T.border}` }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 10 }}>날짜 선택</div>
+                <input type="date" value={addDate} onChange={e => setAddDate(e.target.value)}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 }} />
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => { setAddDateMode(false); setAddDate(""); }}
+                    style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `1px solid ${T.border}`, background: "none", color: T.muted, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>취소</button>
+                  <button onClick={() => {
+                    if (!addDate) return;
+                    setEditTarget({ user: drillUser, date: addDate });
+                    setAddDateMode(false); setAddDate("");
+                  }}
+                    style={{ flex: 2, padding: "9px 0", borderRadius: 10, border: "none", background: T.headerBg, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                    이 날짜 수정
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
     );
