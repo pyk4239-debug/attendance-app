@@ -2750,11 +2750,12 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
             const cur = ms;
             const sv = saved.monthStats || {};
             return (
-              cur.workDays !== sv.workDays ||
+              cur.days !== sv.days ||
               cur.lateMin !== sv.lateMin ||
               cur.earlyMin !== sv.earlyMin ||
-              cur.overtimeMin !== sv.overtimeMin ||
-              cur.holidayDays !== sv.holidayDays
+              cur.otMin !== sv.otMin ||
+              cur.holiday !== sv.holiday ||
+              cur.absentDays !== sv.absentDays
             );
           })();
 
