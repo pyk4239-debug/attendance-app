@@ -2601,7 +2601,7 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
               totalIncome, totalDeduct, netPay,
               monthStats, payDate: getPayDate(yearMonth, holidays),
               createdAt: new Date().toISOString()
-            })}>저장 + 확정</Btn>
+            })}>확정</Btn>
           </div>
         </div>
       </div>
