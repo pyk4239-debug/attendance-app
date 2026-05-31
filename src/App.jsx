@@ -947,12 +947,12 @@ function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) 
       if (editMode === "add") {
         await addDoc(collection(db, COL_EVENTS), {
           date: selDate, title: evTitle.trim(), color: evColor, note: evNote.trim(),
-          userId, createdAt: new Date().toISOString()
+          userId, target: userId, isAdminPost: false, createdAt: new Date().toISOString()
         });
       } else if (editMode === "edit" && editTarget?.id) {
         await setDoc(doc(db, COL_EVENTS, editTarget.id), {
           date: selDate, title: evTitle.trim(), color: evColor, note: evNote.trim(),
-          userId, createdAt: editTarget.createdAt || new Date().toISOString()
+          userId, target: userId, isAdminPost: false, createdAt: editTarget.createdAt || new Date().toISOString()
         });
       }
       cancelEdit();
@@ -1070,12 +1070,10 @@ function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) 
                     </div>
                     {ev.type === "holiday" && <span style={{ fontSize: 10, color: "#dc2626", fontWeight: 700 }}>공휴일</span>}
                     {ev.type === "event" && ev.target === "all" && (
-                      // 관리자가 전체에게 보낸 일정 — 읽기 전용
-                      <span style={{ fontSize: 10, color: "#7c3aed", fontWeight: 700, background: "#ede9fe", borderRadius: 6, padding: "2px 7px" }}>관리자 공지</span>
+                      <span style={{ fontSize: 10, color: "#7c3aed", fontWeight: 700, background: "#ede9fe", borderRadius: 6, padding: "2px 7px" }}>관리자 일정</span>
                     )}
                     {ev.type === "event" && ev.target === userId && ev.isAdminPost && (
-                      // 관리자가 나에게 보낸 일정 — 읽기 전용
-                      <span style={{ fontSize: 10, color: "#0891b2", fontWeight: 700, background: "#e0f2fe", borderRadius: 6, padding: "2px 7px" }}>나에게</span>
+                      <span style={{ fontSize: 10, color: "#0891b2", fontWeight: 700, background: "#e0f2fe", borderRadius: 6, padding: "2px 7px" }}>개인 일정</span>
                     )}
                     {ev.type === "event" && ((ev.target === userId && !ev.isAdminPost) || (!ev.target && !ev.isAdminPost)) && (
                       // 본인 일정 — 수정/삭제
@@ -3314,8 +3312,10 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
       eventMap[d].push({ type: "reminder", label: r.title, color: "#7c3aed", id: r.id });
     });
   });
-  // 3) 단건 일정 이벤트 — 관리자는 전부 표시
-  scheduleEvents.forEach(ev => {
+  // 3) 단건 일정 이벤트 — 관리자는 isAdminPost 또는 target=admin 것만
+  scheduleEvents
+    .filter(ev => ev.isAdminPost || ev.target === "admin" || !ev.target)
+    .forEach(ev => {
     if (ev.date?.startsWith(selectedMonth)) {
       if (!eventMap[ev.date]) eventMap[ev.date] = [];
       eventMap[ev.date].push({ type: "event", label: ev.title, color: ev.color || "#0891b2", id: ev.id, note: ev.note, target: ev.target || ev.userId || "admin" });
