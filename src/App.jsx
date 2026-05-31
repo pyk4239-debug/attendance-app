@@ -912,7 +912,10 @@ function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) 
     }
   });
   scheduleEvents
-    .filter(ev => ev.userId === userId)
+    .filter(ev => {
+      const t = ev.target || ev.userId; // 기존 데이터 호환
+      return t === "all" || t === userId;
+    })
     .forEach(ev => {
       if (ev.date?.startsWith(selectedMonth)) {
         if (!eventMap[ev.date]) eventMap[ev.date] = [];
@@ -3232,6 +3235,7 @@ function AdminSchedule({ reminders = [], users = [], settings = {}, scheduleEven
           reminders={reminders}
           settings={settings}
           scheduleEvents={scheduleEvents}
+          users={users}
           onSwitchToReminder={(date) => { setCalClickDate(date); setSubTab("reminder"); }}
         />
       )}
@@ -3248,7 +3252,7 @@ function AdminSchedule({ reminders = [], users = [], settings = {}, scheduleEven
 }
 
 // ── 일정 캘린더 뷰 ───────────────────────────────────────────────
-function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], onSwitchToReminder }) {
+function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], users = [], onSwitchToReminder }) {
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const currentMonth = kstNow.toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
@@ -3260,6 +3264,7 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
   const [evTitle, setEvTitle] = useState("");
   const [evColor, setEvColor] = useState("#7c3aed");
   const [evNote, setEvNote]   = useState("");
+  const [evTarget, setEvTarget] = useState("admin"); // "admin"|"all"|팀원ID
   const [saving, setSaving]   = useState(false);
 
   const [y, m] = selectedMonth.split("-").map(Number);
@@ -3300,11 +3305,11 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
       eventMap[d].push({ type: "reminder", label: r.title, color: "#7c3aed", id: r.id });
     });
   });
-  // 3) 단건 일정 이벤트
+  // 3) 단건 일정 이벤트 — 관리자는 전부 표시
   scheduleEvents.forEach(ev => {
     if (ev.date?.startsWith(selectedMonth)) {
       if (!eventMap[ev.date]) eventMap[ev.date] = [];
-      eventMap[ev.date].push({ type: "event", label: ev.title, color: ev.color || "#0891b2", id: ev.id, note: ev.note });
+      eventMap[ev.date].push({ type: "event", label: ev.title, color: ev.color || "#0891b2", id: ev.id, note: ev.note, target: ev.target || ev.userId || "admin" });
     }
   });
 
@@ -3322,12 +3327,13 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
   const selEvents = selDate ? (eventMap[selDate] || []) : [];
 
   const openAdd = () => {
-    setEvTitle(""); setEvColor("#0891b2"); setEvNote("");
+    setEvTitle(""); setEvColor("#0891b2"); setEvNote(""); setEvTarget("admin");
     setEditTarget(null); setEditMode("add");
   };
   const openEdit = (ev) => {
-    if (ev.type !== "event") return; // 공휴일·리마인더는 인라인 수정 불가
+    if (ev.type !== "event") return;
     setEvTitle(ev.label); setEvColor(ev.color || "#0891b2"); setEvNote(ev.note || "");
+    setEvTarget(ev.target || "admin");
     setEditTarget(ev); setEditMode("edit");
   };
   const cancelEdit = () => { setEditMode(null); setEditTarget(null); };
@@ -3339,12 +3345,12 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
       if (editMode === "add") {
         await addDoc(collection(db, COL_EVENTS), {
           date: selDate, title: evTitle.trim(), color: evColor, note: evNote.trim(),
-          createdAt: new Date().toISOString()
+          target: evTarget, createdAt: new Date().toISOString()
         });
       } else if (editMode === "edit" && editTarget?.id) {
         await setDoc(doc(db, COL_EVENTS, editTarget.id), {
           date: selDate, title: evTitle.trim(), color: evColor, note: evNote.trim(),
-          createdAt: editTarget.createdAt || new Date().toISOString()
+          target: evTarget, createdAt: editTarget.createdAt || new Date().toISOString()
         });
       }
       cancelEdit();
@@ -3459,11 +3465,11 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
               <div key={i}>
                 {/* 이벤트 행 */}
                 {editMode === "edit" && editTarget?.id === ev.id ? (
-                  // 인라인 수정 폼
                   <EventForm
                     evTitle={evTitle} setEvTitle={setEvTitle}
                     evColor={evColor} setEvColor={setEvColor}
                     evNote={evNote}  setEvNote={setEvNote}
+                    evTarget={evTarget} setEvTarget={setEvTarget} users={users}
                     EVENT_COLORS={EVENT_COLORS}
                     saving={saving} onSave={saveEvent} onCancel={cancelEdit}
                     label="수정"
@@ -3482,13 +3488,18 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
                       <span style={{ fontSize: 10, color: "#7c3aed", fontWeight: 700 }}>🔔</span>
                     )}
                     {ev.type === "event" && (
-                      <div style={{ display: "flex", gap: 4 }}>
-                        <button onClick={() => openEdit(ev)}
-                          style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.muted,
-                            borderRadius: 7, padding: "3px 9px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>수정</button>
-                        <button onClick={() => deleteEvent(ev.id)}
-                          style={{ background: T.redBg, border: "none", color: T.red,
-                            borderRadius: 7, padding: "3px 9px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>삭제</button>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
+                        <span style={{ fontSize: 9, color: T.muted, fontWeight: 600 }}>
+                          {ev.target === "admin" ? "나만" : ev.target === "all" ? "전체" : users.find(u=>u.id===ev.target)?.name || ev.target}
+                        </span>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <button onClick={() => openEdit(ev)}
+                            style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.muted,
+                              borderRadius: 7, padding: "3px 9px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>수정</button>
+                          <button onClick={() => deleteEvent(ev.id)}
+                            style={{ background: T.redBg, border: "none", color: T.red,
+                              borderRadius: 7, padding: "3px 9px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>삭제</button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -3503,6 +3514,7 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
                   evTitle={evTitle} setEvTitle={setEvTitle}
                   evColor={evColor} setEvColor={setEvColor}
                   evNote={evNote}  setEvNote={setEvNote}
+                  evTarget={evTarget} setEvTarget={setEvTarget} users={users}
                   EVENT_COLORS={EVENT_COLORS}
                   saving={saving} onSave={saveEvent} onCancel={cancelEdit}
                   label="추가"
@@ -3517,7 +3529,7 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
 }
 
 // ── 이벤트 입력 폼 (인라인) ───────────────────────────────────────
-function EventForm({ evTitle, setEvTitle, evColor, setEvColor, evNote, setEvNote, EVENT_COLORS, saving, onSave, onCancel, label }) {
+function EventForm({ evTitle, setEvTitle, evColor, setEvColor, evNote, setEvNote, evTarget, setEvTarget, users, EVENT_COLORS, saving, onSave, onCancel, label }) {
   const iS = { width: "100%", padding: "9px 12px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 13, fontWeight: 600, boxSizing: "border-box", fontFamily: "inherit" };
   return (
     <div style={{ background: "#f5f3ff", borderRadius: 10, padding: 12, marginTop: 4 }}>
@@ -3525,6 +3537,17 @@ function EventForm({ evTitle, setEvTitle, evColor, setEvColor, evNote, setEvNote
         placeholder="일정 제목" autoFocus style={{ ...iS, marginBottom: 8 }} />
       <input value={evNote} onChange={e => setEvNote(e.target.value)}
         placeholder="메모 (선택)" style={{ ...iS, marginBottom: 8 }} />
+      {/* 수신인 선택 — 관리자 캘린더에서만 표시 */}
+      {setEvTarget && users && (
+        <select value={evTarget} onChange={e => setEvTarget(e.target.value)}
+          style={{ ...iS, marginBottom: 8 }}>
+          <option value="admin">나만 (관리자 개인)</option>
+          <option value="all">전체 팀원</option>
+          {users.filter(u => u.role !== "admin").map(u => (
+            <option key={u.id} value={u.id}>{u.name}</option>
+          ))}
+        </select>
+      )}
       {/* 색상 선택 */}
       <div style={{ display: "flex", gap: 6, marginBottom: 10, alignItems: "center" }}>
         <span style={{ fontSize: 11, color: T.muted, fontWeight: 600, whiteSpace: "nowrap" }}>색상</span>
