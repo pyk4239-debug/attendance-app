@@ -3379,6 +3379,9 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
 
   return (
     <div style={{ padding: 16, paddingBottom: 80 }}>
+      {/* 월 이동 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+        <button onClick={prevMonth}
           style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "9px 14px", fontSize: 16, cursor: "pointer", fontWeight: 700, color: T.text }}>‹</button>
         <div style={{ flex: 1, textAlign: "center", fontSize: 16, fontWeight: 800, color: T.text }}>{y}년 {m}월</div>
         <button onClick={nextMonth}
