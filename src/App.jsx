@@ -1083,7 +1083,7 @@ function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) 
                       // 관리자가 나에게 보낸 일정 — 읽기 전용
                       <span style={{ fontSize: 10, color: "#0891b2", fontWeight: 700, background: "#e0f2fe", borderRadius: 6, padding: "2px 7px" }}>나에게</span>
                     )}
-                    {ev.type === "event" && (ev.target === userId && !ev.isAdminPost || !ev.target) && (
+                    {ev.type === "event" && ((ev.target === userId && !ev.isAdminPost) || (!ev.target && !ev.isAdminPost)) && (
                       // 본인 일정 — 수정/삭제
                       <div style={{ display: "flex", gap: 4 }}>
                         <button onClick={() => openEdit(ev)}
