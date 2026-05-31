@@ -968,7 +968,7 @@ function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) 
   ];
 
   return (
-    <div style={{ paddingBottom: 80 }}>
+    <div style={{ paddingBottom: 140 }}>
       {/* 월 이동 */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, marginTop: 4 }}>
         <button onClick={prevMonth}
@@ -3378,7 +3378,7 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
   ];
 
   return (
-    <div style={{ padding: 16, paddingBottom: 80 }}>
+    <div style={{ padding: 16, paddingBottom: 140 }}>
       {/* 월 이동 */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
         <button onClick={prevMonth}
