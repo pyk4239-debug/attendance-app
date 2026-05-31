@@ -913,9 +913,15 @@ function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) 
   });
   scheduleEvents
     .filter(ev => {
-      const t = ev.target || ev.userId; // 기존 데이터 호환
+      const t = ev.target || ev.userId;
       return t === "all" || t === userId;
     })
+    .forEach(ev => {
+      if (ev.date?.startsWith(selectedMonth)) {
+        if (!eventMap[ev.date]) eventMap[ev.date] = [];
+        eventMap[ev.date].push({ type: "event", label: ev.title, color: ev.color || "#0891b2", id: ev.id, note: ev.note, target: ev.target || ev.userId, isAdminPost: ev.isAdminPost || false });
+      }
+    });
     .forEach(ev => {
       if (ev.date?.startsWith(selectedMonth)) {
         if (!eventMap[ev.date]) eventMap[ev.date] = [];
@@ -1069,7 +1075,16 @@ function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) 
                       {ev.note && <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{ev.note}</div>}
                     </div>
                     {ev.type === "holiday" && <span style={{ fontSize: 10, color: "#dc2626", fontWeight: 700 }}>공휴일</span>}
-                    {ev.type === "event" && (
+                    {ev.type === "event" && ev.target === "all" && (
+                      // 관리자가 전체에게 보낸 일정 — 읽기 전용
+                      <span style={{ fontSize: 10, color: "#7c3aed", fontWeight: 700, background: "#ede9fe", borderRadius: 6, padding: "2px 7px" }}>관리자 공지</span>
+                    )}
+                    {ev.type === "event" && ev.target === userId && ev.isAdminPost && (
+                      // 관리자가 나에게 보낸 일정 — 읽기 전용
+                      <span style={{ fontSize: 10, color: "#0891b2", fontWeight: 700, background: "#e0f2fe", borderRadius: 6, padding: "2px 7px" }}>나에게</span>
+                    )}
+                    {ev.type === "event" && (ev.target === userId && !ev.isAdminPost || !ev.target) && (
+                      // 본인 일정 — 수정/삭제
                       <div style={{ display: "flex", gap: 4 }}>
                         <button onClick={() => openEdit(ev)}
                           style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.muted,
@@ -3345,12 +3360,12 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
       if (editMode === "add") {
         await addDoc(collection(db, COL_EVENTS), {
           date: selDate, title: evTitle.trim(), color: evColor, note: evNote.trim(),
-          target: evTarget, createdAt: new Date().toISOString()
+          target: evTarget, isAdminPost: true, createdAt: new Date().toISOString()
         });
       } else if (editMode === "edit" && editTarget?.id) {
         await setDoc(doc(db, COL_EVENTS, editTarget.id), {
           date: selDate, title: evTitle.trim(), color: evColor, note: evNote.trim(),
-          target: evTarget, createdAt: editTarget.createdAt || new Date().toISOString()
+          target: evTarget, isAdminPost: true, createdAt: editTarget.createdAt || new Date().toISOString()
         });
       }
       cancelEdit();
