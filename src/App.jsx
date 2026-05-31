@@ -922,12 +922,6 @@ function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) 
         eventMap[ev.date].push({ type: "event", label: ev.title, color: ev.color || "#0891b2", id: ev.id, note: ev.note, target: ev.target || ev.userId, isAdminPost: ev.isAdminPost || false });
       }
     });
-    .forEach(ev => {
-      if (ev.date?.startsWith(selectedMonth)) {
-        if (!eventMap[ev.date]) eventMap[ev.date] = [];
-        eventMap[ev.date].push({ type: "event", label: ev.title, color: ev.color || "#0891b2", id: ev.id, note: ev.note });
-      }
-    });
 
   // 주간 그리드
   const weeks = [];
