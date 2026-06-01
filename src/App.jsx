@@ -52,7 +52,6 @@ const DEFAULT_USERS = [
 
 // ── OneSignal 푸시 알림 ──────────────────────────────────────────
 async function sendPush({ title, message, targetUserId = null }) {
-  return; // 임시 중지 (월요일 복구)
   try {
     await fetch("/api/notify", {
       method: "POST",
@@ -3585,6 +3584,19 @@ function EventForm({ evTitle, setEvTitle, evColor, setEvColor, evNote, setEvNote
 function getOccurrencesInMonth(r, y, m, daysInMonth, holidays) {
   const pad = (n) => String(n).padStart(2, "0");
   const results = [];
+
+  // 근무일 목록
+  const workDays = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${y}-${pad(m)}-${pad(d)}`;
+    const dow = new Date(y, m - 1, d).getDay();
+    if (dow === 0 || dow === 6) continue;
+    if (isHoliday(dateStr, holidays)) continue;
+    workDays.push(d);
+  }
+  const firstWorkDay = workDays[0] || null;
+  const lastWorkDay = workDays[workDays.length - 1] || null;
+
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${y}-${pad(m)}-${pad(d)}`;
     const dow = new Date(y, m - 1, d).getDay();
@@ -3592,6 +3604,25 @@ function getOccurrencesInMonth(r, y, m, daysInMonth, holidays) {
     if (r.repeat === "daily") matches = true;
     else if (r.repeat === "weekly") matches = (dow === (r.weekDay ?? 1));
     else if (r.repeat === "monthly") matches = (d === (r.monthDay || 1));
+    else if (r.repeat === "monthly_first_work") matches = (d === firstWorkDay);
+    else if (r.repeat === "monthly_last_work") matches = (d === lastWorkDay);
+    else if (r.repeat === "weekly_first_work") {
+      // 각 주의 첫 근무일: 그 주 월~금 중 공휴일 아닌 첫날
+      if (dow >= 1 && dow <= 5 && !isHoliday(dateStr, holidays)) {
+        // 이 날이 해당 주의 첫 근무일인지 확인
+        let isFirst = true;
+        for (let prev = d - 1; prev >= 1; prev--) {
+          const prevDow = new Date(y, m - 1, prev).getDay();
+          if (prevDow === 0) break; // 일요일이면 이전 주
+          const prevStr = `${y}-${pad(m)}-${pad(prev)}`;
+          if (prevDow >= 1 && prevDow <= 5 && !isHoliday(prevStr, holidays)) {
+            isFirst = false;
+            break;
+          }
+        }
+        matches = isFirst;
+      }
+    }
     if (matches) results.push(dateStr);
   }
   return results;
@@ -3657,6 +3688,9 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
     if (r.repeat === "daily") return "매일";
     if (r.repeat === "weekly") return `매주 ${DOW[r.weekDay]}요일`;
     if (r.repeat === "monthly") return `매월 ${r.monthDay}일`;
+    if (r.repeat === "monthly_first_work") return "매월 첫 근무일";
+    if (r.repeat === "monthly_last_work") return "매월 마지막 근무일";
+    if (r.repeat === "weekly_first_work") return "매주 첫 근무일";
     return "";
   };
 
@@ -3692,6 +3726,9 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
                 <option value="daily">매일</option>
                 <option value="weekly">매주</option>
                 <option value="monthly">매월</option>
+                <option value="monthly_first_work">매월 첫 근무일</option>
+                <option value="monthly_last_work">매월 마지막 근무일</option>
+                <option value="weekly_first_work">매주 첫 근무일</option>
               </select>
             </div>
           </div>
@@ -3756,7 +3793,7 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
         <div style={{ textAlign: "center", color: T.muted, fontSize: 13, padding: "32px 0" }}>등록된 리마인더 없음</div>
       ) : [...reminders].sort((a, b) => {
           // 매월→매주→매일 순, 같은 타입은 날짜/요일 순
-          const typeOrder = { monthly: 0, weekly: 1, daily: 2 };
+          const typeOrder = { monthly: 0, monthly_first_work: 1, monthly_last_work: 2, weekly_first_work: 3, weekly: 4, daily: 5 };
           const ta = typeOrder[a.repeat] ?? 9, tb = typeOrder[b.repeat] ?? 9;
           if (ta !== tb) return ta - tb;
           if (a.repeat === "monthly") return (a.monthDay || 1) - (b.monthDay || 1);
@@ -3765,7 +3802,12 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
         }).map(r => {
           // 날짜 동그라미 라벨
           const DOW = ["일","월","화","수","목","금","토"];
-          const badgeLabel = r.repeat === "monthly" ? `${r.monthDay || 1}` : r.repeat === "weekly" ? DOW[r.weekDay ?? 1] : "매";
+          const badgeLabel = r.repeat === "monthly" ? `${r.monthDay || 1}`
+            : r.repeat === "weekly" ? DOW[r.weekDay ?? 1]
+            : r.repeat === "monthly_first_work" ? "첫"
+            : r.repeat === "monthly_last_work" ? "말"
+            : r.repeat === "weekly_first_work" ? "주"
+            : "매";
         return (
         <div key={r.id} style={{ background: T.card, border: `1px solid ${editId === r.id ? "#7c3aed" : r.active ? "#7c3aed44" : T.border}`, borderRadius: 14, marginBottom: 10, overflow: "hidden", opacity: r.active ? 1 : 0.6 }}>
           {/* 요약 행 */}
@@ -3807,7 +3849,9 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
                   <option value="daily">매일</option>
                   <option value="weekly">매주</option>
                   <option value="monthly">매월</option>
-                </select>
+                  <option value="monthly_first_work">매월 첫 근무일</option>
+                  <option value="monthly_last_work">매월 마지막 근무일</option>
+                  <option value="weekly_first_work">매주 첫 근무일</option>
               </div>
               {form.repeat === "weekly" && (
                 <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
