@@ -12,7 +12,7 @@ export default async function handler(req, res) {
     app_id: process.env.ONESIGNAL_APP_ID,
     headings: { en: title, ko: title },
     contents: { en: message, ko: message },
-    collapse_id: Date.now().toString(), // 알림 누적 표시 (덮어쓰기 방지)
+    android_group: "attendance_notifications", // 그룹으로 묶어서 누적 표시
   };
 
   if (targetUserId) {
