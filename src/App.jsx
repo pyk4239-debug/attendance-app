@@ -3852,6 +3852,7 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
                   <option value="monthly_first_work">매월 첫 근무일</option>
                   <option value="monthly_last_work">매월 마지막 근무일</option>
                   <option value="weekly_first_work">매주 첫 근무일</option>
+                </select>
               </div>
               {form.repeat === "weekly" && (
                 <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
