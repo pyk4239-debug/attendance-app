@@ -4046,7 +4046,7 @@ function NoticeScreen({ user, users, notices, reads }) {
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>📢 공지사항</div>
-        {isAdmin && <button onClick={() => { resetForm(); setShowWrite(true); }} style={{ background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ 작성</button>}
+        {isAdmin && !showWrite && <button onClick={() => { resetForm(); setShowWrite(true); }} style={{ background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ 작성</button>}
       </div>
 
       {showWrite && (
@@ -4182,7 +4182,7 @@ function BoardScreen({ user, board, reads }) {
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>💬 자유게시판</div>
-        <button onClick={() => setShowWrite(!showWrite)} style={{ background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ 글쓰기</button>
+        {!showWrite && <button onClick={() => setShowWrite(!showWrite)} style={{ background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ 글쓰기</button>}
       </div>
 
       {showWrite && (
