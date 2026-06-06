@@ -3654,9 +3654,9 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
   const DOW = ["일","월","화","수","목","금","토"];
 
   const openEdit = (r) => {
-    setForm({ title: r.title, time: r.time, repeat: r.repeat, monthDay: r.monthDay || 1, weekDay: r.weekDay || 1, target: r.target || "admin", sendBeforeHoliday: r.sendBeforeHoliday || false });
+    setForm({ title: r.title, time: r.time, repeat: r.repeat, monthDay: r.monthDay || 1, weekDay: r.weekDay || 1, monthWeek: r.monthWeek || 1, monthWorkDay: r.monthWorkDay || 1, target: r.target || "admin", sendBeforeHoliday: r.sendBeforeHoliday || false });
     setEditId(r.id);
-    setAdding(false); // 상단 추가 폼 닫기
+    setAdding(false);
   };
 
   const saveReminder = async () => {
