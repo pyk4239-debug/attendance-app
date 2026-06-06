@@ -3604,7 +3604,22 @@ function getOccurrencesInMonth(r, y, m, daysInMonth, holidays) {
     if (r.repeat === "daily") matches = true;
     else if (r.repeat === "weekly") matches = (dow === (r.weekDay ?? 1));
     else if (r.repeat === "monthly") matches = (d === (r.monthDay || 1));
-    else if (r.repeat === "monthly_first_work") matches = (d === firstWorkDay);
+    else if (r.repeat === "monthly_nth") {
+      // N번째 특정 요일 (monthWeek: 1~4, 5=마지막)
+      const targetDow = r.weekDay ?? 1;
+      const targetWeek = r.monthWeek ?? 1;
+      if (dow === targetDow) {
+        // 이 날이 몇 번째 해당 요일인지 계산
+        const nthOfMonth = Math.ceil(d / 7);
+        if (targetWeek === 5) {
+          // 마지막 해당 요일인지 확인
+          const nextSameDay = d + 7;
+          if (nextSameDay > daysInMonth) matches = true;
+        } else {
+          matches = (nthOfMonth === targetWeek);
+        }
+      }
+    }
     else if (r.repeat === "monthly_last_work") matches = (d === lastWorkDay);
     else if (r.repeat === "weekly_first_work") {
       // 각 주의 첫 근무일: 그 주 월~금 중 공휴일 아닌 첫날
@@ -3630,7 +3645,7 @@ function getOccurrencesInMonth(r, y, m, daysInMonth, holidays) {
 
 // ── 리마인더 ────────────────────────────────────────────────────
 function AdminReminder({ reminders = [], users = [], presetDate = null, onClearPreset }) {
-  const EMPTY = { title: "", time: "09:00", repeat: "daily", monthDay: 1, weekDay: 1, target: "admin", sendBeforeHoliday: false };
+  const EMPTY = { title: "", time: "09:00", repeat: "daily", monthDay: 1, weekDay: 1, monthWeek: 1, target: "admin", sendBeforeHoliday: false };
   const [form, setForm] = useState(EMPTY);
   const [editId, setEditId] = useState(null); // null=추가, id=수정
   const [adding, setAdding] = useState(false);
@@ -3685,9 +3700,14 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
   };
 
   const repeatDesc = (r) => {
+    const DOW_LABEL = ["일","월","화","수","목","금","토"];
     if (r.repeat === "daily") return "매일";
-    if (r.repeat === "weekly") return `매주 ${DOW[r.weekDay]}요일`;
+    if (r.repeat === "weekly") return `매주 ${DOW_LABEL[r.weekDay]}요일`;
     if (r.repeat === "monthly") return `매월 ${r.monthDay}일`;
+    if (r.repeat === "monthly_nth") {
+      const weekLabel = r.monthWeek === 5 ? "마지막" : `${r.monthWeek}번째`;
+      return `매월 ${weekLabel} ${DOW_LABEL[r.weekDay]}요일`;
+    }
     if (r.repeat === "monthly_first_work") return "매월 첫 근무일";
     if (r.repeat === "monthly_last_work") return "매월 마지막 근무일";
     if (r.repeat === "weekly_first_work") return "매주 첫 근무일";
@@ -3725,7 +3745,8 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
                 style={{ width: "100%", padding: "10px 8px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700, boxSizing: "border-box", background: "#fff", color: T.text }}>
                 <option value="daily">매일</option>
                 <option value="weekly">매주</option>
-                <option value="monthly">매월</option>
+                <option value="monthly">매월 (날짜)</option>
+                <option value="monthly_nth">매월 (N번째 요일)</option>
                 <option value="monthly_first_work">매월 첫 근무일</option>
                 <option value="monthly_last_work">매월 마지막 근무일</option>
                 <option value="weekly_first_work">매주 첫 근무일</option>
@@ -3733,7 +3754,8 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
             </div>
           </div>
 
-          {form.repeat === "weekly" && (
+          {/* 매주 → 요일 선택 */}
+          {(form.repeat === "weekly") && (
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>요일 선택</div>
               <div style={{ display: "flex", gap: 6 }}>
@@ -3747,6 +3769,7 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
             </div>
           )}
 
+          {/* 매월 날짜 */}
           {form.repeat === "monthly" && (
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>날짜</div>
@@ -3754,6 +3777,30 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
                 style={{ width: "100%", padding: "10px 8px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700, background: "#fff", color: T.text }}>
                 {Array.from({length: 31}, (_, i) => i+1).map(d => <option key={d} value={d}>{d}일</option>)}
               </select>
+            </div>
+          )}
+
+          {/* 매월 N번째 요일 */}
+          {form.repeat === "monthly_nth" && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>몇 번째 주</div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                {[["1번째",1],["2번째",2],["3번째",3],["4번째",4],["마지막",5]].map(([label, val]) => (
+                  <button key={val} onClick={() => setForm(p => ({...p, monthWeek: val}))}
+                    style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: `1px solid ${form.monthWeek === val ? "#7c3aed" : T.border}`,
+                      background: form.monthWeek === val ? "#7c3aed" : "#fff", color: form.monthWeek === val ? "#fff" : T.text,
+                      fontSize: 10, fontWeight: 700, cursor: "pointer" }}>{label}</button>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>요일 선택</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {DOW.map((d, i) => (
+                  <button key={i} onClick={() => setForm(p => ({...p, weekDay: i}))}
+                    style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: `1px solid ${form.weekDay === i ? "#7c3aed" : T.border}`,
+                      background: form.weekDay === i ? "#7c3aed" : "#fff", color: form.weekDay === i ? "#fff" : T.text,
+                      fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{d}</button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -3793,7 +3840,7 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
         <div style={{ textAlign: "center", color: T.muted, fontSize: 13, padding: "32px 0" }}>등록된 리마인더 없음</div>
       ) : [...reminders].sort((a, b) => {
           // 매월→매주→매일 순, 같은 타입은 날짜/요일 순
-          const typeOrder = { monthly: 0, monthly_first_work: 1, monthly_last_work: 2, weekly_first_work: 3, weekly: 4, daily: 5 };
+          const typeOrder = { monthly: 0, monthly_nth: 1, monthly_first_work: 2, monthly_last_work: 3, weekly_first_work: 4, weekly: 5, daily: 6 };
           const ta = typeOrder[a.repeat] ?? 9, tb = typeOrder[b.repeat] ?? 9;
           if (ta !== tb) return ta - tb;
           if (a.repeat === "monthly") return (a.monthDay || 1) - (b.monthDay || 1);
@@ -3804,6 +3851,7 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
           const DOW = ["일","월","화","수","목","금","토"];
           const badgeLabel = r.repeat === "monthly" ? `${r.monthDay || 1}`
             : r.repeat === "weekly" ? DOW[r.weekDay ?? 1]
+            : r.repeat === "monthly_nth" ? `${r.monthWeek === 5 ? "말" : r.monthWeek}${DOW[r.weekDay ?? 1]}`
             : r.repeat === "monthly_first_work" ? "첫"
             : r.repeat === "monthly_last_work" ? "말"
             : r.repeat === "weekly_first_work" ? "주"
@@ -3848,7 +3896,8 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
                   style={{ padding: "9px 8px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700, background: "#fff", color: T.text, width: "100%", boxSizing: "border-box" }}>
                   <option value="daily">매일</option>
                   <option value="weekly">매주</option>
-                  <option value="monthly">매월</option>
+                  <option value="monthly">매월 (날짜)</option>
+                  <option value="monthly_nth">매월 (N번째 요일)</option>
                   <option value="monthly_first_work">매월 첫 근무일</option>
                   <option value="monthly_last_work">매월 마지막 근무일</option>
                   <option value="weekly_first_work">매주 첫 근무일</option>
@@ -3869,6 +3918,26 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
                   style={{ width: "100%", padding: "9px 8px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700, background: "#fff", color: T.text, marginBottom: 8, boxSizing: "border-box" }}>
                   {Array.from({length: 31}, (_, i) => i+1).map(d => <option key={d} value={d}>{d}일</option>)}
                 </select>
+              )}
+              {form.repeat === "monthly_nth" && (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+                    {[["1번째",1],["2번째",2],["3번째",3],["4번째",4],["마지막",5]].map(([label, val]) => (
+                      <button key={val} onClick={() => setForm(p => ({...p, monthWeek: val}))}
+                        style={{ flex: 1, padding: "5px 0", borderRadius: 8, border: `1px solid ${form.monthWeek === val ? "#7c3aed" : T.border}`,
+                          background: form.monthWeek === val ? "#7c3aed" : "#fff", color: form.monthWeek === val ? "#fff" : T.text,
+                          fontSize: 9, fontWeight: 700, cursor: "pointer" }}>{label}</button>
+                    ))}
+                  </div>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {["일","월","화","수","목","금","토"].map((d, i) => (
+                      <button key={i} onClick={() => setForm(p => ({...p, weekDay: i}))}
+                        style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: `1px solid ${form.weekDay === i ? "#7c3aed" : T.border}`,
+                          background: form.weekDay === i ? "#7c3aed" : "#fff", color: form.weekDay === i ? "#fff" : T.text,
+                          fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{d}</button>
+                    ))}
+                  </div>
+                </div>
               )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
                 <select value={form.target} onChange={e => setForm(p => ({...p, target: e.target.value}))}
