@@ -3594,7 +3594,6 @@ function getOccurrencesInMonth(r, y, m, daysInMonth, holidays) {
     if (isHoliday(dateStr, holidays)) continue;
     workDays.push(d);
   }
-  const firstWorkDay = workDays[0] || null;
   const lastWorkDay = workDays[workDays.length - 1] || null;
 
   for (let d = 1; d <= daysInMonth; d++) {
@@ -3605,28 +3604,10 @@ function getOccurrencesInMonth(r, y, m, daysInMonth, holidays) {
     else if (r.repeat === "weekly") matches = (dow === (r.weekDay ?? 1));
     else if (r.repeat === "monthly") matches = (d === (r.monthDay || 1));
     else if (r.repeat === "monthly_nth_work") {
-      // N번째 근무일 (주말+공휴일 제외 후 순서)
       const nth = r.monthWorkDay ?? 1;
       if (workDays.length >= nth && workDays[nth - 1] === d) matches = true;
     }
     else if (r.repeat === "monthly_last_work") matches = (d === lastWorkDay);
-    else if (r.repeat === "weekly_first_work") {
-      // 각 주의 첫 근무일: 그 주 월~금 중 공휴일 아닌 첫날
-      if (dow >= 1 && dow <= 5 && !isHoliday(dateStr, holidays)) {
-        // 이 날이 해당 주의 첫 근무일인지 확인
-        let isFirst = true;
-        for (let prev = d - 1; prev >= 1; prev--) {
-          const prevDow = new Date(y, m - 1, prev).getDay();
-          if (prevDow === 0) break; // 일요일이면 이전 주
-          const prevStr = `${y}-${pad(m)}-${pad(prev)}`;
-          if (prevDow >= 1 && prevDow <= 5 && !isHoliday(prevStr, holidays)) {
-            isFirst = false;
-            break;
-          }
-        }
-        matches = isFirst;
-      }
-    }
     if (matches) results.push(dateStr);
   }
   return results;
@@ -3634,7 +3615,7 @@ function getOccurrencesInMonth(r, y, m, daysInMonth, holidays) {
 
 // ── 리마인더 ────────────────────────────────────────────────────
 function AdminReminder({ reminders = [], users = [], presetDate = null, onClearPreset }) {
-  const EMPTY = { title: "", time: "09:00", repeat: "daily", monthDay: 1, weekDay: 1, monthWeek: 1, monthWorkDay: 1, target: "admin", sendBeforeHoliday: false };
+  const EMPTY = { title: "", time: "09:00", repeat: "daily", monthDay: 1, weekDay: 1, monthWorkDay: 1, target: "admin", sendBeforeHoliday: false };
   const [form, setForm] = useState(EMPTY);
   const [editId, setEditId] = useState(null); // null=추가, id=수정
   const [adding, setAdding] = useState(false);
