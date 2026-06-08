@@ -1770,7 +1770,18 @@ function SettingsModal({ settings, onSave, onClose }) {
             onChange={e => setS(p => ({ ...p, monthlyHours: Number(e.target.value) }))}
             style={{ ...iStyle }} placeholder="209" />
         </div>
-        {/* 점심시간 */}
+        {/* 급여 지급일 */}
+        <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: T.text, fontWeight: 700, marginBottom: 4 }}>💰 급여 지급일</div>
+          <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>익월 N일 지급 · 주말/공휴일이면 다음 근무일로 자동 조정</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ fontSize: 13, color: T.muted, fontWeight: 600 }}>익월</div>
+            <input type="number" min="1" max="31" value={s.payDay ?? 15}
+              onChange={e => setS(p => ({ ...p, payDay: Number(e.target.value) }))}
+              style={{ ...iStyle, width: 80, textAlign: "center" }} placeholder="15" />
+            <div style={{ fontSize: 13, color: T.muted, fontWeight: 600 }}>일</div>
+          </div>
+        </div>
         <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
           <div style={{ fontSize: 13, color: T.text, fontWeight: 700, marginBottom: 4 }}>🍱 점심시간</div>
           <div style={{ fontSize: 11, color: T.muted, marginBottom: 12 }}>반차 기준 계산에 사용돼요</div>
@@ -2461,10 +2472,9 @@ function AdminAttendance({ users, settings, records, leaves, leaveRequests, onSa
 
 // ── 관리자 임금 섹션 (추후 개발) ──────────────────────────────
 // ── 지급일 계산 ─────────────────────────────────────────────
-function getPayDate(yearMonth, holidays = []) {
+function getPayDate(yearMonth, holidays = [], payDay = 15) {
   const [y, m] = yearMonth.split("-").map(Number);
-  // 당월 급여 → 익월 15일 (KST 기준)
-  let d = new Date(y, m, 15); // JS month는 0-based, m은 1-based이므로 m = 익월
+  let d = new Date(y, m, payDay); // 익월 payDay일
   while (d.getDay() === 0 || d.getDay() === 6 || holidays.includes(
     `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`
   )) {
@@ -2536,7 +2546,7 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
       <div style={{ background: T.card, borderRadius: 20, width: "100%", maxWidth: 360, maxHeight: "92vh", overflowY: "scroll", WebkitOverflowScrolling: "touch", boxShadow: "0 20px 60px #00000030" }}>
         <div style={{ background: "#16a34a", padding: "16px 20px", borderRadius: "20px 20px 0 0" }}>
           <div style={{ fontWeight: 800, fontSize: 17, color: "#fff" }}>{user.name} — {monthLabel(yearMonth)}</div>
-          <div style={{ fontSize: 12, color: "#ffffff80", marginTop: 4 }}>지급일 {getPayDate(yearMonth, holidays)} · {info?.bank ? `${info.bank}은행 ${info.account}` : "계좌 미등록"}</div>
+          <div style={{ fontSize: 12, color: "#ffffff80", marginTop: 4 }}>지급일 {getPayDate(yearMonth, holidays, settings?.payDay ?? 15)} · {info?.bank ? `${info.bank}은행 ${info.account}` : "계좌 미등록"}</div>
         </div>
 
         <div style={{ padding: "16px 20px" }}>
@@ -2640,7 +2650,7 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
               pensionBase, insuranceBase,
               ratePension, rateHealth, rateEmployment, rateLongCare,
               totalIncome, totalDeduct, netPay,
-              monthStats, payDate: getPayDate(yearMonth, holidays),
+              monthStats, payDate: getPayDate(yearMonth, holidays, settings?.payDay ?? 15),
               createdAt: new Date().toISOString()
             })}>확정</Btn>
           </div>
@@ -2739,7 +2749,7 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
     const header = ["이름", "지급일", "출근", "연장", "휴일", "기본급", "연장수당", "휴일수당", "상여금", "이월분", "기타소득", "소득합계", "소득세", "주민세", "국민연금", "건강보험", "고용보험", "장기요양", "차감", "기타공제", "공제합계", "실지급액"];
     const rows = members.map(u => {
       const s = savedWages[`${u.id}_${selectedMonth}`];
-      if (!s) return [u.name, getPayDate(selectedMonth), ...Array(20).fill("-")];
+      if (!s) return [u.name, getPayDate(selectedMonth, settings?.holidays ?? [], settings?.payDay ?? 15), ...Array(20).fill("-")];
       return [u.name, s.payDate, s.monthStats?.days||0, fmtMinutes(s.monthStats?.otMin||0), s.monthStats?.holiday||0,
         s.monthlyBase||0, s.otPay||0, s.holidayPay||0, s.bonus||0, s.carryOver||0, s.otherIncome||0, s.totalIncome||0,
         s.incomeTax||0, s.residentTax||0, s.nationalPension||0, s.health||0, s.employment||0, s.longCare||0,
