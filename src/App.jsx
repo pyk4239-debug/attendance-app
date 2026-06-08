@@ -2671,6 +2671,20 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
     loadWages();
   }, [selectedMonth]);
 
+  const prevMonth = () => {
+    const [y, m] = selectedMonth.split("-").map(Number);
+    const d = new Date(y, m - 2, 1);
+    setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
+  const nextMonth = () => {
+    const [y, m] = selectedMonth.split("-").map(Number);
+    const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+    const cur = `${kstNow.getFullYear()}-${String(kstNow.getMonth() + 1).padStart(2, "0")}`;
+    if (selectedMonth >= cur) return;
+    const d = new Date(y, m, 1);
+    setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
+
   const getMonthStats = (userId) => {
     const days = Object.entries(records[userId] || {}).filter(([d]) => d.startsWith(selectedMonth));
     const uLeaves = Object.fromEntries(Object.entries(leaves[userId] || {}).filter(([d]) => d.startsWith(selectedMonth)));
@@ -2734,6 +2748,8 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
     downloadCSV(`임금대장_${monthLabel(selectedMonth)}.csv`, [header, ...rows]);
   };
 
+  const isCurrentMonth = selectedMonth >= new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
+
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
       <div style={{ background: "#16a34a", padding: "16px 16px 0" }}>
@@ -2755,43 +2771,11 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
       </div>
 
       <div style={{ padding: 16 }}>
-        {/* 연도 + 월 선택 */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
-          {/* 연도 선택 */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "8px 12px" }}>
-            <button onClick={() => {
-              const [y, m] = selectedMonth.split("-").map(Number);
-              setSelectedMonth(`${y - 1}-${String(m).padStart(2, "0")}`);
-            }} style={{ background: "none", border: "none", fontSize: 16, cursor: "pointer", color: T.text, fontWeight: 700, padding: "0 4px" }}>‹</button>
-            <div style={{ fontSize: 15, fontWeight: 800, color: T.text, minWidth: 50, textAlign: "center" }}>{selectedMonth.split("-")[0]}년</div>
-            <button onClick={() => {
-              const [y, m] = selectedMonth.split("-").map(Number);
-              const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
-              if (y >= kstNow.getFullYear()) return;
-              setSelectedMonth(`${y + 1}-${String(m).padStart(2, "0")}`);
-            }} style={{ background: "none", border: "none", fontSize: 16, cursor: "pointer", color: T.text, fontWeight: 700, padding: "0 4px" }}>›</button>
-          </div>
-          {/* 월 선택 */}
-          <div style={{ flex: 1, overflowX: "auto" }}>
-            <div style={{ display: "flex", gap: 4 }}>
-              {Array.from({length: 12}, (_, i) => i + 1).map(mon => {
-                const monStr = `${selectedMonth.split("-")[0]}-${String(mon).padStart(2, "0")}`;
-                const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
-                const curStr = `${kstNow.getFullYear()}-${String(kstNow.getMonth() + 1).padStart(2, "0")}`;
-                const isFuture = monStr > curStr;
-                const isSelected = selectedMonth === monStr;
-                return (
-                  <button key={mon} onClick={() => { if (!isFuture) setSelectedMonth(monStr); }}
-                    style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 10,
-                      border: `1px solid ${isSelected ? "#16a34a" : T.border}`,
-                      background: isSelected ? "#16a34a" : T.card,
-                      color: isSelected ? "#fff" : isFuture ? T.muted : T.text,
-                      fontSize: 12, fontWeight: 700, cursor: isFuture ? "not-allowed" : "pointer",
-                      opacity: isFuture ? 0.35 : 1 }}>{mon}월</button>
-                );
-              })}
-            </div>
-          </div>
+        {/* 월 선택 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <button onClick={prevMonth} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 16px", fontSize: 16, cursor: "pointer", fontWeight: 700, color: T.text }}>‹</button>
+          <div style={{ flex: 1, textAlign: "center", fontSize: 16, fontWeight: 800, color: T.text }}>{monthLabel(selectedMonth)}</div>
+          <button onClick={nextMonth} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 16px", fontSize: 16, cursor: "pointer", fontWeight: 700, color: isCurrentMonth ? T.muted : T.text, opacity: isCurrentMonth ? 0.3 : 1 }}>›</button>
         </div>
 
         {/* 급여 계산 탭 */}
@@ -4285,9 +4269,17 @@ function PayslipScreen({ user, users, payslips, reads }) {
   const [file, setFile] = useState(null);
   const [msg, setMsg] = useState("");
   const [expanded, setExpanded] = useState({});
+  const kstNow = new Date(new Date().getTime() + 9*60*60*1000);
+  const [selectedYear, setSelectedYear] = useState(kstNow.getFullYear());
 
   const members = users.filter(u => u.role === "member");
-  const myPayslips = isAdmin ? payslips : payslips.filter(p => p.userId === user.id);
+  const allPayslips = isAdmin ? payslips : payslips.filter(p => p.userId === user.id);
+  // 연도 필터 적용
+  const myPayslips = allPayslips.filter(p => (p.month || "").startsWith(String(selectedYear)));
+
+  // 선택 가능한 연도 목록
+  const years = [...new Set(allPayslips.map(p => (p.month || "").slice(0, 4)).filter(Boolean))].sort((a, b) => b - a);
+  if (!years.includes(String(selectedYear))) years.unshift(String(selectedYear));
 
   const [pdfLoading, setPdfLoading] = useState(null);
 
@@ -4381,6 +4373,15 @@ function PayslipScreen({ user, users, payslips, reads }) {
           <Btn variant="admin" onClick={upload} disabled={uploading}>{uploading ? "업로드 중..." : "업로드"}</Btn>
         </div>
       )}
+
+      {/* 연도 선택 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, background: T.card, borderRadius: 12, padding: "10px 14px", border: `1px solid ${T.border}` }}>
+        <button onClick={() => setSelectedYear(y => y - 1)}
+          style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: T.text, fontWeight: 700 }}>‹</button>
+        <div style={{ flex: 1, textAlign: "center", fontSize: 16, fontWeight: 800, color: T.text }}>{selectedYear}년</div>
+        <button onClick={() => { if (selectedYear < kstNow.getFullYear()) setSelectedYear(y => y + 1); }}
+          style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: selectedYear >= kstNow.getFullYear() ? T.muted : T.text, fontWeight: 700 }}>›</button>
+      </div>
 
       {myPayslips.length === 0
         ? <div style={{ textAlign: "center", color: T.muted, padding: 40 }}>등록된 명세서가 없어요</div>
