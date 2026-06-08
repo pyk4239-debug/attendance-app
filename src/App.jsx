@@ -2671,20 +2671,6 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
     loadWages();
   }, [selectedMonth]);
 
-  const prevMonth = () => {
-    const [y, m] = selectedMonth.split("-").map(Number);
-    const d = new Date(y, m - 2, 1);
-    setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-  };
-  const nextMonth = () => {
-    const [y, m] = selectedMonth.split("-").map(Number);
-    const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
-    const cur = `${kstNow.getFullYear()}-${String(kstNow.getMonth() + 1).padStart(2, "0")}`;
-    if (selectedMonth >= cur) return;
-    const d = new Date(y, m, 1);
-    setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-  };
-
   const getMonthStats = (userId) => {
     const days = Object.entries(records[userId] || {}).filter(([d]) => d.startsWith(selectedMonth));
     const uLeaves = Object.fromEntries(Object.entries(leaves[userId] || {}).filter(([d]) => d.startsWith(selectedMonth)));
@@ -2748,8 +2734,6 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
     downloadCSV(`임금대장_${monthLabel(selectedMonth)}.csv`, [header, ...rows]);
   };
 
-  const isCurrentMonth = selectedMonth >= new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
-
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
       <div style={{ background: "#16a34a", padding: "16px 16px 0" }}>
@@ -2771,11 +2755,43 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
       </div>
 
       <div style={{ padding: 16 }}>
-        {/* 월 선택 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-          <button onClick={prevMonth} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 16px", fontSize: 16, cursor: "pointer", fontWeight: 700, color: T.text }}>‹</button>
-          <div style={{ flex: 1, textAlign: "center", fontSize: 16, fontWeight: 800, color: T.text }}>{monthLabel(selectedMonth)}</div>
-          <button onClick={nextMonth} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 16px", fontSize: 16, cursor: "pointer", fontWeight: 700, color: isCurrentMonth ? T.muted : T.text, opacity: isCurrentMonth ? 0.3 : 1 }}>›</button>
+        {/* 연도 + 월 선택 */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
+          {/* 연도 선택 */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "8px 12px" }}>
+            <button onClick={() => {
+              const [y, m] = selectedMonth.split("-").map(Number);
+              setSelectedMonth(`${y - 1}-${String(m).padStart(2, "0")}`);
+            }} style={{ background: "none", border: "none", fontSize: 16, cursor: "pointer", color: T.text, fontWeight: 700, padding: "0 4px" }}>‹</button>
+            <div style={{ fontSize: 15, fontWeight: 800, color: T.text, minWidth: 50, textAlign: "center" }}>{selectedMonth.split("-")[0]}년</div>
+            <button onClick={() => {
+              const [y, m] = selectedMonth.split("-").map(Number);
+              const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+              if (y >= kstNow.getFullYear()) return;
+              setSelectedMonth(`${y + 1}-${String(m).padStart(2, "0")}`);
+            }} style={{ background: "none", border: "none", fontSize: 16, cursor: "pointer", color: T.text, fontWeight: 700, padding: "0 4px" }}>›</button>
+          </div>
+          {/* 월 선택 */}
+          <div style={{ flex: 1, overflowX: "auto" }}>
+            <div style={{ display: "flex", gap: 4 }}>
+              {Array.from({length: 12}, (_, i) => i + 1).map(mon => {
+                const monStr = `${selectedMonth.split("-")[0]}-${String(mon).padStart(2, "0")}`;
+                const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+                const curStr = `${kstNow.getFullYear()}-${String(kstNow.getMonth() + 1).padStart(2, "0")}`;
+                const isFuture = monStr > curStr;
+                const isSelected = selectedMonth === monStr;
+                return (
+                  <button key={mon} onClick={() => { if (!isFuture) setSelectedMonth(monStr); }}
+                    style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 10,
+                      border: `1px solid ${isSelected ? "#16a34a" : T.border}`,
+                      background: isSelected ? "#16a34a" : T.card,
+                      color: isSelected ? "#fff" : isFuture ? T.muted : T.text,
+                      fontSize: 12, fontWeight: 700, cursor: isFuture ? "not-allowed" : "pointer",
+                      opacity: isFuture ? 0.35 : 1 }}>{mon}월</button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* 급여 계산 탭 */}
