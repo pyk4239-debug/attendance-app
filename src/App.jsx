@@ -4640,14 +4640,12 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
 
           {/* 내 신청 내역 */}
           <div style={{ fontSize: 13, color: T.muted, marginBottom: 8, fontWeight: 600 }}>신청 내역</div>
-          <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
-            {years.map(y => (
-              <button key={y} onClick={() => setSelectedYear(y)}
-                style={{ padding: "5px 14px", borderRadius: 20, border: `1px solid ${selectedYear === y ? '#0284c7' : T.border}`, fontWeight: 700, fontSize: 13, cursor: "pointer",
-                  background: selectedYear === y ? '#0284c7' : T.card, color: selectedYear === y ? "#fff" : T.muted }}>
-                {y}년
-              </button>
-            ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, background: T.card, borderRadius: 12, padding: "10px 14px", border: `1px solid ${T.border}` }}>
+            <button onClick={() => setSelectedYear(y => String(Number(y) - 1))}
+              style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: T.text, fontWeight: 700 }}>‹</button>
+            <div style={{ flex: 1, textAlign: "center", fontSize: 15, fontWeight: 800, color: T.text }}>{selectedYear}년</div>
+            <button onClick={() => { if (Number(selectedYear) < thisYear) setSelectedYear(y => String(Number(y) + 1)); }}
+              style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: Number(selectedYear) >= thisYear ? T.muted : T.text, fontWeight: 700 }}>›</button>
           </div>
           {myRequests.filter(r => r.date?.startsWith(selectedYear)).length === 0
             ? <div style={{ textAlign: "center", color: T.muted, padding: 24, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>{selectedYear}년 신청 내역 없음</div>
@@ -4711,16 +4709,12 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
 
           {/* 연차 신청 목록 */}
           <div style={{ fontSize: 13, color: T.muted, margin: "16px 0 8px", fontWeight: 600 }}>연차 신청 목록</div>
-          <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
-            {years.map(y => (
-              <button key={y} onClick={() => setSelectedYear(y)}
-                style={{ padding: "5px 14px", borderRadius: 20, border: "none", fontWeight: 700, fontSize: 13, cursor: "pointer",
-                  background: selectedYear === y ? '#0284c7' : T.card,
-                  color: selectedYear === y ? "#fff" : T.muted,
-                  border: `1px solid ${selectedYear === y ? '#0284c7' : T.border}` }}>
-                {y}년
-              </button>
-            ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, background: T.card, borderRadius: 12, padding: "10px 14px", border: `1px solid ${T.border}` }}>
+            <button onClick={() => setSelectedYear(y => String(Number(y) - 1))}
+              style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: T.text, fontWeight: 700 }}>‹</button>
+            <div style={{ flex: 1, textAlign: "center", fontSize: 15, fontWeight: 800, color: T.text }}>{selectedYear}년</div>
+            <button onClick={() => { if (Number(selectedYear) < thisYear) setSelectedYear(y => String(Number(y) + 1)); }}
+              style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: Number(selectedYear) >= thisYear ? T.muted : T.text, fontWeight: 700 }}>›</button>
           </div>
           {leaveRequests.filter(r => r.date?.startsWith(selectedYear)).length === 0
             ? <div style={{ textAlign: "center", color: T.muted, padding: 24, background: T.card, borderRadius: 12, border: `1px solid ${T.border}` }}>{selectedYear}년 신청 없음</div>
