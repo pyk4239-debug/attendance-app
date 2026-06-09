@@ -2453,11 +2453,11 @@ function AdminAttendance({ users, settings, records, leaves, leaveRequests, onSa
                       const showCheckin = !rec.in && nowMin >= startMin;
                       const showCheckout = rec.in && !rec.out && nowMin >= endMin;
                       if (showCheckin) return (
-                        <button onClick={() => sendPush({ title: "🌅 출근 알림", message: `${u.name}님, 출근 기록을 잊지 마세요!`, targetUserId: u.id })}
+                        <button onClick={() => { if (window.confirm(`${u.name}님께 출근 알림을 보낼까요?`)) sendPush({ title: "🌅 출근 알림", message: `${u.name}님, 출근 기록을 잊지 마세요!`, targetUserId: u.id }); }}
                           style={{ background: "#fef9c3", border: "1px solid #fde68a", color: "#92400e", borderRadius: 8, padding: "4px 10px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>🔔 출근</button>
                       );
                       if (showCheckout) return (
-                        <button onClick={() => sendPush({ title: "🏠 퇴근 알림", message: `${u.name}님, 퇴근 기록을 잊지 마세요!`, targetUserId: u.id })}
+                        <button onClick={() => { if (window.confirm(`${u.name}님께 퇴근 알림을 보낼까요?`)) sendPush({ title: "🏠 퇴근 알림", message: `${u.name}님, 퇴근 기록을 잊지 마세요!`, targetUserId: u.id }); }}
                           style={{ background: "#dbeafe", border: "1px solid #93c5fd", color: "#1e40af", borderRadius: 8, padding: "4px 10px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>🔔 퇴근</button>
                       );
                       return null;
