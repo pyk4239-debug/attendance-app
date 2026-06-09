@@ -2443,6 +2443,25 @@ function AdminAttendance({ users, settings, records, leaves, leaveRequests, onSa
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
                     <Badge label={status} color={sColor} />
                     <button onClick={() => setEditTarget({ user: u, date: today })} style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "4px 10px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>수정</button>
+                    {/* 알림 재발송 버튼 */}
+                    {(() => {
+                      const [sh, sm] = (settings.workStart || "09:00").split(":").map(Number);
+                      const [eh, em] = (settings.workEnd || "18:00").split(":").map(Number);
+                      const nowMin = now.getHours() * 60 + now.getMinutes();
+                      const startMin = sh * 60 + sm;
+                      const endMin = eh * 60 + em;
+                      const showCheckin = !rec.in && nowMin >= startMin;
+                      const showCheckout = rec.in && !rec.out && nowMin >= endMin;
+                      if (showCheckin) return (
+                        <button onClick={() => sendPush({ title: "🌅 출근 알림", message: `${u.name}님, 출근 기록을 잊지 마세요!`, targetUserId: u.id })}
+                          style={{ background: "#fef9c3", border: "1px solid #fde68a", color: "#92400e", borderRadius: 8, padding: "4px 10px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>🔔 출근</button>
+                      );
+                      if (showCheckout) return (
+                        <button onClick={() => sendPush({ title: "🏠 퇴근 알림", message: `${u.name}님, 퇴근 기록을 잊지 마세요!`, targetUserId: u.id })}
+                          style={{ background: "#dbeafe", border: "1px solid #93c5fd", color: "#1e40af", borderRadius: 8, padding: "4px 10px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>🔔 퇴근</button>
+                      );
+                      return null;
+                    })()}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
