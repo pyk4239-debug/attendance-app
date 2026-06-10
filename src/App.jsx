@@ -4446,7 +4446,7 @@ function PayslipScreen({ user, users, payslips, reads }) {
                   {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                     style={{ background: T.blueBg, color: T.blue, borderRadius: 8, padding: "5px 10px", fontSize: 11, fontWeight: 700, textDecoration: "none" }}>보기</a>}
 
-                  {isAdmin && <button onClick={e => { e.stopPropagation(); deleteDoc(doc(db, COL_PAYSLIPS, p.id)); }}
+                  {isAdmin && <button onClick={e => { e.stopPropagation(); if (window.confirm(`${users.find(u => u.id === p.userId)?.name} · ${monthLabel(p.month)} 명세서를 삭제할까요?\n삭제 후 복구할 수 없어요.`)) deleteDoc(doc(db, COL_PAYSLIPS, p.id)); }}
                     style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 8px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>삭제</button>}
                   <span style={{ color: T.muted, fontSize: 14 }}>{isOpen ? "▲" : "▼"}</span>
                 </div>
