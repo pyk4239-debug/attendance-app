@@ -2876,12 +2876,22 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
                   style={{ padding: "10px 0", borderRadius: 10, border: "none", background: !saved ? "#16a34a" : needsRecheck ? "#b45309" : "#e5e7eb", color: !saved ? "#fff" : needsRecheck ? "#fff" : "#6b7280", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                   {!saved ? "급여 계산" : needsRecheck ? "⚠ 재확정" : "✏ 수정"}
                 </button>
-                {saved && (
-                  <button onClick={() => sendPayslip(u.id, u.name, saved)} disabled={sending === u.id}
-                    style={{ padding: "10px 0", borderRadius: 10, border: "none", background: "#2563eb", color: "#fff", fontSize: 13, fontWeight: 700, cursor: sending === u.id ? "not-allowed" : "pointer", opacity: sending === u.id ? 0.6 : 1 }}>
-                    {sending === u.id ? "전송중..." : "📤 명세서 전송"}
-                  </button>
-                )}
+                {saved && (() => {
+                  const alreadySent = payslips.some(p => p.userId === u.id && p.month === selectedMonth);
+                  return (
+                    <button onClick={() => {
+                      if (alreadySent && !window.confirm(`${u.name}님께 이미 전송된 명세서가 있어요.\n재전송할까요?`)) return;
+                      sendPayslip(u.id, u.name, saved);
+                    }} disabled={sending === u.id}
+                      style={{ padding: "10px 0", borderRadius: 10, border: "none",
+                        background: sending === u.id ? T.muted : alreadySent ? "#e5e7eb" : "#2563eb",
+                        color: sending === u.id ? "#fff" : alreadySent ? "#6b7280" : "#fff",
+                        fontSize: 13, fontWeight: 700, cursor: sending === u.id ? "not-allowed" : "pointer",
+                        opacity: sending === u.id ? 0.6 : 1 }}>
+                      {sending === u.id ? "전송중..." : alreadySent ? "🔄 재전송" : "📤 명세서 전송"}
+                    </button>
+                  );
+                })()}
               </div>
             </div>
           );
