@@ -1080,7 +1080,7 @@ function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) 
                         <button onClick={() => openEdit(ev)}
                           style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.muted,
                             borderRadius: 7, padding: "3px 9px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>수정</button>
-                        <button onClick={() => deleteEvent(ev.id)}
+                        <button onClick={() => { if (window.confirm("일정을 삭제할까요?")) deleteEvent(ev.id); }}
                           style={{ background: T.redBg, border: "none", color: T.red,
                             borderRadius: 7, padding: "3px 9px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>삭제</button>
                       </div>
@@ -1853,7 +1853,7 @@ function SettingsModal({ settings, onSave, onClose }) {
           )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
             <button onClick={registerOffice} style={{ padding: "10px 0", borderRadius: 10, border: "none", background: T.adminHeader, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>현재 위치 등록</button>
-            <button onClick={() => { setS(p => ({ ...p, officeLat: null, officeLng: null })); setGpsMsg("위치가 삭제됐어요"); }} style={{ padding: "10px 0", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>위치 삭제</button>
+            <button onClick={() => { if (window.confirm("등록된 위치를 삭제할까요?")) { setS(p => ({ ...p, officeLat: null, officeLng: null })); setGpsMsg("위치가 삭제됐어요"); } }} style={{ padding: "10px 0", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>위치 삭제</button>
           </div>
           {gpsMsg && <div style={{ fontSize: 11, color: gpsMsg.includes("✓") ? T.green : T.red, fontWeight: 600, marginBottom: 8 }}>{gpsMsg}</div>}
           <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>허용 반경</div>
@@ -3545,7 +3545,7 @@ function ScheduleCalendar({ reminders = [], settings = {}, scheduleEvents = [], 
                           <button onClick={() => openEdit(ev)}
                             style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.muted,
                               borderRadius: 7, padding: "3px 9px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>수정</button>
-                          <button onClick={() => deleteEvent(ev.id)}
+                          <button onClick={() => { if (window.confirm("일정을 삭제할까요?")) deleteEvent(ev.id); }}
                             style={{ background: T.redBg, border: "none", color: T.red,
                               borderRadius: 7, padding: "3px 9px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>삭제</button>
                         </div>
@@ -3876,7 +3876,7 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
                 style={{ background: editId === r.id ? "#ede9fe" : T.bg, border: `1px solid ${editId === r.id ? "#7c3aed" : T.border}`, color: editId === r.id ? "#7c3aed" : T.muted, borderRadius: 8, padding: "4px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                 {editId === r.id ? "닫기" : "수정"}
               </button>
-              <button onClick={() => deleteReminder(r.id)}
+              <button onClick={() => { if (window.confirm(`"${r.title}" 리마인더를 삭제할까요?`)) deleteReminder(r.id); }}
                 style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "4px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>삭제</button>
             </div>
           </div>
@@ -4180,7 +4180,7 @@ function NoticeScreen({ user, users, notices, reads }) {
                     ) : (
                       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                         <button onClick={() => openEdit(n)} style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>수정</button>
-                        <button onClick={() => del(n)} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>삭제</button>
+                        <button onClick={() => { if (window.confirm(`"${n.title}" 공지사항을 삭제할까요?`)) del(n); }} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>삭제</button>
                       </div>
                     )}
                   </div>
@@ -4288,7 +4288,7 @@ function BoardScreen({ user, board, reads }) {
                   ) : (
                     <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                       {b.userId === user.id && <button onClick={() => startEdit(b)} style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>수정</button>}
-                      <button onClick={() => del(b.id)} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>삭제</button>
+                      <button onClick={() => { if (window.confirm(`"${b.title}" 게시글을 삭제할까요?`)) del(b.id); }} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>삭제</button>
                     </div>
                   )
                 )}
