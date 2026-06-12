@@ -143,12 +143,10 @@ function calcLateMinWithLeave(inI, ws, leave, settings) {
 }
 function calcEarlyOutMinWithLeave(outI, we, inI, ws, leave, settings) {
   if (!outI) return 0;
-  // 오후 반차: 퇴근 기준 = 출근시간 + 4시간 (오후에 쉬고 점심 전 퇴근)
-  if (leave?.type === "반차(오후)" && inI) {
-    const inD = new Date(inI);
-    const halfEnd = new Date(inD.getTime() + 4 * 60 * 60 * 1000); // 출근 + 4시간
-    const outD = new Date(outI);
-    return Math.max(0, (halfEnd.getHours() * 60 + halfEnd.getMinutes()) - (outD.getHours() * 60 + outD.getMinutes()));
+  // 오후 반차: 퇴근 기준 = 점심 시작 시간 (lunchStart)
+  if (leave?.type === "반차(오후)") {
+    const lunchStart = settings?.lunchStart || "11:30";
+    return calcEarlyOutMin(outI, lunchStart);
   }
   if (!we) return 0;
   return calcEarlyOutMin(outI, we);
@@ -1253,11 +1251,15 @@ function EditRecordModal({ user, date, rec, settings, userLeaves, onSave, onClos
   const iStyle = { width: "100%", padding: "11px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, fontWeight: 600, boxSizing: "border-box", fontFamily: "inherit" };
   const inIso = inTime ? setTimeOnDate(date, inTime) : null;
   const outIso = outTime ? setTimeOnDate(date, outTime) : null;
-  const autoLate = calcLateMin(inIso, settings.workStart) > 0;
-  const autoEarly = calcEarlyOutMin(outIso, settings.workEnd) > 0;
+
+  // 반차 자동 제외 처리
+  const isHalfAM = leaveType === "반차(오전)";
+  const isHalfPM = leaveType === "반차(오후)";
+  const autoLate = isHalfAM ? false : calcLateMin(inIso, settings.workStart) > 0;
+  const autoEarly = isHalfPM ? false : calcEarlyOutMin(outIso, settings.workEnd) > 0;
   const autoOvertime = calcTotalOvertimeMin(inIso, outIso, settings.workStart, settings.workEnd) >= 30;
-  const lm = calcLateMin(inIso, settings.workStart);
-  const em = calcEarlyOutMin(outIso, settings.workEnd);
+  const lm = isHalfAM ? 0 : calcLateMin(inIso, settings.workStart);
+  const em = isHalfPM ? 0 : calcEarlyOutMinWithLeave(outIso, settings.workEnd, inIso, settings.workStart, userLeaves[date], settings);
   const om = calcTotalOvertimeMin(inIso, outIso, settings.workStart, settings.workEnd);
 
   // 최종 확정값 (관리자가 수동 설정했으면 그걸, 아니면 자동)
