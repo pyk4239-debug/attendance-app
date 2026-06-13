@@ -2452,7 +2452,9 @@ function AdminAttendance({ users, settings, records, leaves, leaveRequests, onSa
                       const nowMin = now.getHours() * 60 + now.getMinutes();
                       const startMin = sh * 60 + sm;
                       const endMin = eh * 60 + em;
-                      const showCheckin = !rec.in && nowMin >= startMin;
+                      const todayIsHoliday = isHoliday(today, settings.holidays || []);
+                      // 휴일이면 출근 알림 안 보임, 퇴근 알림은 출근한 경우만
+                      const showCheckin = !rec.in && nowMin >= startMin && !todayIsHoliday;
                       const showCheckout = rec.in && !rec.out && nowMin >= endMin;
                       if (showCheckin) return (
                         <button onClick={() => { if (window.confirm(`${u.name}님께 출근 알림을 보낼까요?`)) sendPush({ title: "🌅 출근 알림", message: `${u.name}님, 출근 기록을 잊지 마세요!`, targetUserId: u.id }); }}
