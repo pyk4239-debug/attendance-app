@@ -2448,11 +2448,16 @@ function AdminAttendance({ users, settings, records, leaves, leaveRequests, onSa
                     {/* 알림 재발송 버튼 */}
                     {(() => {
                       const [sh, sm] = (settings.workStart || "09:00").split(":").map(Number);
-                      const [eh, em] = (settings.workEnd || "18:00").split(":").map(Number);
+                      const [eh, em2] = (settings.workEnd || "18:00").split(":").map(Number);
                       const nowMin = now.getHours() * 60 + now.getMinutes();
-                      const startMin = sh * 60 + sm;
-                      const endMin = eh * 60 + em;
+                      let startMin = sh * 60 + sm;
+                      const endMin = eh * 60 + em2;
                       const todayIsHoliday = isHoliday(today, settings.holidays || []);
+                      // 반차(오전)이면 점심시간 끝(lunchEnd) 기준으로 출근 알림
+                      if (todayLeave?.type === "반차(오전)") {
+                        const [lh, lm2] = (settings.lunchEnd || "12:30").split(":").map(Number);
+                        startMin = lh * 60 + lm2;
+                      }
                       // 휴일이면 출근 알림 안 보임, 퇴근 알림은 출근한 경우만
                       const showCheckin = !rec.in && nowMin >= startMin && !todayIsHoliday;
                       const showCheckout = rec.in && !rec.out && nowMin >= endMin;
