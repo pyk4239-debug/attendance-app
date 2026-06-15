@@ -4465,6 +4465,18 @@ function PayslipScreen({ user, users, payslips, reads }) {
                   {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                     style={{ background: T.blueBg, color: T.blue, borderRadius: 8, padding: "5px 10px", fontSize: 11, fontWeight: 700, textDecoration: "none" }}>보기</a>}
 
+                  {isAdmin && (
+                    p.paidConfirm
+                      ? <span style={{ background: "#dcfce7", color: "#16a34a", borderRadius: 8, padding: "5px 10px", fontSize: 11, fontWeight: 700 }}>✓ 송금완료</span>
+                      : <button onClick={async e => {
+                          e.stopPropagation();
+                          if (!window.confirm(`${member?.name}님께 ${monthLabel(p.month)} 급여 입금 알림을 보낼까요?`)) return;
+                          await setDoc(doc(db, COL_PAYSLIPS, p.id), { ...p, paidConfirm: true, paidAt: new Date().toISOString() });
+                          await sendPush({ title: "💰 급여 입금 안내", message: `${monthLabel(p.month)} 급여가 입금되었습니다. 확인해주세요.`, targetUserId: p.userId });
+                        }}
+                          style={{ background: "#fef3c7", border: "1px solid #fde68a", color: "#92400e", borderRadius: 8, padding: "5px 10px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>💰 송금완료 알림</button>
+                  )}
+
                   {isAdmin && <button onClick={e => { e.stopPropagation(); if (window.confirm(`${users.find(u => u.id === p.userId)?.name} · ${monthLabel(p.month)} 명세서를 삭제할까요?\n삭제 후 복구할 수 없어요.`)) deleteDoc(doc(db, COL_PAYSLIPS, p.id)); }}
                     style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 8px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>삭제</button>}
                   <span style={{ color: T.muted, fontSize: 14 }}>{isOpen ? "▲" : "▼"}</span>
