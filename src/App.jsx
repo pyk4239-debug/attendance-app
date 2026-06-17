@@ -3993,6 +3993,19 @@ function AdminSectionWrap({ title, color, onBack, children }) {
   );
 }
 
+// ── 근로계약서 공통 스타일 (컴포넌트 외부 정의 — 키보드 안 내려가게)
+const CONTRACT_ISTYLE = { width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 600, color: T.text, background: "#fff", boxSizing: "border-box", fontFamily: "inherit" };
+function ContractLabel({ children }) { return <div style={{ fontSize: 12, color: T.sub, fontWeight: 600, marginBottom: 4 }}>{children}</div>; }
+function ContractField({ label, fkey, type = "text", placeholder = "", form, setForm }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <ContractLabel>{label}</ContractLabel>
+      <input type={type} value={form[fkey] || ""} onChange={e => setForm(p => ({ ...p, [fkey]: e.target.value }))}
+        placeholder={placeholder} style={CONTRACT_ISTYLE} />
+    </div>
+  );
+}
+
 // ── 근로계약서 (관리자) ─────────────────────────────────────────
 function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
   const members = users.filter(u => u.role === "member");
@@ -4089,16 +4102,6 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
 
   const statusLabel = (s) => s === "signed" ? { text: "✅ 서명완료", color: "#16a34a", bg: "#dcfce7" } : s === "sent" ? { text: "📨 서명대기", color: "#d97706", bg: "#fef3c7" } : { text: "📝 초안", color: "#6b7280", bg: "#f3f4f6" };
 
-  const iStyle = { width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 600, color: T.text, background: "#fff", boxSizing: "border-box", fontFamily: "inherit" };
-  const Label = ({ children }) => <div style={{ fontSize: 12, color: T.sub, fontWeight: 600, marginBottom: 4 }}>{children}</div>;
-  const Field = ({ label, fkey, type = "text", placeholder = "" }) => (
-    <div style={{ marginBottom: 12 }}>
-      <Label>{label}</Label>
-      <input type={type} value={form[fkey] || ""} onChange={e => setForm(p => ({ ...p, [fkey]: e.target.value }))}
-        placeholder={placeholder} style={iStyle} />
-    </div>
-  );
-
   // 편집 화면
   if (editing && form) {
     return (
@@ -4117,9 +4120,9 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
           {/* 사업주 정보 */}
           <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: T.adminHeader, marginBottom: 12 }}>🏢 사업주 정보</div>
-            <Field label="사업장명" fkey="companyName" placeholder="회사명 입력" />
-            <Field label="대표자명" fkey="ownerName" placeholder="대표자 이름" />
-            <Field label="사업장 주소" fkey="bizAddress" placeholder="주소 입력" />
+            <ContractField form={form} setForm={setForm} label="사업장명" fkey="companyName" placeholder="회사명 입력" />
+            <ContractField form={form} setForm={setForm} label="대표자명" fkey="ownerName" placeholder="대표자 이름" />
+            <ContractField form={form} setForm={setForm} label="사업장 주소" fkey="bizAddress" placeholder="주소 입력" />
           </div>
 
           {/* 근로자 정보 */}
@@ -4129,23 +4132,23 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
               <span style={{ fontSize: 12, color: T.muted }}>이름: </span>
               <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{form.userName}</span>
             </div>
-            <Field label="주민등록번호" fkey="empSsn" placeholder="000000-0000000" />
-            <Field label="주소" fkey="empAddress" placeholder="주소 입력" />
-            <Field label="연락처" fkey="empPhone" placeholder="010-0000-0000" />
+            <ContractField form={form} setForm={setForm} label="주민등록번호" fkey="empSsn" placeholder="000000-0000000" />
+            <ContractField form={form} setForm={setForm} label="주소" fkey="empAddress" placeholder="주소 입력" />
+            <ContractField form={form} setForm={setForm} label="연락처" fkey="empPhone" placeholder="010-0000-0000" />
           </div>
 
           {/* 계약 기간 */}
           <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: "#0891b2", marginBottom: 12 }}>📅 계약 기간</div>
             <div style={{ marginBottom: 12 }}>
-              <Label>고용형태</Label>
+              <ContractLabel>고용형태</ContractLabel>
               <select value={form.workType || "정규직"} onChange={e => setForm(p => ({ ...p, workType: e.target.value }))} style={iStyle}>
                 {["정규직", "계약직", "파트타임"].map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-            <Field label="계약 시작일" fkey="contractStart" type="date" />
+            <ContractField form={form} setForm={setForm} label="계약 시작일" fkey="contractStart" type="date" />
             <div style={{ marginBottom: 12 }}>
-              <Label>계약 종료일 (정규직은 비워두세요)</Label>
+              <ContractLabel>계약 종료일 (정규직은 비워두세요)</ContractLabel>
               <input type="date" value={form.contractEnd || ""} onChange={e => setForm(p => ({ ...p, contractEnd: e.target.value }))} style={iStyle} />
             </div>
           </div>
@@ -4153,42 +4156,42 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
           {/* 근무 조건 */}
           <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: "#16a34a", marginBottom: 12 }}>⏰ 근무 조건</div>
-            <Field label="근무 장소" fkey="workPlace" placeholder="근무 장소" />
+            <ContractField form={form} setForm={setForm} label="근무 장소" fkey="workPlace" placeholder="근무 장소" />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
               <div>
-                <Label>출근 시간</Label>
+                <ContractLabel>출근 시간</ContractLabel>
                 <input type="time" value={form.workStart || "09:00"} onChange={e => setForm(p => ({ ...p, workStart: e.target.value }))} style={iStyle} />
               </div>
               <div>
-                <Label>퇴근 시간</Label>
+                <ContractLabel>퇴근 시간</ContractLabel>
                 <input type="time" value={form.workEnd || "18:00"} onChange={e => setForm(p => ({ ...p, workEnd: e.target.value }))} style={iStyle} />
               </div>
             </div>
-            <Field label="주 소정근로시간 (시간)" fkey="weeklyHours" type="number" placeholder="40" />
-            <Field label="주휴일" fkey="weeklyOff" placeholder="토요일, 일요일" />
-            <Field label="연차/휴가" fkey="annualLeave" placeholder="근로기준법에 따름" />
+            <ContractField form={form} setForm={setForm} label="주 소정근로시간 (시간)" fkey="weeklyHours" type="number" placeholder="40" />
+            <ContractField form={form} setForm={setForm} label="주휴일" fkey="weeklyOff" placeholder="토요일, 일요일" />
+            <ContractField form={form} setForm={setForm} label="연차/휴가" fkey="annualLeave" placeholder="근로기준법에 따름" />
           </div>
 
           {/* 임금 */}
           <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: "#ea580c", marginBottom: 12 }}>💰 임금</div>
-            <Field label="시급 (원)" fkey="hourlyWage" type="number" placeholder="시급 입력" />
-            <Field label="임금 지급일 (매월 __일)" fkey="payDay" type="number" placeholder="25" />
+            <ContractField form={form} setForm={setForm} label="시급 (원)" fkey="hourlyWage" type="number" placeholder="시급 입력" />
+            <ContractField form={form} setForm={setForm} label="임금 지급일 (매월 __일)" fkey="payDay" type="number" placeholder="25" />
             <div style={{ marginBottom: 12 }}>
-              <Label>지급 방법</Label>
+              <ContractLabel>지급 방법</ContractLabel>
               <select value={form.payMethod || "계좌이체"} onChange={e => setForm(p => ({ ...p, payMethod: e.target.value }))} style={iStyle}>
                 {["계좌이체", "현금"].map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-            <Field label="은행명" fkey="bankName" placeholder="국민은행" />
-            <Field label="계좌번호" fkey="bankAccount" placeholder="계좌번호 입력" />
+            <ContractField form={form} setForm={setForm} label="은행명" fkey="bankName" placeholder="국민은행" />
+            <ContractField form={form} setForm={setForm} label="계좌번호" fkey="bankAccount" placeholder="계좌번호 입력" />
           </div>
 
           {/* 특약 */}
           <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 12 }}>📝 특약 사항</div>
             <div style={{ marginBottom: 12 }}>
-              <Label>특약 내용 (선택)</Label>
+              <ContractLabel>특약 내용 (선택)</ContractLabel>
               <textarea value={form.specialTerms || ""} onChange={e => setForm(p => ({ ...p, specialTerms: e.target.value }))}
                 placeholder="특약 사항이 있으면 입력하세요"
                 style={{ ...iStyle, minHeight: 80, resize: "vertical" }} />
