@@ -4352,17 +4352,17 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
                     📨 서명 요청
                   </button>
                 )}
+                {latest && latest.status !== "signed" && (
+                  <button onClick={() => openEdit(latest)}
+                    style={{ padding: "8px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                    수정
+                  </button>
+                )}
                 {latest && (
-                  <>
-                    <button onClick={() => openEdit(latest)}
-                      style={{ padding: "8px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                      수정
-                    </button>
-                    <button onClick={() => deleteContract(latest)}
-                      style={{ padding: "8px 14px", borderRadius: 10, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                      삭제
-                    </button>
-                  </>
+                  <button onClick={() => deleteContract(latest)}
+                    style={{ padding: "8px 14px", borderRadius: 10, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                    삭제
+                  </button>
                 )}
               </div>
             </div>
@@ -4595,8 +4595,6 @@ function ContractViewScreen({ user, contracts }) {
           <div style={{ fontSize: 12, color: "#16a34a", marginTop: 4 }}>
             {contract.signedAt && new Date(contract.signedAt).toLocaleString("ko-KR")}
           </div>
-          {contract.empAddress && <div style={{ fontSize: 12, color: "#15803d", marginTop: 4 }}>주소: {contract.empAddress}</div>}
-          {contract.empPhone && <div style={{ fontSize: 12, color: "#15803d", marginTop: 2 }}>전화: {contract.empPhone}</div>}
         </div>
       )}
     </div>
