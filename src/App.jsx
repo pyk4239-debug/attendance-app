@@ -4084,12 +4084,8 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
     if (!form) return;
     setSaving(true);
     try {
-      if (form.id) {
-        await setDoc(doc(db, COL_CONTRACTS, form.id), { ...form, updatedAt: new Date().toISOString() });
-      } else {
-        const ref = await addDoc(collection(db, COL_CONTRACTS), form);
-        await setDoc(doc(db, COL_CONTRACTS, ref.id), { ...form, id: ref.id });
-      }
+      const ref = await addDoc(collection(db, COL_CONTRACTS), { ...form, id: "" });
+      await setDoc(doc(db, COL_CONTRACTS, ref.id), { ...form, id: ref.id });
       setEditing(false);
       setForm(null);
     } catch(e) { alert("저장 실패: " + e.message); }
@@ -4100,7 +4096,6 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
     if (!window.confirm(`${contract.userName}님께 근로계약서 서명 요청을 보낼까요?`)) return;
     try {
       await setDoc(doc(db, COL_CONTRACTS, contract.id), { ...contract, status: "sent", sentAt: new Date().toISOString() });
-      // 공지 알림
       await addDoc(collection(db, COL_NOTICES), {
         title: "📄 근로계약서 서명 요청",
         content: `근로계약서가 발송되었습니다.\n계약서 탭에서 내용을 확인하고 동의(서명)해주세요.`,
@@ -4114,11 +4109,16 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
   };
 
   const deleteContract = async (contract) => {
+    if (contract.status === "signed") {
+      alert("서명 완료된 계약서는 근로기준법상 3년 보관 의무가 있어 삭제할 수 없습니다.");
+      return;
+    }
     if (!window.confirm(`${contract.userName}님의 근로계약서를 삭제할까요?`)) return;
     try { await deleteDoc(doc(db, COL_CONTRACTS, contract.id)); } catch(e) { alert("삭제 실패: " + e.message); }
   };
 
   const statusLabel = (s) => s === "signed" ? { text: "✅ 서명완료", color: "#16a34a", bg: "#dcfce7" } : s === "sent" ? { text: "📨 서명대기", color: "#d97706", bg: "#fef3c7" } : { text: "📝 초안", color: "#6b7280", bg: "#f3f4f6" };
+  const [expandedHistory, setExpandedHistory] = useState({});
 
   // 편집 화면
   if (editing && form) {
@@ -4314,7 +4314,9 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
         {members.map(u => {
           const myContracts = contracts.filter(c => c.userId === u.id);
           const latest = myContracts[0];
+          const history = myContracts.slice(1); // 이전 계약서들
           const st = latest ? statusLabel(latest.status) : null;
+          const showHistory = expandedHistory[u.id];
           return (
             <div key={u.id} style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}`, boxShadow: "0 2px 8px #0000000d" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: latest ? 10 : 0 }}>
@@ -4322,7 +4324,7 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
                   <div style={{ fontWeight: 800, fontSize: 15, color: T.text }}>{u.name}</div>
                   {latest && (
                     <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
-                      {latest.contractStart} ~ {latest.contractEnd || "기간 없음"} · {latest.workType}
+                      {latest.contractStart} ~ {latest.contractEnd || "기간 없음"} · {latest.jobType || ""}
                     </div>
                   )}
                 </div>
@@ -4365,6 +4367,47 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
                   </button>
                 )}
               </div>
+
+              {/* 이전 계약서 히스토리 */}
+              {history.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <button onClick={() => setExpandedHistory(p => ({ ...p, [u.id]: !p[u.id] }))}
+                    style={{ width: "100%", padding: "7px 0", borderRadius: 8, border: `1px dashed ${T.border}`, background: "transparent", color: T.muted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                    📁 이전 계약서 {history.length}건 {showHistory ? "▲ 접기" : "▼ 보기"}
+                  </button>
+                  {showHistory && (
+                    <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                      {history.map((c, i) => {
+                        const hst = statusLabel(c.status);
+                        return (
+                          <div key={c.id} style={{ padding: "10px 12px", background: T.bg, borderRadius: 10, border: `1px solid ${T.border}` }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <div>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: T.text }}>
+                                  {c.contractStart} ~ {c.contractEnd || "기간 없음"}
+                                </div>
+                                <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
+                                  작성: {c.createdAt ? new Date(c.createdAt).toLocaleDateString("ko-KR") : "-"}
+                                  {c.signedAt ? ` · 서명: ${new Date(c.signedAt).toLocaleDateString("ko-KR")}` : ""}
+                                </div>
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: hst.color, background: hst.bg, borderRadius: 6, padding: "2px 7px" }}>{hst.text}</span>
+                                {c.status !== "signed" && (
+                                  <button onClick={() => deleteContract(c)}
+                                    style={{ padding: "4px 8px", borderRadius: 6, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                                    삭제
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
