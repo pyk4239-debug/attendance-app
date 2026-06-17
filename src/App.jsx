@@ -4335,8 +4335,10 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
                 </div>
               </div>
               {latest?.status === "signed" && latest.signedAt && (
-                <div style={{ fontSize: 11, color: "#16a34a", marginBottom: 8 }}>
-                  서명일시: {new Date(latest.signedAt).toLocaleString("ko-KR")}
+                <div style={{ fontSize: 11, color: "#16a34a", marginBottom: 8, background: "#dcfce7", padding: "8px 10px", borderRadius: 8 }}>
+                  <div>✅ 서명일시: {new Date(latest.signedAt).toLocaleString("ko-KR")}</div>
+                  {latest.empAddress && <div style={{ marginTop: 3 }}>📍 주소: {latest.empAddress}</div>}
+                  {latest.empPhone && <div style={{ marginTop: 3 }}>📞 전화: {latest.empPhone}</div>}
                 </div>
               )}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -4553,7 +4555,14 @@ function ContractViewScreen({ user, contracts }) {
           {/* 전화번호 */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 12, color: T.sub, fontWeight: 600, marginBottom: 4 }}>전화번호 <span style={{ color: "#dc2626" }}>*</span></div>
-            <input type="tel" value={signPhone} onChange={e => setSignPhone(e.target.value)}
+            <input type="tel" value={signPhone} onChange={e => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
+              let formatted = digits;
+              if (digits.length <= 3) formatted = digits;
+              else if (digits.length <= 7) formatted = `${digits.slice(0,3)}-${digits.slice(3)}`;
+              else formatted = `${digits.slice(0,3)}-${digits.slice(3,7)}-${digits.slice(7)}`;
+              setSignPhone(formatted);
+            }}
               placeholder="010-0000-0000"
               style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${signPhone ? T.border : "#fca5a5"}`, fontSize: 13, fontWeight: 600, color: T.text, background: "#fff", boxSizing: "border-box", fontFamily: "inherit" }} />
           </div>
