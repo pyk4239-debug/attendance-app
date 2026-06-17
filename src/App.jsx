@@ -39,6 +39,7 @@ const COL_MEMBER_INFO = "member_info";
 const COL_READS = "reads"; // 읽음 기록
 const COL_REMINDERS = "reminders";
 const COL_EVENTS   = "schedule_events";
+const COL_CONTRACTS = "contracts";
 const DOC_SETTINGS = "app/settings";
 
 // ── 초기 데이터 ────────────────────────────────────────────────
@@ -407,6 +408,7 @@ function AppLoader() {
   const [reads, setReads] = useState({});
   const [reminders, setReminders] = useState([]);
   const [scheduleEvents, setScheduleEvents] = useState([]);
+  const [contracts, setContracts] = useState([]);
 
   useEffect(() => {
     let unsubs = [];
@@ -510,6 +512,11 @@ function AppLoader() {
       setScheduleEvents(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }));
 
+    // 근로계약서 구독
+    unsubs.push(onSnapshot(query(collection(db, COL_CONTRACTS), orderBy("createdAt", "desc")), snap => {
+      setContracts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }));
+
     return () => unsubs.forEach(u => u());
   }, []);
 
@@ -527,7 +534,7 @@ function AppLoader() {
 
   return <App users={users} settings={settings} records={records} leaves={leaves}
     notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} reads={reads}
-    reminders={reminders} scheduleEvents={scheduleEvents}
+    reminders={reminders} scheduleEvents={scheduleEvents} contracts={contracts}
     onSaveUsers={fbSaveUsers} onSaveSettings={fbSaveSettings}
     onSaveRecord={fbSaveRecord} onSaveLeave={fbSaveLeave} />;
 }
@@ -2315,10 +2322,12 @@ function AdminSeverance({ users, memberInfo, annual, onBack }) {
 }
 
 // ── 관리자 대문 ────────────────────────────────────────────────
-function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], reads = {} }) {
+function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], reads = {}, contracts = [] }) {
   const now = new Date();
   const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   const dateStr = kst.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
+
+  const pendingSign = contracts.filter(c => c.status === "sent").length;
 
   const sections = [
     { key: "attendance", icon: "📋", label: "근태",   desc: "출퇴근 현황 · 월별 기록", color: "#2563eb" },
@@ -2328,6 +2337,7 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
     { key: "notice",     icon: "📢", label: "공지",   desc: "공지사항 작성 · 관리",   color: "#ea580c" },
     { key: "board",      icon: "💬", label: "게시판", desc: "자유게시판",              color: "#0891b2",
       badge: board.filter(b => !reads[`${user.id}_board_${b.id}`]).length },
+    { key: "contract",   icon: "📄", label: "계약서", desc: "근로계약서 작성 · 관리",  color: "#0891b2", badge: pendingSign },
     { key: "settings",   icon: "⚙",  label: "설정",   desc: "근무시간 · GPS · 공휴일", color: "#6b7280" },
     { key: "schedule",   icon: "🗓", label: "일정",    desc: "캘린더 · 리마인더",     color: "#7c3aed" },
     { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#b45309" },
@@ -3983,13 +3993,444 @@ function AdminSectionWrap({ title, color, onBack, children }) {
   );
 }
 
+// ── 근로계약서 (관리자) ─────────────────────────────────────────
+function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
+  const members = users.filter(u => u.role === "member");
+  const [selUser, setSelUser] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(null);
+
+  const openNew = (u) => {
+    const info = memberInfo[u.id] || {};
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    setForm({
+      userId: u.id,
+      userName: u.name,
+      // 사업주 정보 (settings에 없으면 빈칸)
+      companyName: settings.companyName || "",
+      ownerName: settings.ownerName || "",
+      bizAddress: settings.bizAddress || "",
+      // 직원 정보 (member_info 자동 채움)
+      empSsn: info.ssn || "",
+      empAddress: info.address || "",
+      empPhone: info.phone || "",
+      // 근무 조건
+      workPlace: settings.bizAddress || "",
+      workType: info.employType || "정규직",
+      weeklyHours: String(info.weeklyHours || 40),
+      workStart: settings.workStart || "09:00",
+      workEnd: settings.workEnd || "18:00",
+      contractStart: info.joinDate || todayStr,
+      contractEnd: "",
+      // 임금
+      hourlyWage: String(info.hourlyWage || ""),
+      payDay: String(settings.payDay || ""),
+      payMethod: "계좌이체",
+      bankName: info.bank || "",
+      bankAccount: info.account || "",
+      // 휴일/휴가
+      weeklyOff: "토요일, 일요일",
+      annualLeave: "근로기준법에 따름",
+      // 기타
+      specialTerms: "",
+      status: "draft", // draft | sent | signed
+      signedAt: null,
+      createdAt: now.toISOString(),
+    });
+    setSelUser(u);
+    setEditing(true);
+  };
+
+  const openEdit = (contract) => {
+    setForm({ ...contract });
+    setSelUser(users.find(u => u.id === contract.userId) || { id: contract.userId, name: contract.userName });
+    setEditing(true);
+  };
+
+  const saveContract = async () => {
+    if (!form) return;
+    setSaving(true);
+    try {
+      if (form.id) {
+        await setDoc(doc(db, COL_CONTRACTS, form.id), { ...form, updatedAt: new Date().toISOString() });
+      } else {
+        const ref = await addDoc(collection(db, COL_CONTRACTS), form);
+        await setDoc(doc(db, COL_CONTRACTS, ref.id), { ...form, id: ref.id });
+      }
+      setEditing(false);
+      setForm(null);
+    } catch(e) { alert("저장 실패: " + e.message); }
+    setSaving(false);
+  };
+
+  const sendToEmployee = async (contract) => {
+    if (!window.confirm(`${contract.userName}님께 근로계약서 서명 요청을 보낼까요?`)) return;
+    try {
+      await setDoc(doc(db, COL_CONTRACTS, contract.id), { ...contract, status: "sent", sentAt: new Date().toISOString() });
+      // 공지 알림
+      await addDoc(collection(db, COL_NOTICES), {
+        title: "📄 근로계약서 서명 요청",
+        content: `근로계약서가 발송되었습니다.\n계약서 탭에서 내용을 확인하고 동의(서명)해주세요.`,
+        recipient: contract.userId,
+        author: "관리자",
+        createdAt: new Date().toISOString(),
+      });
+      await sendPush({ title: "📄 근로계약서 서명 요청", message: "근로계약서가 발송되었습니다. 확인 후 서명해주세요.", targetUserId: contract.userId });
+      alert(`${contract.userName}님께 서명 요청을 보냈습니다.`);
+    } catch(e) { alert("발송 실패: " + e.message); }
+  };
+
+  const deleteContract = async (contract) => {
+    if (!window.confirm(`${contract.userName}님의 근로계약서를 삭제할까요?`)) return;
+    try { await deleteDoc(doc(db, COL_CONTRACTS, contract.id)); } catch(e) { alert("삭제 실패: " + e.message); }
+  };
+
+  const statusLabel = (s) => s === "signed" ? { text: "✅ 서명완료", color: "#16a34a", bg: "#dcfce7" } : s === "sent" ? { text: "📨 서명대기", color: "#d97706", bg: "#fef3c7" } : { text: "📝 초안", color: "#6b7280", bg: "#f3f4f6" };
+
+  const iStyle = { width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 600, color: T.text, background: "#fff", boxSizing: "border-box", fontFamily: "inherit" };
+  const Label = ({ children }) => <div style={{ fontSize: 12, color: T.sub, fontWeight: 600, marginBottom: 4 }}>{children}</div>;
+  const Field = ({ label, fkey, type = "text", placeholder = "" }) => (
+    <div style={{ marginBottom: 12 }}>
+      <Label>{label}</Label>
+      <input type={type} value={form[fkey] || ""} onChange={e => setForm(p => ({ ...p, [fkey]: e.target.value }))}
+        placeholder={placeholder} style={iStyle} />
+    </div>
+  );
+
+  // 편집 화면
+  if (editing && form) {
+    return (
+      <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 90 }}>
+        <div style={{ background: T.adminHeader, padding: "16px 16px 14px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button onClick={() => { setEditing(false); setForm(null); }} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
+            <div>
+              <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📄 {selUser?.name} 근로계약서</div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ padding: "16px 16px 0" }}>
+          {/* 사업주 정보 */}
+          <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: T.adminHeader, marginBottom: 12 }}>🏢 사업주 정보</div>
+            <Field label="사업장명" fkey="companyName" placeholder="회사명 입력" />
+            <Field label="대표자명" fkey="ownerName" placeholder="대표자 이름" />
+            <Field label="사업장 주소" fkey="bizAddress" placeholder="주소 입력" />
+          </div>
+
+          {/* 근로자 정보 */}
+          <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#7c3aed", marginBottom: 12 }}>👤 근로자 정보</div>
+            <div style={{ marginBottom: 8, padding: "8px 12px", background: T.bg, borderRadius: 10 }}>
+              <span style={{ fontSize: 12, color: T.muted }}>이름: </span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{form.userName}</span>
+            </div>
+            <Field label="주민등록번호" fkey="empSsn" placeholder="000000-0000000" />
+            <Field label="주소" fkey="empAddress" placeholder="주소 입력" />
+            <Field label="연락처" fkey="empPhone" placeholder="010-0000-0000" />
+          </div>
+
+          {/* 계약 기간 */}
+          <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#0891b2", marginBottom: 12 }}>📅 계약 기간</div>
+            <div style={{ marginBottom: 12 }}>
+              <Label>고용형태</Label>
+              <select value={form.workType || "정규직"} onChange={e => setForm(p => ({ ...p, workType: e.target.value }))} style={iStyle}>
+                {["정규직", "계약직", "파트타임"].map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <Field label="계약 시작일" fkey="contractStart" type="date" />
+            <div style={{ marginBottom: 12 }}>
+              <Label>계약 종료일 (정규직은 비워두세요)</Label>
+              <input type="date" value={form.contractEnd || ""} onChange={e => setForm(p => ({ ...p, contractEnd: e.target.value }))} style={iStyle} />
+            </div>
+          </div>
+
+          {/* 근무 조건 */}
+          <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#16a34a", marginBottom: 12 }}>⏰ 근무 조건</div>
+            <Field label="근무 장소" fkey="workPlace" placeholder="근무 장소" />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+              <div>
+                <Label>출근 시간</Label>
+                <input type="time" value={form.workStart || "09:00"} onChange={e => setForm(p => ({ ...p, workStart: e.target.value }))} style={iStyle} />
+              </div>
+              <div>
+                <Label>퇴근 시간</Label>
+                <input type="time" value={form.workEnd || "18:00"} onChange={e => setForm(p => ({ ...p, workEnd: e.target.value }))} style={iStyle} />
+              </div>
+            </div>
+            <Field label="주 소정근로시간 (시간)" fkey="weeklyHours" type="number" placeholder="40" />
+            <Field label="주휴일" fkey="weeklyOff" placeholder="토요일, 일요일" />
+            <Field label="연차/휴가" fkey="annualLeave" placeholder="근로기준법에 따름" />
+          </div>
+
+          {/* 임금 */}
+          <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#ea580c", marginBottom: 12 }}>💰 임금</div>
+            <Field label="시급 (원)" fkey="hourlyWage" type="number" placeholder="시급 입력" />
+            <Field label="임금 지급일 (매월 __일)" fkey="payDay" type="number" placeholder="25" />
+            <div style={{ marginBottom: 12 }}>
+              <Label>지급 방법</Label>
+              <select value={form.payMethod || "계좌이체"} onChange={e => setForm(p => ({ ...p, payMethod: e.target.value }))} style={iStyle}>
+                {["계좌이체", "현금"].map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <Field label="은행명" fkey="bankName" placeholder="국민은행" />
+            <Field label="계좌번호" fkey="bankAccount" placeholder="계좌번호 입력" />
+          </div>
+
+          {/* 특약 */}
+          <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 12 }}>📝 특약 사항</div>
+            <div style={{ marginBottom: 12 }}>
+              <Label>특약 내용 (선택)</Label>
+              <textarea value={form.specialTerms || ""} onChange={e => setForm(p => ({ ...p, specialTerms: e.target.value }))}
+                placeholder="특약 사항이 있으면 입력하세요"
+                style={{ ...iStyle, minHeight: 80, resize: "vertical" }} />
+            </div>
+          </div>
+        </div>
+
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: T.card, borderTop: `1px solid ${T.border}`, padding: "12px 16px", paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}>
+          <button onClick={saveContract} disabled={saving}
+            style={{ width: "100%", padding: "14px 0", borderRadius: 14, border: "none", background: T.adminHeader, color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+            {saving ? "저장 중..." : "💾 저장"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 목록 화면
+  return (
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 30 }}>
+      <div style={{ background: T.adminHeader, padding: "16px 16px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
+          <div>
+            <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📄 근로계약서</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: 16 }}>
+        {/* 직원별 계약서 현황 */}
+        {members.map(u => {
+          const myContracts = contracts.filter(c => c.userId === u.id);
+          const latest = myContracts[0];
+          const st = latest ? statusLabel(latest.status) : null;
+          return (
+            <div key={u.id} style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}`, boxShadow: "0 2px 8px #0000000d" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: latest ? 10 : 0 }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: T.text }}>{u.name}</div>
+                  {latest && (
+                    <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
+                      {latest.contractStart} ~ {latest.contractEnd || "기간 없음"} · {latest.workType}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {st && (
+                    <span style={{ fontSize: 11, fontWeight: 700, color: st.color, background: st.bg, borderRadius: 8, padding: "3px 8px" }}>
+                      {st.text}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {latest?.status === "signed" && latest.signedAt && (
+                <div style={{ fontSize: 11, color: "#16a34a", marginBottom: 8 }}>
+                  서명일시: {new Date(latest.signedAt).toLocaleString("ko-KR")}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={() => openNew(u)}
+                  style={{ padding: "8px 14px", borderRadius: 10, border: "none", background: T.adminHeader, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  {latest ? "✏️ 새 계약서" : "📝 작성"}
+                </button>
+                {latest && latest.status === "draft" && (
+                  <button onClick={() => sendToEmployee(latest)}
+                    style={{ padding: "8px 14px", borderRadius: 10, border: "none", background: "#0891b2", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                    📨 서명 요청
+                  </button>
+                )}
+                {latest && (
+                  <>
+                    <button onClick={() => openEdit(latest)}
+                      style={{ padding: "8px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                      수정
+                    </button>
+                    <button onClick={() => deleteContract(latest)}
+                      style={{ padding: "8px 14px", borderRadius: 10, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                      삭제
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── 근로계약서 (팀원 조회 + 서명) ──────────────────────────────
+function ContractViewScreen({ user, contracts }) {
+  const myContracts = contracts.filter(c => c.userId === user.id);
+  const contract = myContracts[0];
+  const [signing, setSigning] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
+
+  const sign = async () => {
+    if (!contract) return;
+    if (!confirmed) { alert("계약 내용에 동의 체크 후 서명해주세요."); return; }
+    if (!window.confirm("근로계약서에 전자서명(동의)하시겠습니까?")) return;
+    setSigning(true);
+    try {
+      await setDoc(doc(db, COL_CONTRACTS, contract.id), {
+        ...contract, status: "signed", signedAt: new Date().toISOString()
+      });
+      // 관리자에게 알림
+      await addDoc(collection(db, COL_NOTICES), {
+        title: `✅ ${user.name}님 근로계약서 서명 완료`,
+        content: `${user.name}님이 근로계약서에 전자서명(동의)하였습니다.`,
+        recipient: "admin",
+        author: user.name,
+        createdAt: new Date().toISOString(),
+      });
+      await sendPush({ title: `✅ 근로계약서 서명 완료`, message: `${user.name}님이 근로계약서에 서명하였습니다.`, targetUserId: "admin" });
+      alert("서명이 완료되었습니다.");
+    } catch(e) { alert("서명 실패: " + e.message); }
+    setSigning(false);
+  };
+
+  if (!contract) return (
+    <div style={{ padding: 32, textAlign: "center" }}>
+      <div style={{ fontSize: 48, marginBottom: 12 }}>📄</div>
+      <div style={{ fontSize: 15, color: T.muted, fontWeight: 600 }}>등록된 근로계약서가 없습니다</div>
+      <div style={{ fontSize: 13, color: T.muted, marginTop: 6 }}>관리자가 계약서를 발송하면 여기서 확인할 수 있어요</div>
+    </div>
+  );
+
+  const st = contract.status === "signed" ? { text: "✅ 서명완료", color: "#16a34a", bg: "#dcfce7" }
+    : contract.status === "sent" ? { text: "📨 서명 대기", color: "#d97706", bg: "#fef3c7" }
+    : { text: "📝 초안", color: "#6b7280", bg: "#f3f4f6" };
+
+  const Row = ({ label, value }) => value ? (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "8px 0", borderBottom: `1px solid ${T.border}` }}>
+      <span style={{ fontSize: 13, color: T.muted, minWidth: 90 }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: T.text, textAlign: "right", flex: 1 }}>{value}</span>
+    </div>
+  ) : null;
+
+  return (
+    <div style={{ padding: "0 0 30px" }}>
+      {/* 상태 배너 */}
+      <div style={{ margin: 16, padding: "14px 16px", borderRadius: 14, background: st.bg, border: `1px solid ${st.color}30`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: st.color }}>{st.text}</div>
+          {contract.status === "signed" && contract.signedAt && (
+            <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
+              서명일시: {new Date(contract.signedAt).toLocaleString("ko-KR")}
+            </div>
+          )}
+          {contract.status === "sent" && (
+            <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>내용을 확인하고 서명해주세요</div>
+          )}
+        </div>
+        <button onClick={() => setShowDetail(!showDetail)}
+          style={{ padding: "7px 14px", borderRadius: 10, border: "none", background: "#fff", color: T.text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+          {showDetail ? "접기 ▲" : "상세보기 ▼"}
+        </button>
+      </div>
+
+      {/* 계약서 요약 */}
+      <div style={{ margin: "0 16px 12px", background: T.card, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 12 }}>📋 계약 주요 내용</div>
+        <Row label="사업장" value={contract.companyName} />
+        <Row label="고용형태" value={contract.workType} />
+        <Row label="계약 시작" value={contract.contractStart} />
+        <Row label="계약 종료" value={contract.contractEnd || "기간 없음 (정규직)"} />
+        <Row label="근무시간" value={`${contract.workStart} ~ ${contract.workEnd}`} />
+        <Row label="주 소정시간" value={contract.weeklyHours ? `${contract.weeklyHours}시간` : null} />
+        <Row label="시급" value={contract.hourlyWage ? `${Number(contract.hourlyWage).toLocaleString()}원` : null} />
+        <Row label="임금 지급일" value={contract.payDay ? `매월 ${contract.payDay}일` : null} />
+        <Row label="지급 방법" value={contract.payMethod} />
+      </div>
+
+      {/* 상세 내용 펼치기 */}
+      {showDetail && (
+        <div style={{ margin: "0 16px 12px", background: T.card, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 12 }}>📄 상세 계약 내용</div>
+          <Row label="근무 장소" value={contract.workPlace} />
+          <Row label="주휴일" value={contract.weeklyOff} />
+          <Row label="연차/휴가" value={contract.annualLeave} />
+          <Row label="은행" value={contract.bankName ? `${contract.bankName}은행` : null} />
+          <Row label="계좌번호" value={contract.bankAccount} />
+          {contract.specialTerms && (
+            <div style={{ marginTop: 10, padding: 12, background: T.bg, borderRadius: 10 }}>
+              <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 4 }}>특약 사항</div>
+              <div style={{ fontSize: 13, color: T.text, whiteSpace: "pre-wrap" }}>{contract.specialTerms}</div>
+            </div>
+          )}
+          {/* 법적 고지 */}
+          <div style={{ marginTop: 12, padding: 12, background: "#f0fdf4", borderRadius: 10, border: "1px solid #bbf7d0" }}>
+            <div style={{ fontSize: 11, color: "#15803d", lineHeight: 1.6 }}>
+              본 근로계약서는 근로기준법에 따라 작성되었으며, 명시되지 않은 사항은 근로기준법 및 관련 법령에 따릅니다.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 서명 영역 */}
+      {contract.status === "sent" && (
+        <div style={{ margin: "0 16px", background: T.card, borderRadius: 16, padding: 16, border: `2px solid #0891b2` }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: "#0891b2", marginBottom: 12 }}>✍️ 전자서명 (동의)</div>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 16, padding: 12, background: "#f0f9ff", borderRadius: 10 }}>
+            <input type="checkbox" id="agreeCheck" checked={confirmed} onChange={e => setConfirmed(e.target.checked)}
+              style={{ width: 18, height: 18, marginTop: 1, cursor: "pointer" }} />
+            <label htmlFor="agreeCheck" style={{ fontSize: 13, color: T.text, lineHeight: 1.6, cursor: "pointer" }}>
+              본인은 위 근로계약서의 내용을 충분히 읽고 이해하였으며, 이에 동의합니다.
+            </label>
+          </div>
+          <button onClick={sign} disabled={signing || !confirmed}
+            style={{ width: "100%", padding: "14px 0", borderRadius: 14, border: "none", background: confirmed ? "#0891b2" : "#e5e7eb", color: confirmed ? "#fff" : T.muted, fontSize: 15, fontWeight: 800, cursor: confirmed ? "pointer" : "default" }}>
+            {signing ? "처리 중..." : "📝 서명하기 (동의)"}
+          </button>
+          <div style={{ fontSize: 11, color: T.muted, textAlign: "center", marginTop: 8 }}>
+            서명 후에는 취소할 수 없습니다
+          </div>
+        </div>
+      )}
+
+      {contract.status === "signed" && (
+        <div style={{ margin: "0 16px", padding: 16, background: "#dcfce7", borderRadius: 16, textAlign: "center" }}>
+          <div style={{ fontSize: 32, marginBottom: 6 }}>✅</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: "#15803d" }}>서명 완료</div>
+          <div style={{ fontSize: 12, color: "#16a34a", marginTop: 4 }}>
+            {contract.signedAt && new Date(contract.signedAt).toLocaleString("ko-KR")}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── 관리자 화면 (라우터) ───────────────────────────────────────
-function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
+function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
   const [section, setSection] = useState(null);
 
 
   const back = () => { setSection(null); window.scrollTo(0,0); };
-  if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={s => { setSection(s); window.scrollTo(0,0); }} leaveRequests={leaveRequests} board={board} reads={reads} />;
+  if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={s => { setSection(s); window.scrollTo(0,0); }} leaveRequests={leaveRequests} board={board} reads={reads} contracts={contracts} />;
   if (section === "attendance") return <><AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "wage") return <><AdminWage users={users} records={records} leaves={leaves} settings={settings} memberInfo={memberInfo} annual={annual} leaveRequests={leaveRequests} payslips={payslips} reads={reads} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "members") return <><AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={back} /><FloatBack onClick={back} /></>;
@@ -3999,6 +4440,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "board") return <AdminSectionWrap title="💬 게시판" color="#0891b2" onBack={back}><BoardScreen user={user} board={board} reads={reads} /></AdminSectionWrap>;
   if (section === "settings") return <><SettingsModal settings={settings} onSave={async s => { await onSaveSettings(s); back(); }} onClose={back} /></>;
   if (section === "schedule") return <AdminSectionWrap title="🗓 일정" color="#7c3aed" onBack={back}><AdminSchedule reminders={reminders} users={users} settings={settings} scheduleEvents={scheduleEvents} /></AdminSectionWrap>;
+  if (section === "contract") return <ContractSection users={users} memberInfo={memberInfo} settings={settings} contracts={contracts} onBack={back} />;
   return null;
 }
 
@@ -4825,7 +5267,7 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
 }
 
 // ── 하단 탭바 ────────────────────────────────────────────────────
-function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips, user, reads }) {
+function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips, user, reads, contracts = [] }) {
   const pendingCount = leaveRequests.filter(r => r.status === "대기").length;
 
   const unreadCount = (items, type) => {
@@ -4838,12 +5280,14 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips,
 
   const unreadNotice = unreadCount(notices, "notice") + unreadCount(board, "board");
   const unreadPayslip = unreadCount(payslips.filter(p => p.userId === user?.id), "payslip");
+  const contractBadge = contracts.filter(c => c.userId === user?.id && c.status === "sent").length;
 
   const tabs = [
     ["att",      "🏠", "출퇴근", 0],
     ["notice",   "📢", "공지",   unreadNotice],
     ["annual",   "📅", "연차",   isAdmin ? pendingCount : 0],
     ["payslip",  "💰", "명세서", unreadPayslip],
+    ["contract", "📄", "계약서", contractBadge],
     ["schedule", "🗓", "일정",   0],
   ];
 
@@ -4865,7 +5309,7 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips,
 }
 
 // ── 메인 App ───────────────────────────────────────────────────
-function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
+function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
   const [user, setUser] = useState(null);
   const [userLoaded, setUserLoaded] = useState(false);
   
@@ -4899,7 +5343,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
   if (isAdmin) return (
     <AdminScreen user={user} users={users} settings={settings} records={records} leaves={leaves}
       notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} reads={reads}
-      reminders={reminders} scheduleEvents={scheduleEvents}
+      reminders={reminders} scheduleEvents={scheduleEvents} contracts={contracts}
       onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave}
       onSaveUsers={onSaveUsers} onSaveSettings={onSaveSettings}
       onLogout={() => { setUserWithStorage(null); setTab("att"); }} />
@@ -4907,7 +5351,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
 
   // 팀원은 탭바 구조
   return (
-    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 70 }}>
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 80 }}>
       {tab === "att" && (
         <MemberScreen user={user} settings={settings} records={records} leaves={leaves}
           scheduleEvents={scheduleEvents}
@@ -4941,6 +5385,15 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
           <PayslipScreen user={user} users={users} payslips={payslips} reads={reads} />
         </>
       )}
+      {tab === "contract" && (
+        <>
+          <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
+            <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📄 근로계약서</div>
+          </div>
+          <ContractViewScreen user={user} contracts={contracts} />
+        </>
+      )}
       {tab === "schedule" && (
         <>
           <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
@@ -4952,7 +5405,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
           </div>
         </>
       )}
-      <TabBar tab={tab} setTab={t => { setTab(t); window.scrollTo(0, 0); }} isAdmin={isAdmin} leaveRequests={leaveRequests} notices={notices} board={board} payslips={payslips} user={user} reads={reads} />
+      <TabBar tab={tab} setTab={t => { setTab(t); window.scrollTo(0, 0); }} isAdmin={isAdmin} leaveRequests={leaveRequests} notices={notices} board={board} payslips={payslips} user={user} reads={reads} contracts={contracts} />
     </div>
   );
 }
