@@ -4142,14 +4142,14 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
             <div style={{ fontSize: 13, fontWeight: 800, color: "#0891b2", marginBottom: 12 }}>📅 계약 기간</div>
             <div style={{ marginBottom: 12 }}>
               <ContractLabel>고용형태</ContractLabel>
-              <select value={form.workType || "정규직"} onChange={e => setForm(p => ({ ...p, workType: e.target.value }))} style={iStyle}>
+              <select value={form.workType || "정규직"} onChange={e => setForm(p => ({ ...p, workType: e.target.value }))} style={CONTRACT_ISTYLE}>
                 {["정규직", "계약직", "파트타임"].map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <ContractField form={form} setForm={setForm} label="계약 시작일" fkey="contractStart" type="date" />
             <div style={{ marginBottom: 12 }}>
               <ContractLabel>계약 종료일 (정규직은 비워두세요)</ContractLabel>
-              <input type="date" value={form.contractEnd || ""} onChange={e => setForm(p => ({ ...p, contractEnd: e.target.value }))} style={iStyle} />
+              <input type="date" value={form.contractEnd || ""} onChange={e => setForm(p => ({ ...p, contractEnd: e.target.value }))} style={CONTRACT_ISTYLE} />
             </div>
           </div>
 
@@ -4160,11 +4160,11 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
               <div>
                 <ContractLabel>출근 시간</ContractLabel>
-                <input type="time" value={form.workStart || "09:00"} onChange={e => setForm(p => ({ ...p, workStart: e.target.value }))} style={iStyle} />
+                <input type="time" value={form.workStart || "09:00"} onChange={e => setForm(p => ({ ...p, workStart: e.target.value }))} style={CONTRACT_ISTYLE} />
               </div>
               <div>
                 <ContractLabel>퇴근 시간</ContractLabel>
-                <input type="time" value={form.workEnd || "18:00"} onChange={e => setForm(p => ({ ...p, workEnd: e.target.value }))} style={iStyle} />
+                <input type="time" value={form.workEnd || "18:00"} onChange={e => setForm(p => ({ ...p, workEnd: e.target.value }))} style={CONTRACT_ISTYLE} />
               </div>
             </div>
             <ContractField form={form} setForm={setForm} label="주 소정근로시간 (시간)" fkey="weeklyHours" type="number" placeholder="40" />
@@ -4179,7 +4179,7 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
             <ContractField form={form} setForm={setForm} label="임금 지급일 (매월 __일)" fkey="payDay" type="number" placeholder="25" />
             <div style={{ marginBottom: 12 }}>
               <ContractLabel>지급 방법</ContractLabel>
-              <select value={form.payMethod || "계좌이체"} onChange={e => setForm(p => ({ ...p, payMethod: e.target.value }))} style={iStyle}>
+              <select value={form.payMethod || "계좌이체"} onChange={e => setForm(p => ({ ...p, payMethod: e.target.value }))} style={CONTRACT_ISTYLE}>
                 {["계좌이체", "현금"].map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
@@ -4194,7 +4194,7 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
               <ContractLabel>특약 내용 (선택)</ContractLabel>
               <textarea value={form.specialTerms || ""} onChange={e => setForm(p => ({ ...p, specialTerms: e.target.value }))}
                 placeholder="특약 사항이 있으면 입력하세요"
-                style={{ ...iStyle, minHeight: 80, resize: "vertical" }} />
+                style={{ ...CONTRACT_ISTYLE, minHeight: 80, resize: "vertical" }} />
             </div>
           </div>
         </div>
