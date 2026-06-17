@@ -4158,8 +4158,6 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
               <span style={{ fontSize: 12, color: T.muted }}>성명: </span>
               <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{form.userName}</span>
             </div>
-            <ContractField form={form} setForm={setForm} label="주소" fkey="empAddress" placeholder="주소 입력" />
-            <ContractField form={form} setForm={setForm} label="전화번호" fkey="empPhone" placeholder="010-0000-0000" />
           </div>
 
           {/* 근로 장소 / 직종 / 계약기간 */}
@@ -4373,17 +4371,24 @@ function ContractViewScreen({ user, contracts }) {
   const [signing, setSigning] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
+  const [signAddr, setSignAddr] = useState("");
+  const [signPhone, setSignPhone] = useState("");
 
   const sign = async () => {
     if (!contract) return;
     if (!confirmed) { alert("계약 내용에 동의 체크 후 서명해주세요."); return; }
+    if (!signAddr.trim()) { alert("주소를 입력해주세요."); return; }
+    if (!signPhone.trim()) { alert("전화번호를 입력해주세요."); return; }
     if (!window.confirm("근로계약서에 전자서명(동의)하시겠습니까?")) return;
     setSigning(true);
     try {
       await setDoc(doc(db, COL_CONTRACTS, contract.id), {
-        ...contract, status: "signed", signedAt: new Date().toISOString()
+        ...contract,
+        status: "signed",
+        signedAt: new Date().toISOString(),
+        empAddress: signAddr.trim(),
+        empPhone: signPhone.trim(),
       });
-      // 관리자에게 알림
       await addDoc(collection(db, COL_NOTICES), {
         title: `✅ ${user.name}님 근로계약서 서명 완료`,
         content: `${user.name}님이 근로계약서에 전자서명(동의)하였습니다.`,
@@ -4521,6 +4526,32 @@ function ContractViewScreen({ user, contracts }) {
       {contract.status === "sent" && (
         <div style={{ margin: "0 16px", background: T.card, borderRadius: 16, padding: 16, border: `2px solid #0891b2` }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: "#0891b2", marginBottom: 12 }}>✍️ 전자서명 (동의)</div>
+
+          {/* 성명 (자동) */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: T.sub, fontWeight: 600, marginBottom: 4 }}>성명 <span style={{ color: "#dc2626" }}>*</span></div>
+            <div style={{ padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700, color: T.text, background: "#f8fafc" }}>
+              {user.name}
+            </div>
+          </div>
+
+          {/* 주소 */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: T.sub, fontWeight: 600, marginBottom: 4 }}>주소 <span style={{ color: "#dc2626" }}>*</span></div>
+            <input type="text" value={signAddr} onChange={e => setSignAddr(e.target.value)}
+              placeholder="주소를 입력하세요"
+              style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${signAddr ? T.border : "#fca5a5"}`, fontSize: 13, fontWeight: 600, color: T.text, background: "#fff", boxSizing: "border-box", fontFamily: "inherit" }} />
+          </div>
+
+          {/* 전화번호 */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: T.sub, fontWeight: 600, marginBottom: 4 }}>전화번호 <span style={{ color: "#dc2626" }}>*</span></div>
+            <input type="tel" value={signPhone} onChange={e => setSignPhone(e.target.value)}
+              placeholder="010-0000-0000"
+              style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${signPhone ? T.border : "#fca5a5"}`, fontSize: 13, fontWeight: 600, color: T.text, background: "#fff", boxSizing: "border-box", fontFamily: "inherit" }} />
+          </div>
+
+          {/* 동의 체크 */}
           <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 16, padding: 12, background: "#f0f9ff", borderRadius: 10 }}>
             <input type="checkbox" id="agreeCheck" checked={confirmed} onChange={e => setConfirmed(e.target.checked)}
               style={{ width: 18, height: 18, marginTop: 1, cursor: "pointer" }} />
@@ -4528,8 +4559,11 @@ function ContractViewScreen({ user, contracts }) {
               본인은 위 근로계약서의 내용을 충분히 읽고 이해하였으며, 이에 동의합니다.
             </label>
           </div>
-          <button onClick={sign} disabled={signing || !confirmed}
-            style={{ width: "100%", padding: "14px 0", borderRadius: 14, border: "none", background: confirmed ? "#0891b2" : "#e5e7eb", color: confirmed ? "#fff" : T.muted, fontSize: 15, fontWeight: 800, cursor: confirmed ? "pointer" : "default" }}>
+          <button onClick={sign} disabled={signing || !confirmed || !signAddr || !signPhone}
+            style={{ width: "100%", padding: "14px 0", borderRadius: 14, border: "none",
+              background: (confirmed && signAddr && signPhone) ? "#0891b2" : "#e5e7eb",
+              color: (confirmed && signAddr && signPhone) ? "#fff" : T.muted,
+              fontSize: 15, fontWeight: 800, cursor: (confirmed && signAddr && signPhone) ? "pointer" : "default" }}>
             {signing ? "처리 중..." : "📝 서명하기 (동의)"}
           </button>
           <div style={{ fontSize: 11, color: T.muted, textAlign: "center", marginTop: 8 }}>
@@ -4545,6 +4579,8 @@ function ContractViewScreen({ user, contracts }) {
           <div style={{ fontSize: 12, color: "#16a34a", marginTop: 4 }}>
             {contract.signedAt && new Date(contract.signedAt).toLocaleString("ko-KR")}
           </div>
+          {contract.empAddress && <div style={{ fontSize: 12, color: "#15803d", marginTop: 4 }}>주소: {contract.empAddress}</div>}
+          {contract.empPhone && <div style={{ fontSize: 12, color: "#15803d", marginTop: 2 }}>전화: {contract.empPhone}</div>}
         </div>
       )}
     </div>
