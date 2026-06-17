@@ -4017,60 +4017,53 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
   const openNew = (u) => {
     const info = memberInfo[u.id] || {};
     const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
+    const thisYear = now.getFullYear();
+    const janFirst = `${thisYear}-01-01`;
+    const hourly = Number(info.hourlyWage || 0);
+    const wkHours = Number(info.weeklyHours || 40);
+    const moHours = Math.round(wkHours / 40 * 209);
+    const calcMonthly = hourly ? String(Math.round(hourly * moHours)) : "";
     setForm({
       userId: u.id,
       userName: u.name,
-      // 사업주 정보
       companyName: settings.companyName || "하나기업",
       ownerName: settings.ownerName || "박용균",
       bizAddress: settings.bizAddress || "경남 양산시 어곡공단2길 28",
-      // 근로자 정보
-      empAddress: info.address || "",
-      empPhone: info.phone || "",
-      // 근로 조건
+      empAddress: "",
+      empPhone: "",
       workPlace: "경남 양산시 어곡공단2길 28",
       jobType: info.jobType || "포장직",
-      contractStart: info.joinDate || todayStr,
+      contractStart: janFirst,
       contractEnd: "",
-      // 근로시간
       workStart: settings.workStart || "07:30",
       workEnd: settings.workEnd || "16:30",
       dailyHours: "8",
       weekDays: "월~금",
-      // 휴게시간
       breakLunch: "60분(11:40~12:40)",
       breakSnack: "20분(16:10~16:30)",
-      // 임금
       payType: "월급제",
-      monthlyWage: "",
+      monthlyWage: calcMonthly,
       hourlyWage: String(info.hourlyWage || ""),
-      weeklyHours: String(info.weeklyHours || 40),
-      monthlyHours: "209",
-      // 임금 구성
+      weeklyHours: String(wkHours),
+      monthlyHours: String(moHours),
       wage1: "시급*근로일수 (주휴수당 포함)",
-      wage2: "시급*8시간 / 월만근시 별도 지급",
+      wage2: "시급*8시간 / 별도 지급",
       wage3: "시급*근로시간*1.5 / 별도 지급",
       wage4: "시급*근로시간*1.5 / 별도 지급",
       wage5: "기본급의 100% / 수시 지급",
-      // 지급
       payCalcPeriod: "전월 1일부터 전월 말일까지",
       payDay: String(settings.payDay || "15"),
       payHoliday: "공휴일은 익일 지급",
       payMethod: "계좌이체",
       bankName: info.bank || "",
       bankAccount: info.account || "",
-      // 휴가/보험/복지
       annualLeave: "근로기준법에서 정하는 바에 따라 부여함",
       insurance: "4대보험 의무가입",
       welfare: "교통비, 식대 지원",
-      // 퇴직/정년
       severancePay: "1년 이상 근무하고 퇴직하였을 때는 1년에 대하여 평균임금 1개월분의 퇴직금을 지급한다",
       resignNotice: "퇴사하기 30일전에 통보한다",
       retirementAge: "만 60세가 되는 해, 년도말일 기준으로 정년퇴임 한다",
-      // 해지사유
       terminationReasons: "1. 정당한 업무명령을 위반하였을 때\n2. 무단결근 계속 3일 이상(지각, 조퇴 3회는 결근 1일로 간주)\n3. 근로계약기간이 종료되었을 때\n4. \"갑\"의 발주처로부터 \"을\"의 귀책사유로 교체요청이 있을 때\n5. \"갑\"의 발주처와의 도급계약의 해지가 있을 때 또는 계약의 연장이 안되었을 때\n6. 상기 해지 사유 발생 시 30일전에 통보한다",
-      // 기타
       bonus: "설 50%, 추석 50% / 지급시기 변동시 통보 후 변경가능",
       specialTerms: "",
       status: "draft",
@@ -4181,21 +4174,35 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
                 {["월급제", "시급제"].map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-            <ContractField form={form} setForm={setForm} label="월급 (원, 주휴수당 포함)" fkey="monthlyWage" type="number" placeholder="1,914,440" />
             <ContractField form={form} setForm={setForm} label="시급 (원)" fkey="hourlyWage" type="number" placeholder="9,160" />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
               <div>
                 <ContractLabel>주 근로시간</ContractLabel>
-                <input type="number" value={form.weeklyHours || ""} onChange={e => setForm(p => ({ ...p, weeklyHours: e.target.value }))} placeholder="40" style={CONTRACT_ISTYLE} />
+                <input type="number" value={form.weeklyHours || ""} onChange={e => {
+                  const wk = Number(e.target.value);
+                  const mo = Math.round(wk / 40 * 209);
+                  setForm(p => ({ ...p, weeklyHours: e.target.value, monthlyHours: String(mo), monthlyWage: p.hourlyWage ? String(Math.round(Number(p.hourlyWage) * mo)) : "" }));
+                }} placeholder="40" style={CONTRACT_ISTYLE} />
               </div>
               <div>
                 <ContractLabel>월 근로시간</ContractLabel>
-                <input type="number" value={form.monthlyHours || ""} onChange={e => setForm(p => ({ ...p, monthlyHours: e.target.value }))} placeholder="209" style={CONTRACT_ISTYLE} />
+                <input type="number" value={form.monthlyHours || ""} onChange={e => {
+                  const mo = Number(e.target.value);
+                  setForm(p => ({ ...p, monthlyHours: e.target.value, monthlyWage: p.hourlyWage ? String(Math.round(Number(p.hourlyWage) * mo)) : "" }));
+                }} placeholder="209" style={CONTRACT_ISTYLE} />
+              </div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <ContractLabel>월급 (시급 × 월근로시간, 자동계산)</ContractLabel>
+              <div style={{ padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 14, fontWeight: 800, color: "#ea580c", background: "#fff7ed" }}>
+                {form.hourlyWage && form.monthlyHours
+                  ? `${Math.round(Number(form.hourlyWage) * Number(form.monthlyHours)).toLocaleString()}원 (주휴수당 포함)`
+                  : "시급과 월근로시간 입력 시 자동계산"}
               </div>
             </div>
             <div style={{ fontSize: 12, color: T.muted, fontWeight: 700, marginBottom: 8, marginTop: 4 }}>임금 구성 항목</div>
             <ContractField form={form} setForm={setForm} label="1. 기본급" fkey="wage1" placeholder="시급*근로일수 (주휴수당 포함)" />
-            <ContractField form={form} setForm={setForm} label="2. 연차수당" fkey="wage2" placeholder="시급*8시간 / 월만근시 별도 지급" />
+            <ContractField form={form} setForm={setForm} label="2. 연차수당" fkey="wage2" placeholder="시급*8시간 / 별도 지급" />
             <ContractField form={form} setForm={setForm} label="3. 잔업수당" fkey="wage3" placeholder="시급*근로시간*1.5 / 별도 지급" />
             <ContractField form={form} setForm={setForm} label="4. 특근수당" fkey="wage4" placeholder="시급*근로시간*1.5 / 별도 지급" />
             <ContractField form={form} setForm={setForm} label="5. 상여금" fkey="wage5" placeholder="기본급의 100% / 수시 지급" />
@@ -4603,7 +4610,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "board") return <AdminSectionWrap title="💬 게시판" color="#0891b2" onBack={back}><BoardScreen user={user} board={board} reads={reads} /></AdminSectionWrap>;
   if (section === "settings") return <><SettingsModal settings={settings} onSave={async s => { await onSaveSettings(s); back(); }} onClose={back} /></>;
   if (section === "schedule") return <AdminSectionWrap title="🗓 일정" color="#7c3aed" onBack={back}><AdminSchedule reminders={reminders} users={users} settings={settings} scheduleEvents={scheduleEvents} /></AdminSectionWrap>;
-  if (section === "contract") return <ContractSection users={users} memberInfo={memberInfo} settings={settings} contracts={contracts} onBack={back} />;
+  if (section === "contract") return <><ContractSection users={users} memberInfo={memberInfo} settings={settings} contracts={contracts} onBack={back} /><FloatBack onClick={back} /></>;
   return null;
 }
 
