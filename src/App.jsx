@@ -4021,34 +4021,59 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
     setForm({
       userId: u.id,
       userName: u.name,
-      // 사업주 정보 (settings에 없으면 빈칸)
-      companyName: settings.companyName || "",
-      ownerName: settings.ownerName || "",
-      bizAddress: settings.bizAddress || "",
-      // 직원 정보 (member_info 자동 채움)
-      empSsn: info.ssn || "",
+      // 사업주 정보
+      companyName: settings.companyName || "하나기업",
+      ownerName: settings.ownerName || "박용균",
+      bizAddress: settings.bizAddress || "경남 양산시 어곡공단2길 28",
+      // 근로자 정보
       empAddress: info.address || "",
       empPhone: info.phone || "",
-      // 근무 조건
-      workPlace: settings.bizAddress || "",
-      workType: info.employType || "정규직",
-      weeklyHours: String(info.weeklyHours || 40),
-      workStart: settings.workStart || "09:00",
-      workEnd: settings.workEnd || "18:00",
+      // 근로 조건
+      workPlace: "경남 양산시 어곡공단2길 28",
+      jobType: info.jobType || "포장직",
       contractStart: info.joinDate || todayStr,
       contractEnd: "",
+      // 근로시간
+      workStart: settings.workStart || "07:30",
+      workEnd: settings.workEnd || "16:30",
+      dailyHours: "8",
+      weekDays: "월~금",
+      // 휴게시간
+      breakLunch: "60분(11:40~12:40)",
+      breakSnack: "20분(16:10~16:30)",
       // 임금
+      payType: "월급제",
+      monthlyWage: "",
       hourlyWage: String(info.hourlyWage || ""),
-      payDay: String(settings.payDay || ""),
+      weeklyHours: String(info.weeklyHours || 40),
+      monthlyHours: "209",
+      // 임금 구성
+      wage1: "시급*근로일수 (주휴수당 포함)",
+      wage2: "시급*8시간 / 월만근시 별도 지급",
+      wage3: "시급*근로시간*1.5 / 별도 지급",
+      wage4: "시급*근로시간*1.5 / 별도 지급",
+      wage5: "기본급의 100% / 수시 지급",
+      // 지급
+      payCalcPeriod: "전월 1일부터 전월 말일까지",
+      payDay: String(settings.payDay || "15"),
+      payHoliday: "공휴일은 익일 지급",
       payMethod: "계좌이체",
       bankName: info.bank || "",
       bankAccount: info.account || "",
-      // 휴일/휴가
-      weeklyOff: "토요일, 일요일",
-      annualLeave: "근로기준법에 따름",
+      // 휴가/보험/복지
+      annualLeave: "근로기준법에서 정하는 바에 따라 부여함",
+      insurance: "4대보험 의무가입",
+      welfare: "교통비, 식대 지원",
+      // 퇴직/정년
+      severancePay: "1년 이상 근무하고 퇴직하였을 때는 1년에 대하여 평균임금 1개월분의 퇴직금을 지급한다",
+      resignNotice: "퇴사하기 30일전에 통보한다",
+      retirementAge: "만 60세가 되는 해, 년도말일 기준으로 정년퇴임 한다",
+      // 해지사유
+      terminationReasons: "1. 정당한 업무명령을 위반하였을 때\n2. 무단결근 계속 3일 이상(지각, 조퇴 3회는 결근 1일로 간주)\n3. 근로계약기간이 종료되었을 때\n4. \"갑\"의 발주처로부터 \"을\"의 귀책사유로 교체요청이 있을 때\n5. \"갑\"의 발주처와의 도급계약의 해지가 있을 때 또는 계약의 연장이 안되었을 때\n6. 상기 해지 사유 발생 시 30일전에 통보한다",
       // 기타
+      bonus: "설 50%, 추석 50% / 지급시기 변동시 통보 후 변경가능",
       specialTerms: "",
-      status: "draft", // draft | sent | signed
+      status: "draft",
       signedAt: null,
       createdAt: now.toISOString(),
     });
@@ -4117,35 +4142,31 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
         </div>
 
         <div style={{ padding: "16px 16px 0" }}>
-          {/* 사업주 정보 */}
+
+          {/* (갑) 사업주 정보 */}
           <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: T.adminHeader, marginBottom: 12 }}>🏢 사업주 정보</div>
-            <ContractField form={form} setForm={setForm} label="사업장명" fkey="companyName" placeholder="회사명 입력" />
-            <ContractField form={form} setForm={setForm} label="대표자명" fkey="ownerName" placeholder="대표자 이름" />
-            <ContractField form={form} setForm={setForm} label="사업장 주소" fkey="bizAddress" placeholder="주소 입력" />
+            <div style={{ fontSize: 13, fontWeight: 800, color: T.adminHeader, marginBottom: 12 }}>🏢 (갑) 사업주</div>
+            <ContractField form={form} setForm={setForm} label="사업체명" fkey="companyName" placeholder="회사명 입력" />
+            <ContractField form={form} setForm={setForm} label="대표자" fkey="ownerName" placeholder="대표자 이름" />
+            <ContractField form={form} setForm={setForm} label="주소" fkey="bizAddress" placeholder="주소 입력" />
           </div>
 
-          {/* 근로자 정보 */}
+          {/* (을) 근로자 정보 */}
           <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#7c3aed", marginBottom: 12 }}>👤 근로자 정보</div>
-            <div style={{ marginBottom: 8, padding: "8px 12px", background: T.bg, borderRadius: 10 }}>
-              <span style={{ fontSize: 12, color: T.muted }}>이름: </span>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#7c3aed", marginBottom: 12 }}>👤 (을) 근로자</div>
+            <div style={{ marginBottom: 12, padding: "8px 12px", background: T.bg, borderRadius: 10 }}>
+              <span style={{ fontSize: 12, color: T.muted }}>성명: </span>
               <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{form.userName}</span>
             </div>
-            <ContractField form={form} setForm={setForm} label="주민등록번호" fkey="empSsn" placeholder="000000-0000000" />
             <ContractField form={form} setForm={setForm} label="주소" fkey="empAddress" placeholder="주소 입력" />
-            <ContractField form={form} setForm={setForm} label="연락처" fkey="empPhone" placeholder="010-0000-0000" />
+            <ContractField form={form} setForm={setForm} label="전화번호" fkey="empPhone" placeholder="010-0000-0000" />
           </div>
 
-          {/* 계약 기간 */}
+          {/* 근로 장소 / 직종 / 계약기간 */}
           <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#0891b2", marginBottom: 12 }}>📅 계약 기간</div>
-            <div style={{ marginBottom: 12 }}>
-              <ContractLabel>고용형태</ContractLabel>
-              <select value={form.workType || "정규직"} onChange={e => setForm(p => ({ ...p, workType: e.target.value }))} style={CONTRACT_ISTYLE}>
-                {["정규직", "계약직", "파트타임"].map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#0891b2", marginBottom: 12 }}>📋 근로 조건</div>
+            <ContractField form={form} setForm={setForm} label="근로 장소" fkey="workPlace" placeholder="근무 장소" />
+            <ContractField form={form} setForm={setForm} label="직종" fkey="jobType" placeholder="포장직" />
             <ContractField form={form} setForm={setForm} label="계약 시작일" fkey="contractStart" type="date" />
             <div style={{ marginBottom: 12 }}>
               <ContractLabel>계약 종료일 (정규직은 비워두세요)</ContractLabel>
@@ -4153,30 +4174,68 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
             </div>
           </div>
 
-          {/* 근무 조건 */}
+          {/* 임금 구성 */}
           <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#16a34a", marginBottom: 12 }}>⏰ 근무 조건</div>
-            <ContractField form={form} setForm={setForm} label="근무 장소" fkey="workPlace" placeholder="근무 장소" />
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#ea580c", marginBottom: 12 }}>💰 임금 구성</div>
+            <div style={{ marginBottom: 12 }}>
+              <ContractLabel>임금 계산 방법</ContractLabel>
+              <select value={form.payType || "월급제"} onChange={e => setForm(p => ({ ...p, payType: e.target.value }))} style={CONTRACT_ISTYLE}>
+                {["월급제", "시급제"].map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <ContractField form={form} setForm={setForm} label="월급 (원, 주휴수당 포함)" fkey="monthlyWage" type="number" placeholder="1,914,440" />
+            <ContractField form={form} setForm={setForm} label="시급 (원)" fkey="hourlyWage" type="number" placeholder="9,160" />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+              <div>
+                <ContractLabel>주 근로시간</ContractLabel>
+                <input type="number" value={form.weeklyHours || ""} onChange={e => setForm(p => ({ ...p, weeklyHours: e.target.value }))} placeholder="40" style={CONTRACT_ISTYLE} />
+              </div>
+              <div>
+                <ContractLabel>월 근로시간</ContractLabel>
+                <input type="number" value={form.monthlyHours || ""} onChange={e => setForm(p => ({ ...p, monthlyHours: e.target.value }))} placeholder="209" style={CONTRACT_ISTYLE} />
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: T.muted, fontWeight: 700, marginBottom: 8, marginTop: 4 }}>임금 구성 항목</div>
+            <ContractField form={form} setForm={setForm} label="1. 기본급" fkey="wage1" placeholder="시급*근로일수 (주휴수당 포함)" />
+            <ContractField form={form} setForm={setForm} label="2. 연차수당" fkey="wage2" placeholder="시급*8시간 / 월만근시 별도 지급" />
+            <ContractField form={form} setForm={setForm} label="3. 잔업수당" fkey="wage3" placeholder="시급*근로시간*1.5 / 별도 지급" />
+            <ContractField form={form} setForm={setForm} label="4. 특근수당" fkey="wage4" placeholder="시급*근로시간*1.5 / 별도 지급" />
+            <ContractField form={form} setForm={setForm} label="5. 상여금" fkey="wage5" placeholder="기본급의 100% / 수시 지급" />
+          </div>
+
+          {/* 근로시간 / 휴게시간 */}
+          <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#16a34a", marginBottom: 12 }}>⏰ 근로시간 · 휴게시간</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
               <div>
                 <ContractLabel>출근 시간</ContractLabel>
-                <input type="time" value={form.workStart || "09:00"} onChange={e => setForm(p => ({ ...p, workStart: e.target.value }))} style={CONTRACT_ISTYLE} />
+                <input type="time" value={form.workStart || "07:30"} onChange={e => setForm(p => ({ ...p, workStart: e.target.value }))} style={CONTRACT_ISTYLE} />
               </div>
               <div>
                 <ContractLabel>퇴근 시간</ContractLabel>
-                <input type="time" value={form.workEnd || "18:00"} onChange={e => setForm(p => ({ ...p, workEnd: e.target.value }))} style={CONTRACT_ISTYLE} />
+                <input type="time" value={form.workEnd || "16:30"} onChange={e => setForm(p => ({ ...p, workEnd: e.target.value }))} style={CONTRACT_ISTYLE} />
               </div>
             </div>
-            <ContractField form={form} setForm={setForm} label="주 소정근로시간 (시간)" fkey="weeklyHours" type="number" placeholder="40" />
-            <ContractField form={form} setForm={setForm} label="주휴일" fkey="weeklyOff" placeholder="토요일, 일요일" />
-            <ContractField form={form} setForm={setForm} label="연차/휴가" fkey="annualLeave" placeholder="근로기준법에 따름" />
+            <ContractField form={form} setForm={setForm} label="1일 근로시간 (시간)" fkey="dailyHours" type="number" placeholder="8" />
+            <ContractField form={form} setForm={setForm} label="근무 요일" fkey="weekDays" placeholder="월~금" />
+            <ContractField form={form} setForm={setForm} label="휴게 - 식사시간" fkey="breakLunch" placeholder="60분(11:40~12:40)" />
+            <ContractField form={form} setForm={setForm} label="휴게 - 참시간" fkey="breakSnack" placeholder="20분(16:10~16:30)" />
           </div>
 
-          {/* 임금 */}
+          {/* 연차 / 4대보험 / 복리후생 */}
           <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#ea580c", marginBottom: 12 }}>💰 임금</div>
-            <ContractField form={form} setForm={setForm} label="시급 (원)" fkey="hourlyWage" type="number" placeholder="시급 입력" />
-            <ContractField form={form} setForm={setForm} label="임금 지급일 (매월 __일)" fkey="payDay" type="number" placeholder="25" />
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#0284c7", marginBottom: 12 }}>📅 휴가 · 보험 · 복지</div>
+            <ContractField form={form} setForm={setForm} label="연차유급휴가" fkey="annualLeave" placeholder="근로기준법에서 정하는 바에 따라 부여함" />
+            <ContractField form={form} setForm={setForm} label="4대보험" fkey="insurance" placeholder="4대보험 의무가입" />
+            <ContractField form={form} setForm={setForm} label="복리후생" fkey="welfare" placeholder="교통비, 식대 지원" />
+          </div>
+
+          {/* 임금 지급 */}
+          <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#ea580c", marginBottom: 12 }}>💳 임금 지급</div>
+            <ContractField form={form} setForm={setForm} label="임금 계산 기간" fkey="payCalcPeriod" placeholder="전월 1일부터 전월 말일까지" />
+            <ContractField form={form} setForm={setForm} label="지급일 (매월 __일)" fkey="payDay" type="number" placeholder="15" />
+            <ContractField form={form} setForm={setForm} label="공휴일 처리" fkey="payHoliday" placeholder="공휴일은 익일 지급" />
             <div style={{ marginBottom: 12 }}>
               <ContractLabel>지급 방법</ContractLabel>
               <select value={form.payMethod || "계좌이체"} onChange={e => setForm(p => ({ ...p, payMethod: e.target.value }))} style={CONTRACT_ISTYLE}>
@@ -4187,11 +4246,34 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
             <ContractField form={form} setForm={setForm} label="계좌번호" fkey="bankAccount" placeholder="계좌번호 입력" />
           </div>
 
-          {/* 특약 */}
+          {/* 퇴직금 / 퇴직절차 / 정년 */}
           <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 12 }}>📝 특약 사항</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#b45309", marginBottom: 12 }}>💼 퇴직 · 정년</div>
             <div style={{ marginBottom: 12 }}>
-              <ContractLabel>특약 내용 (선택)</ContractLabel>
+              <ContractLabel>퇴직금</ContractLabel>
+              <textarea value={form.severancePay || ""} onChange={e => setForm(p => ({ ...p, severancePay: e.target.value }))}
+                style={{ ...CONTRACT_ISTYLE, minHeight: 60, resize: "vertical" }} />
+            </div>
+            <ContractField form={form} setForm={setForm} label="퇴직 절차" fkey="resignNotice" placeholder="퇴사하기 30일전에 통보한다" />
+            <ContractField form={form} setForm={setForm} label="정년" fkey="retirementAge" placeholder="만 60세가 되는 해, 년도말일 기준" />
+          </div>
+
+          {/* 근로계약 해지사유 */}
+          <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#dc2626", marginBottom: 12 }}>⚠️ 근로계약 해지사유</div>
+            <div style={{ marginBottom: 12 }}>
+              <ContractLabel>해지 사유</ContractLabel>
+              <textarea value={form.terminationReasons || ""} onChange={e => setForm(p => ({ ...p, terminationReasons: e.target.value }))}
+                style={{ ...CONTRACT_ISTYLE, minHeight: 140, resize: "vertical" }} />
+            </div>
+          </div>
+
+          {/* 기타 / 특약 */}
+          <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 12 }}>📝 기타 사항</div>
+            <ContractField form={form} setForm={setForm} label="상여금 지급 시기" fkey="bonus" placeholder="설 50%, 추석 50%" />
+            <div style={{ marginBottom: 12 }}>
+              <ContractLabel>특약 사항 (선택)</ContractLabel>
               <textarea value={form.specialTerms || ""} onChange={e => setForm(p => ({ ...p, specialTerms: e.target.value }))}
                 placeholder="특약 사항이 있으면 입력하세요"
                 style={{ ...CONTRACT_ISTYLE, minHeight: 80, resize: "vertical" }} />
@@ -4358,36 +4440,78 @@ function ContractViewScreen({ user, contracts }) {
       {/* 계약서 요약 */}
       <div style={{ margin: "0 16px 12px", background: T.card, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
         <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 12 }}>📋 계약 주요 내용</div>
-        <Row label="사업장" value={contract.companyName} />
-        <Row label="고용형태" value={contract.workType} />
+        <Row label="사업체명" value={contract.companyName} />
+        <Row label="대표자" value={contract.ownerName} />
+        <Row label="근로 장소" value={contract.workPlace} />
+        <Row label="직종" value={contract.jobType} />
         <Row label="계약 시작" value={contract.contractStart} />
         <Row label="계약 종료" value={contract.contractEnd || "기간 없음 (정규직)"} />
-        <Row label="근무시간" value={`${contract.workStart} ~ ${contract.workEnd}`} />
-        <Row label="주 소정시간" value={contract.weeklyHours ? `${contract.weeklyHours}시간` : null} />
+        <Row label="근로시간" value={`${contract.workStart} ~ ${contract.workEnd} (1일 ${contract.dailyHours || 8}시간, ${contract.weekDays || "월~금"})`} />
         <Row label="시급" value={contract.hourlyWage ? `${Number(contract.hourlyWage).toLocaleString()}원` : null} />
-        <Row label="임금 지급일" value={contract.payDay ? `매월 ${contract.payDay}일` : null} />
-        <Row label="지급 방법" value={contract.payMethod} />
+        <Row label="월급" value={contract.monthlyWage ? `${Number(contract.monthlyWage).toLocaleString()}원 (주휴수당 포함)` : null} />
+        <Row label="임금 지급일" value={contract.payDay ? `매월 ${contract.payDay}일 (${contract.payHoliday || ""})` : null} />
       </div>
 
       {/* 상세 내용 펼치기 */}
       {showDetail && (
-        <div style={{ margin: "0 16px 12px", background: T.card, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 12 }}>📄 상세 계약 내용</div>
-          <Row label="근무 장소" value={contract.workPlace} />
-          <Row label="주휴일" value={contract.weeklyOff} />
-          <Row label="연차/휴가" value={contract.annualLeave} />
-          <Row label="은행" value={contract.bankName ? `${contract.bankName}은행` : null} />
-          <Row label="계좌번호" value={contract.bankAccount} />
-          {contract.specialTerms && (
-            <div style={{ marginTop: 10, padding: 12, background: T.bg, borderRadius: 10 }}>
-              <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 4 }}>특약 사항</div>
-              <div style={{ fontSize: 13, color: T.text, whiteSpace: "pre-wrap" }}>{contract.specialTerms}</div>
+        <div style={{ margin: "0 16px 12px" }}>
+          {/* 임금 구성 */}
+          <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 10, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#ea580c", marginBottom: 10 }}>💰 임금 구성</div>
+            {contract.wage1 && <Row label="기본급" value={contract.wage1} />}
+            {contract.wage2 && <Row label="연차수당" value={contract.wage2} />}
+            {contract.wage3 && <Row label="잔업수당" value={contract.wage3} />}
+            {contract.wage4 && <Row label="특근수당" value={contract.wage4} />}
+            {contract.wage5 && <Row label="상여금" value={contract.wage5} />}
+          </div>
+          {/* 휴게 / 지급 */}
+          <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 10, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#16a34a", marginBottom: 10 }}>⏰ 휴게시간 · 지급</div>
+            {contract.breakLunch && <Row label="식사시간" value={contract.breakLunch} />}
+            {contract.breakSnack && <Row label="참시간" value={contract.breakSnack} />}
+            <Row label="임금 계산기간" value={contract.payCalcPeriod} />
+            <Row label="지급 방법" value={contract.payMethod} />
+            {contract.bankName && <Row label="은행" value={`${contract.bankName} ${contract.bankAccount || ""}`} />}
+          </div>
+          {/* 휴가/보험/복지 */}
+          <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 10, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#0284c7", marginBottom: 10 }}>📅 휴가 · 보험 · 복지</div>
+            <Row label="연차유급휴가" value={contract.annualLeave} />
+            <Row label="4대보험" value={contract.insurance} />
+            <Row label="복리후생" value={contract.welfare} />
+          </div>
+          {/* 퇴직/정년 */}
+          <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 10, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#b45309", marginBottom: 10 }}>💼 퇴직 · 정년</div>
+            <Row label="퇴직금" value={contract.severancePay} />
+            <Row label="퇴직 절차" value={contract.resignNotice} />
+            <Row label="정년" value={contract.retirementAge} />
+          </div>
+          {/* 해지사유 */}
+          {contract.terminationReasons && (
+            <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 10, border: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#dc2626", marginBottom: 10 }}>⚠️ 근로계약 해지사유</div>
+              <div style={{ fontSize: 13, color: T.text, whiteSpace: "pre-wrap", lineHeight: 1.8 }}>{contract.terminationReasons}</div>
+            </div>
+          )}
+          {/* 기타 */}
+          {(contract.bonus || contract.specialTerms) && (
+            <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 10, border: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 10 }}>📝 기타</div>
+              {contract.bonus && <Row label="상여금 지급시기" value={contract.bonus} />}
+              {contract.specialTerms && (
+                <div style={{ marginTop: 8, padding: 10, background: T.bg, borderRadius: 8 }}>
+                  <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 4 }}>특약 사항</div>
+                  <div style={{ fontSize: 13, color: T.text, whiteSpace: "pre-wrap" }}>{contract.specialTerms}</div>
+                </div>
+              )}
             </div>
           )}
           {/* 법적 고지 */}
-          <div style={{ marginTop: 12, padding: 12, background: "#f0fdf4", borderRadius: 10, border: "1px solid #bbf7d0" }}>
-            <div style={{ fontSize: 11, color: "#15803d", lineHeight: 1.6 }}>
-              본 근로계약서는 근로기준법에 따라 작성되었으며, 명시되지 않은 사항은 근로기준법 및 관련 법령에 따릅니다.
+          <div style={{ padding: 14, background: "#f0fdf4", borderRadius: 14, border: "1px solid #bbf7d0", marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: "#15803d", lineHeight: 1.7 }}>
+              사용자는 근로계약을 체결함과 동시에 본 계약서를 사본하여 근로자의 교부요구와 관계없이 서면(전자문서 포함)으로 작성하여 근로자에게 교부하여야 함(근로기준법 제17조 이행)<br />
+              이 계약에 정함이 없는 사항은 근로기준법에 의함
             </div>
           </div>
         </div>
