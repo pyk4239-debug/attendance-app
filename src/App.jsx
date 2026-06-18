@@ -4450,9 +4450,12 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
                     <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
                       {history.map((c, i) => {
                         const hst = statusLabel(c.status);
+                        const detailKey = `${u.id}_${c.id}`;
+                        const showDetail = expandedHistory[detailKey];
                         return (
-                          <div key={c.id} style={{ padding: "10px 12px", background: T.bg, borderRadius: 10, border: `1px solid ${T.border}` }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div key={c.id} style={{ background: T.bg, borderRadius: 10, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+                            {/* 요약 헤더 */}
+                            <div style={{ padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                               <div>
                                 <div style={{ fontSize: 12, fontWeight: 700, color: T.text }}>
                                   {c.contractStart} ~ {c.contractEnd || "기간 없음"}
@@ -4464,6 +4467,10 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                                 <span style={{ fontSize: 10, fontWeight: 700, color: hst.color, background: hst.bg, borderRadius: 6, padding: "2px 7px" }}>{hst.text}</span>
+                                <button onClick={() => setExpandedHistory(p => ({ ...p, [detailKey]: !p[detailKey] }))}
+                                  style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                                  {showDetail ? "▲" : "▼"}
+                                </button>
                                 {c.status !== "signed" && (
                                   <button onClick={() => deleteContract(c)}
                                     style={{ padding: "4px 8px", borderRadius: 6, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
@@ -4472,6 +4479,36 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
                                 )}
                               </div>
                             </div>
+
+                            {/* 상세 내용 */}
+                            {showDetail && (
+                              <div style={{ borderTop: `1px solid ${T.border}`, padding: "10px 12px", fontSize: 11, color: T.text }}>
+                                {[
+                                  ["직종", c.jobType],
+                                  ["입사일", c.joinDate],
+                                  ["근로장소", c.workPlace],
+                                  ["근로시간", c.workStart && c.workEnd ? `${c.workStart} ~ ${c.workEnd}` : null],
+                                  ["시급", c.hourlyWage ? `${Number(c.hourlyWage).toLocaleString()}원` : null],
+                                  ["월급", c.monthlyWage ? `${Number(c.monthlyWage).toLocaleString()}원` : null],
+                                  ["지급일", c.payDay ? `매월 ${c.payDay}일` : null],
+                                  ["상여금", c.bonus],
+                                ].filter(([, v]) => v).map(([label, value]) => (
+                                  <div key={label} style={{ display: "flex", gap: 8, padding: "3px 0", borderBottom: `1px solid ${T.border}` }}>
+                                    <span style={{ color: T.muted, minWidth: 60 }}>{label}</span>
+                                    <span style={{ fontWeight: 600 }}>{value}</span>
+                                  </div>
+                                ))}
+                                {c.signedAt && (
+                                  <div style={{ marginTop: 6, padding: "6px 8px", background: "#dcfce7", borderRadius: 6 }}>
+                                    <div style={{ color: "#15803d", fontWeight: 700 }}>✅ 서명완료</div>
+                                    <div style={{ color: "#16a34a", marginTop: 2 }}>{new Date(c.signedAt).toLocaleString("ko-KR")}</div>
+                                    {c.empAddress && <div style={{ color: "#15803d", marginTop: 2 }}>📍 {c.empAddress}</div>}
+                                    {c.empPhone && <div style={{ color: "#15803d", marginTop: 2 }}>📞 {c.empPhone}</div>}
+                                    {c.signIp && <div style={{ color: "#15803d", marginTop: 2 }}>🌐 {c.signIp} · {c.signDevice} · {c.signBrowser}</div>}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
