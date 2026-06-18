@@ -4169,10 +4169,17 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
       setPinErr("PIN이 맞지 않습니다.");
       return;
     }
+    if (!pinModal?.contract?.id) {
+      setPinErr("계약서 ID를 찾을 수 없습니다.");
+      return;
+    }
     try {
       await deleteDoc(doc(db, COL_CONTRACTS, pinModal.contract.id));
       setPinModal(null);
-    } catch(e) { alert("삭제 실패: " + e.message); }
+    } catch(e) {
+      console.error("계약서 삭제 실패:", e);
+      setPinErr("삭제 실패: " + e.message);
+    }
   };
 
   const statusLabel = (s) => s === "signed" ? { text: "✅ 서명완료", color: "#16a34a", bg: "#dcfce7" } : s === "sent" ? { text: "📨 서명대기", color: "#d97706", bg: "#fef3c7" } : { text: "📝 초안", color: "#6b7280", bg: "#f3f4f6" };
