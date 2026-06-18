@@ -4238,6 +4238,11 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
             <ContractField form={form} setForm={setForm} label="3. 잔업수당" fkey="wage3" placeholder="시급*근로시간*1.5 / 별도 지급" />
             <ContractField form={form} setForm={setForm} label="4. 특근수당" fkey="wage4" placeholder="시급*근로시간*1.5 / 별도 지급" />
             <ContractField form={form} setForm={setForm} label="5. 상여금" fkey="wage5" placeholder="기본급의 100% / 수시 지급" />
+            <div style={{ marginTop: 8, padding: "10px 12px", background: "#fff7ed", borderRadius: 10, border: "1px solid #fed7aa" }}>
+              <div style={{ fontSize: 11, color: "#92400e", lineHeight: 1.7 }}>
+                📌 임금은 관계 법령에 따른 최저임금 변동 및 당사자 간 합의에 의해 변경될 수 있으며, 변경 시 사전 서면 통보로 본 계약의 해당 조항을 갈음한다.
+              </div>
+            </div>
           </div>
 
           {/* 근로시간 / 휴게시간 */}
@@ -4599,6 +4604,11 @@ function ContractViewScreen({ user, contracts }) {
             {contract.wage3 && <Row label="잔업수당" value={contract.wage3} />}
             {contract.wage4 && <Row label="특근수당" value={contract.wage4} />}
             {contract.wage5 && <Row label="상여금" value={contract.wage5} />}
+            <div style={{ marginTop: 8, padding: "10px 12px", background: "#fff7ed", borderRadius: 10, border: "1px solid #fed7aa" }}>
+              <div style={{ fontSize: 11, color: "#92400e", lineHeight: 1.7 }}>
+                📌 임금은 관계 법령에 따른 최저임금 변동 및 당사자 간 합의에 의해 변경될 수 있으며, 변경 시 사전 서면 통보로 본 계약의 해당 조항을 갈음한다.
+              </div>
+            </div>
           </div>
           {/* 휴게 / 지급 */}
           <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 10, border: `1px solid ${T.border}` }}>
