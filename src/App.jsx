@@ -4240,7 +4240,7 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
             <ContractField form={form} setForm={setForm} label="5. 상여금" fkey="wage5" placeholder="기본급의 100% / 수시 지급" />
             <div style={{ marginTop: 8, padding: "10px 12px", background: "#fff7ed", borderRadius: 10, border: "1px solid #fed7aa" }}>
               <div style={{ fontSize: 11, color: "#92400e", lineHeight: 1.7 }}>
-                📌 임금은 관계 법령에 따른 최저임금 변동 및 당사자 간 합의에 의해 변경될 수 있으며, 변경 시 사전 서면 통보로 본 계약의 해당 조항을 갈음한다.
+                📌 임금은 관계 법령에 따른 최저임금 변동 및 당사자 간 합의에 의해 변경될 수 있으며, 변경 시 사전 서면 통보로 본 계약의 해당 조항을 갈음한다. 단, 임금의 감액은 근로자의 서면 동의를 요한다.
               </div>
             </div>
           </div>
@@ -4411,6 +4411,7 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
                   <div>✅ 서명일시: {new Date(latest.signedAt).toLocaleString("ko-KR")}</div>
                   {latest.empAddress && <div style={{ marginTop: 3 }}>📍 주소: {latest.empAddress}</div>}
                   {latest.empPhone && <div style={{ marginTop: 3 }}>📞 전화: {latest.empPhone}</div>}
+                  {latest.signIp && <div style={{ marginTop: 3, color: "#15803d" }}>🌐 IP: {latest.signIp} · {latest.signDevice || ""} · {latest.signBrowser || ""}</div>}
                 </div>
               )}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -4504,16 +4505,32 @@ function ContractViewScreen({ user, contracts }) {
     if (!window.confirm("근로계약서에 전자서명(동의)하시겠습니까?")) return;
     setSigning(true);
     try {
+      // 서명 메타데이터 수집 (증거력 확보)
+      let signIp = "";
+      try {
+        const ipRes = await fetch("https://api.ipify.org?format=json");
+        const ipData = await ipRes.json();
+        signIp = ipData.ip || "";
+      } catch { signIp = "알 수 없음"; }
+
+      const signMeta = {
+        signedAt: new Date().toISOString(),
+        signIp,
+        signUserAgent: navigator.userAgent,
+        signDevice: /Mobi|Android/i.test(navigator.userAgent) ? "모바일" : "PC",
+        signBrowser: navigator.userAgent.match(/(Chrome|Safari|Firefox|Edge|Samsung)/)?.[1] || "기타",
+      };
+
       await setDoc(doc(db, COL_CONTRACTS, contract.id), {
         ...contract,
         status: "signed",
-        signedAt: new Date().toISOString(),
         empAddress: signAddr.trim(),
         empPhone: signPhone.trim(),
+        ...signMeta,
       });
       await addDoc(collection(db, COL_NOTICES), {
         title: `✅ ${user.name}님 근로계약서 서명 완료`,
-        content: `${user.name}님이 근로계약서에 전자서명(동의)하였습니다.`,
+        content: `${user.name}님이 근로계약서에 전자서명(동의)하였습니다.\n서명일시: ${new Date().toLocaleString("ko-KR")}\nIP: ${signIp}`,
         recipient: "admin",
         author: user.name,
         createdAt: new Date().toISOString(),
@@ -4606,7 +4623,7 @@ function ContractViewScreen({ user, contracts }) {
             {contract.wage5 && <Row label="상여금" value={contract.wage5} />}
             <div style={{ marginTop: 8, padding: "10px 12px", background: "#fff7ed", borderRadius: 10, border: "1px solid #fed7aa" }}>
               <div style={{ fontSize: 11, color: "#92400e", lineHeight: 1.7 }}>
-                📌 임금은 관계 법령에 따른 최저임금 변동 및 당사자 간 합의에 의해 변경될 수 있으며, 변경 시 사전 서면 통보로 본 계약의 해당 조항을 갈음한다.
+                📌 임금은 관계 법령에 따른 최저임금 변동 및 당사자 간 합의에 의해 변경될 수 있으며, 변경 시 사전 서면 통보로 본 계약의 해당 조항을 갈음한다. 단, 임금의 감액은 근로자의 서면 동의를 요한다.
               </div>
             </div>
           </div>
