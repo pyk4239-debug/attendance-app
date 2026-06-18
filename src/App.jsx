@@ -4552,9 +4552,9 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
                     <div>{latest.contractStart?.replace(/-/g, "년 ").replace(/-/, "월 ")}일</div>
                   </div>
                   <div style={{ marginTop: 16, display: "flex", justifyContent: "space-around", fontSize: 12 }}>
-                    <div>(사용자) {latest.ownerName} (인)</div>
-                    <div>(근로자) {latest.userName} (인)
-                      {latest.status === "signed" && latest.signedAt ? `  ✅ ${new Date(latest.signedAt).toLocaleDateString("ko-KR")} 전자서명` : ""}
+                    <div>(사용자) {latest.ownerName} &nbsp;&nbsp; {latest.sentAt ? `📨 ${new Date(latest.sentAt).toLocaleDateString("ko-KR")} 발송` : ""}</div>
+                    <div>(근로자) {latest.userName} &nbsp;&nbsp;
+                      {latest.status === "signed" && latest.signedAt ? `✅ ${new Date(latest.signedAt).toLocaleDateString("ko-KR")} 전자서명` : ""}
                     </div>
                   </div>
                 </div>
@@ -4991,12 +4991,12 @@ function ContractViewScreen({ user, contracts }) {
           <div style={{ marginTop: 8, fontSize: 10, color: "#555" }}>이 계약에 정함이 없는 사항은 근로기준법에 의함</div>
           {contract.specialTerms && <div style={{ marginTop: 6, fontSize: 10 }}><b>특약:</b> {contract.specialTerms}</div>}
           <div style={{ marginTop: 24, fontSize: 12 }}>{contract.contractStart?.replace(/-/g, "년 ").replace(/-/, "월 ")}일</div>
-          <div style={{ marginTop: 16, display: "flex", justifyContent: "space-around", fontSize: 12 }}>
-            <div>(사용자) {contract.ownerName} (인)</div>
-            <div>(근로자) {contract.userName} (인)
-              {contract.status === "signed" && contract.signedAt ? `  ✅ ${new Date(contract.signedAt).toLocaleDateString("ko-KR")} 전자서명` : ""}
+            <div style={{ marginTop: 16, display: "flex", justifyContent: "space-around", fontSize: 12 }}>
+              <div>(사용자) {contract.ownerName} &nbsp;&nbsp; {contract.sentAt ? `📨 ${new Date(contract.sentAt).toLocaleDateString("ko-KR")} 발송` : ""}</div>
+              <div>(근로자) {contract.userName} &nbsp;&nbsp;
+                {contract.status === "signed" && contract.signedAt ? `✅ ${new Date(contract.signedAt).toLocaleDateString("ko-KR")} 전자서명` : ""}
+              </div>
             </div>
-          </div>
         </div>
       )}
     </div>
