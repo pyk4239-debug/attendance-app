@@ -4033,6 +4033,7 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
       empPhone: "",
       workPlace: "경남 양산시 어곡공단2길 28",
       jobType: info.jobType || "포장직",
+      joinDate: info.joinDate || "",
       contractStart: janFirst,
       contractEnd: "",
       workStart: settings.workStart || "07:30",
@@ -4158,6 +4159,12 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
             <div style={{ fontSize: 13, fontWeight: 800, color: "#0891b2", marginBottom: 12 }}>📋 근로 조건</div>
             <ContractField form={form} setForm={setForm} label="근로 장소" fkey="workPlace" placeholder="근무 장소" />
             <ContractField form={form} setForm={setForm} label="직종" fkey="jobType" placeholder="포장직" />
+            <ContractField form={form} setForm={setForm} label="입사일 (근로개시일)" fkey="joinDate" type="date" />
+            <div style={{ marginBottom: 12, padding: "10px 12px", background: "#f0f9ff", borderRadius: 10, border: "1px solid #bae6fd" }}>
+              <div style={{ fontSize: 11, color: "#0369a1" }}>
+                본 근로계약은 <b>{form.contractStart || "____년 __월 __일"}</b>부터 적용하며, 근로개시일은 <b>{form.joinDate || "____년 __월 __일"}</b>로 한다.
+              </div>
+            </div>
             <ContractField form={form} setForm={setForm} label="계약 시작일" fkey="contractStart" type="date" />
             <div style={{ marginBottom: 12 }}>
               <ContractLabel>계약 종료일 (정규직은 비워두세요)</ContractLabel>
@@ -4501,6 +4508,14 @@ function ContractViewScreen({ user, contracts }) {
         <Row label="대표자" value={contract.ownerName} />
         <Row label="근로 장소" value={contract.workPlace} />
         <Row label="직종" value={contract.jobType} />
+        <Row label="입사일(근로개시일)" value={contract.joinDate} />
+        {contract.contractStart && contract.joinDate && (
+          <div style={{ padding: "8px 0", borderBottom: `1px solid ${T.border}` }}>
+            <span style={{ fontSize: 12, color: "#0369a1" }}>
+              본 근로계약은 <b>{contract.contractStart}</b>부터 적용하며, 근로개시일은 <b>{contract.joinDate}</b>로 한다.
+            </span>
+          </div>
+        )}
         <Row label="계약 시작" value={contract.contractStart} />
         <Row label="계약 종료" value={contract.contractEnd || "기간 없음 (정규직)"} />
         <Row label="근로시간" value={`${contract.workStart} ~ ${contract.workEnd} (1일 ${contract.dailyHours || 8}시간, ${contract.weekDays || "월~금"})`} />
