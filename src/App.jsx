@@ -4015,8 +4015,42 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
   const [pinModal, setPinModal] = useState(null); // { contract } 또는 null
   const [pinInput, setPinInput] = useState("");
   const [pinErr, setPinErr] = useState("");
+  const [pdfLoading, setPdfLoading] = useState(null);
   const admin = users.find(u => u.role === "admin");
   const [form, setForm] = useState(null);
+
+  const downloadContractPDF = async (contract) => {
+    setPdfLoading(contract.id);
+    try {
+      const el = document.getElementById(`contract-print-${contract.id}`);
+      if (!el) { alert("계약서 영역 없음"); setPdfLoading(null); return; }
+      const pdfBtn = document.getElementById(`contract-pdf-btn-${contract.id}`);
+      if (pdfBtn) pdfBtn.style.visibility = "hidden";
+      const canvas = await html2canvas(el, { scale: 2.5, useCORS: true, backgroundColor: "#ffffff" });
+      if (pdfBtn) pdfBtn.style.visibility = "visible";
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 8;
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+      const ratio = canvas.width / canvas.height;
+      let imgW = maxW, imgH = imgW / ratio;
+      if (imgH > maxH) { imgH = maxH; imgW = imgH * ratio; }
+      pdf.addImage(imgData, "PNG", (pageW - imgW) / 2, margin, imgW, imgH);
+      const fileName = `${contract.userName}_근로계약서_${contract.contractStart || ""}.pdf`;
+      pdf.save(fileName);
+      try {
+        const pdfBlob = pdf.output("blob");
+        const storageRef = ref(storage, `contracts/${contract.userId}/${contract.id}.pdf`);
+        await uploadBytes(storageRef, pdfBlob);
+        const url = await getDownloadURL(storageRef);
+        await setDoc(doc(db, COL_CONTRACTS, contract.id), { ...contract, pdfUrl: url, pdfGeneratedAt: new Date().toISOString() });
+      } catch(e) { console.warn("Storage 저장 실패:", e.message); }
+    } catch(e) { alert("PDF 생성 실패: " + e.message); }
+    setPdfLoading(null);
+  };
 
   const openNew = (u) => {
     const info = memberInfo[u.id] || {};
@@ -4432,12 +4466,94 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
                   </button>
                 )}
                 {latest && (
-                  <button onClick={() => deleteContract(latest)}
-                    style={{ padding: "8px 14px", borderRadius: 10, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                    삭제
-                  </button>
+                  <>
+                    <button id={`contract-pdf-btn-${latest.id}`} onClick={() => downloadContractPDF(latest)} disabled={pdfLoading === latest.id}
+                      style={{ padding: "8px 14px", borderRadius: 10, border: "none", background: "#16a34a", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: pdfLoading === latest.id ? 0.6 : 1 }}>
+                      {pdfLoading === latest.id ? "생성 중..." : "⬇ PDF"}
+                    </button>
+                    {latest.pdfUrl && (
+                      <a href={latest.pdfUrl} target="_blank" rel="noreferrer"
+                        style={{ padding: "8px 14px", borderRadius: 10, border: `1px solid #16a34a`, background: "#f0fdf4", color: "#16a34a", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
+                        🔗 저장본
+                      </a>
+                    )}
+                    <button onClick={() => deleteContract(latest)}
+                      style={{ padding: "8px 14px", borderRadius: 10, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                      삭제
+                    </button>
+                  </>
                 )}
               </div>
+
+              {/* 숨김 인쇄 영역 */}
+              {latest && (
+                <div id={`contract-print-${latest.id}`} style={{ position: "fixed", left: -9999, top: 0, width: 794, background: "#fff", padding: "40px 50px", fontFamily: "'Noto Sans KR', sans-serif", fontSize: 12, color: "#111", lineHeight: 1.8 }}>
+                  <div style={{ textAlign: "center", fontSize: 20, fontWeight: 900, marginBottom: 24, letterSpacing: 8 }}>근 로 계 약 서</div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 16, fontSize: 12 }}>
+                    <tbody>
+                      <tr><td style={{ padding: "4px 8px", fontWeight: 700, width: 80 }}>(갑) 사용자</td><td style={{ padding: "4px 8px" }}>사업체명: {latest.companyName} &nbsp;&nbsp; 대표자: {latest.ownerName}</td></tr>
+                      <tr><td style={{ padding: "4px 8px" }}></td><td style={{ padding: "4px 8px" }}>주소: {latest.bizAddress}</td></tr>
+                      <tr><td style={{ padding: "4px 8px", fontWeight: 700 }}>(을) 근로자</td><td style={{ padding: "4px 8px" }}>성명: {latest.userName} &nbsp;&nbsp; 연락처: {latest.empPhone || "__________"}</td></tr>
+                      <tr><td style={{ padding: "4px 8px" }}></td><td style={{ padding: "4px 8px" }}>주소: {latest.empAddress || "__________________________________________"}</td></tr>
+                    </tbody>
+                  </table>
+                  <div style={{ fontSize: 11, marginBottom: 16 }}>위 당사자는 아래의 근로조건을 성실히 이행할 것을 약정하고 근로계약을 체결한다.</div>
+                  {latest.contractStart && latest.joinDate && (
+                    <div style={{ fontSize: 11, marginBottom: 12, padding: "6px 10px", background: "#f0f9ff", borderRadius: 4 }}>
+                      본 근로계약은 {latest.contractStart}에 체결되었으며, 근로개시일은 {latest.joinDate}로 한다.
+                      {latest.contractStart !== latest.joinDate && " 본 계약의 내용은 입사일부터 적용하며, 기존 근로계약을 본 계약으로 대체한다."}
+                    </div>
+                  )}
+                  {[
+                    ["근로 장소", latest.workPlace],
+                    ["직종", latest.jobType],
+                    ["계약 기간", `${latest.contractStart} ~ ${latest.contractEnd || "기간 없음 (정규직)"}`],
+                    ["근로 시간", `${latest.workStart} ~ ${latest.workEnd} (1일 ${latest.dailyHours || 8}시간, ${latest.weekDays || "월~금"})`],
+                    ["휴게 시간", `식사 ${latest.breakLunch || ""}  참 ${latest.breakSnack || ""}`],
+                    ["임금", `${latest.payType || "월급제"} / 시급 ${latest.hourlyWage ? Number(latest.hourlyWage).toLocaleString() + "원" : ""} / 월 ${latest.monthlyHours || ""}시간`],
+                    ["월급", latest.monthlyWage ? `${Number(latest.monthlyWage).toLocaleString()}원 (주휴수당 포함)` : ""],
+                    ["연차수당", latest.wage2],
+                    ["잔업수당", latest.wage3],
+                    ["특근수당", latest.wage4],
+                    ["상여금", latest.wage5],
+                    ["임금 계산기간", latest.payCalcPeriod],
+                    ["임금 지급일", latest.payDay ? `매월 ${latest.payDay}일 (${latest.payHoliday || ""})` : ""],
+                    ["지급 방법", `${latest.payMethod || ""} ${latest.bankName ? `/ ${latest.bankName} ${latest.bankAccount || ""}` : ""}`],
+                    ["연차유급휴가", latest.annualLeave],
+                    ["4대보험", latest.insurance],
+                    ["복리후생", latest.welfare],
+                    ["퇴직금", latest.severancePay],
+                    ["퇴직 절차", latest.resignNotice],
+                    ["정년", latest.retirementAge],
+                    ["상여금 지급시기", latest.bonus],
+                  ].filter(([, v]) => v).map(([label, value]) => (
+                    <div key={label} style={{ display: "flex", borderBottom: "1px solid #e5e7eb", padding: "3px 0" }}>
+                      <span style={{ minWidth: 100, fontWeight: 700, fontSize: 11 }}>{label}</span>
+                      <span style={{ fontSize: 11, flex: 1 }}>{value}</span>
+                    </div>
+                  ))}
+                  {latest.terminationReasons && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 4 }}>근로계약 해지사유</div>
+                      <div style={{ fontSize: 10, whiteSpace: "pre-wrap", lineHeight: 1.7 }}>{latest.terminationReasons}</div>
+                    </div>
+                  )}
+                  <div style={{ marginTop: 10, padding: "6px 10px", background: "#fff7ed", borderRadius: 4, fontSize: 10, color: "#92400e" }}>
+                    📌 임금은 관계 법령에 따른 최저임금 변동 및 당사자 간 합의에 의해 변경될 수 있으며, 변경 시 사전 서면 통보로 본 계약의 해당 조항을 갈음한다. 단, 임금의 감액은 근로자의 서면 동의를 요한다.
+                  </div>
+                  <div style={{ marginTop: 10, fontSize: 10, color: "#555" }}>이 계약에 정함이 없는 사항은 근로기준법에 의함</div>
+                  {latest.specialTerms && <div style={{ marginTop: 8, fontSize: 10 }}><b>특약:</b> {latest.specialTerms}</div>}
+                  <div style={{ marginTop: 24, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                    <div>{latest.contractStart?.replace(/-/g, "년 ").replace(/-/, "월 ")}일</div>
+                  </div>
+                  <div style={{ marginTop: 16, display: "flex", justifyContent: "space-around", fontSize: 12 }}>
+                    <div>(사용자) {latest.ownerName} (인)</div>
+                    <div>(근로자) {latest.userName} (인)
+                      {latest.status === "signed" && latest.signedAt ? `  ✅ ${new Date(latest.signedAt).toLocaleDateString("ko-KR")} 전자서명` : ""}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* 이전 계약서 히스토리 */}
               {history.length > 0 && (
@@ -4533,6 +4649,33 @@ function ContractViewScreen({ user, contracts }) {
   const [showDetail, setShowDetail] = useState(false);
   const [signAddr, setSignAddr] = useState("");
   const [signPhone, setSignPhone] = useState("");
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  const downloadMyPDF = async () => {
+    if (!contract) return;
+    setPdfLoading(true);
+    try {
+      const el = document.getElementById(`contract-member-print-${contract.id}`);
+      if (!el) { alert("계약서 영역 없음"); setPdfLoading(false); return; }
+      const btn = document.getElementById("member-pdf-btn");
+      if (btn) btn.style.visibility = "hidden";
+      const canvas = await html2canvas(el, { scale: 2.5, useCORS: true, backgroundColor: "#ffffff" });
+      if (btn) btn.style.visibility = "visible";
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 8;
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+      const ratio = canvas.width / canvas.height;
+      let imgW = maxW, imgH = imgW / ratio;
+      if (imgH > maxH) { imgH = maxH; imgW = imgH * ratio; }
+      pdf.addImage(imgData, "PNG", (pageW - imgW) / 2, margin, imgW, imgH);
+      pdf.save(`${user.name}_근로계약서_${contract.contractStart || ""}.pdf`);
+    } catch(e) { alert("PDF 생성 실패: " + e.message); }
+    setPdfLoading(false);
+  };
 
   const sign = async () => {
     if (!contract) return;
@@ -4780,6 +4923,76 @@ function ContractViewScreen({ user, contracts }) {
           <div style={{ fontSize: 14, fontWeight: 800, color: "#15803d" }}>서명 완료</div>
           <div style={{ fontSize: 12, color: "#16a34a", marginTop: 4 }}>
             {contract.signedAt && new Date(contract.signedAt).toLocaleString("ko-KR")}
+          </div>
+          <button id="member-pdf-btn" onClick={downloadMyPDF} disabled={pdfLoading}
+            style={{ marginTop: 12, padding: "10px 24px", borderRadius: 12, border: "none", background: "#16a34a", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: pdfLoading ? 0.6 : 1 }}>
+            {pdfLoading ? "생성 중..." : "⬇ PDF 다운로드"}
+          </button>
+          {contract.pdfUrl && (
+            <div style={{ marginTop: 8 }}>
+              <a href={contract.pdfUrl} target="_blank" rel="noreferrer"
+                style={{ fontSize: 12, color: "#0369a1", fontWeight: 600 }}>🔗 저장된 PDF 보기</a>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 팀원용 숨김 인쇄 영역 */}
+      {contract && (
+        <div id={`contract-member-print-${contract.id}`} style={{ position: "fixed", left: -9999, top: 0, width: 794, background: "#fff", padding: "40px 50px", fontFamily: "'Noto Sans KR', sans-serif", fontSize: 12, color: "#111", lineHeight: 1.8 }}>
+          <div style={{ textAlign: "center", fontSize: 20, fontWeight: 900, marginBottom: 24, letterSpacing: 8 }}>근 로 계 약 서</div>
+          <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 16, fontSize: 12 }}>
+            <tbody>
+              <tr><td style={{ padding: "4px 8px", fontWeight: 700, width: 80 }}>(갑) 사용자</td><td style={{ padding: "4px 8px" }}>사업체명: {contract.companyName} &nbsp;&nbsp; 대표자: {contract.ownerName}</td></tr>
+              <tr><td style={{ padding: "4px 8px" }}></td><td style={{ padding: "4px 8px" }}>주소: {contract.bizAddress}</td></tr>
+              <tr><td style={{ padding: "4px 8px", fontWeight: 700 }}>(을) 근로자</td><td style={{ padding: "4px 8px" }}>성명: {contract.userName} &nbsp;&nbsp; 연락처: {contract.empPhone || "__________"}</td></tr>
+              <tr><td style={{ padding: "4px 8px" }}></td><td style={{ padding: "4px 8px" }}>주소: {contract.empAddress || "__________________________________________"}</td></tr>
+            </tbody>
+          </table>
+          <div style={{ fontSize: 11, marginBottom: 16 }}>위 당사자는 아래의 근로조건을 성실히 이행할 것을 약정하고 근로계약을 체결한다.</div>
+          {contract.contractStart && contract.joinDate && (
+            <div style={{ fontSize: 11, marginBottom: 12, padding: "6px 10px", background: "#f0f9ff", borderRadius: 4 }}>
+              본 근로계약은 {contract.contractStart}에 체결되었으며, 근로개시일은 {contract.joinDate}로 한다.
+              {contract.contractStart !== contract.joinDate && " 본 계약의 내용은 입사일부터 적용하며, 기존 근로계약을 본 계약으로 대체한다."}
+            </div>
+          )}
+          {[
+            ["근로 장소", contract.workPlace], ["직종", contract.jobType],
+            ["계약 기간", `${contract.contractStart} ~ ${contract.contractEnd || "기간 없음 (정규직)"}`],
+            ["근로 시간", `${contract.workStart} ~ ${contract.workEnd} (1일 ${contract.dailyHours || 8}시간, ${contract.weekDays || "월~금"})`],
+            ["휴게 시간", `식사 ${contract.breakLunch || ""}  참 ${contract.breakSnack || ""}`],
+            ["시급", contract.hourlyWage ? `${Number(contract.hourlyWage).toLocaleString()}원` : ""],
+            ["월급", contract.monthlyWage ? `${Number(contract.monthlyWage).toLocaleString()}원 (주휴수당 포함)` : ""],
+            ["연차수당", contract.wage2], ["잔업수당", contract.wage3], ["특근수당", contract.wage4], ["상여금", contract.wage5],
+            ["임금 계산기간", contract.payCalcPeriod],
+            ["임금 지급일", contract.payDay ? `매월 ${contract.payDay}일 (${contract.payHoliday || ""})` : ""],
+            ["지급 방법", `${contract.payMethod || ""} ${contract.bankName ? `/ ${contract.bankName} ${contract.bankAccount || ""}` : ""}`],
+            ["연차유급휴가", contract.annualLeave], ["4대보험", contract.insurance], ["복리후생", contract.welfare],
+            ["퇴직금", contract.severancePay], ["퇴직 절차", contract.resignNotice], ["정년", contract.retirementAge],
+            ["상여금 지급시기", contract.bonus],
+          ].filter(([, v]) => v).map(([label, value]) => (
+            <div key={label} style={{ display: "flex", borderBottom: "1px solid #e5e7eb", padding: "3px 0" }}>
+              <span style={{ minWidth: 100, fontWeight: 700, fontSize: 11 }}>{label}</span>
+              <span style={{ fontSize: 11, flex: 1 }}>{value}</span>
+            </div>
+          ))}
+          {contract.terminationReasons && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 4 }}>근로계약 해지사유</div>
+              <div style={{ fontSize: 10, whiteSpace: "pre-wrap", lineHeight: 1.7 }}>{contract.terminationReasons}</div>
+            </div>
+          )}
+          <div style={{ marginTop: 10, padding: "6px 10px", background: "#fff7ed", borderRadius: 4, fontSize: 10, color: "#92400e" }}>
+            📌 임금은 관계 법령에 따른 최저임금 변동 및 당사자 간 합의에 의해 변경될 수 있으며, 변경 시 사전 서면 통보로 본 계약의 해당 조항을 갈음한다. 단, 임금의 감액은 근로자의 서면 동의를 요한다.
+          </div>
+          <div style={{ marginTop: 8, fontSize: 10, color: "#555" }}>이 계약에 정함이 없는 사항은 근로기준법에 의함</div>
+          {contract.specialTerms && <div style={{ marginTop: 6, fontSize: 10 }}><b>특약:</b> {contract.specialTerms}</div>}
+          <div style={{ marginTop: 24, fontSize: 12 }}>{contract.contractStart?.replace(/-/g, "년 ").replace(/-/, "월 ")}일</div>
+          <div style={{ marginTop: 16, display: "flex", justifyContent: "space-around", fontSize: 12 }}>
+            <div>(사용자) {contract.ownerName} (인)</div>
+            <div>(근로자) {contract.userName} (인)
+              {contract.status === "signed" && contract.signedAt ? `  ✅ ${new Date(contract.signedAt).toLocaleDateString("ko-KR")} 전자서명` : ""}
+            </div>
           </div>
         </div>
       )}
