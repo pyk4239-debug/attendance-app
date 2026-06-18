@@ -4041,6 +4041,9 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
       pdf.addImage(imgData, "PNG", (pageW - imgW) / 2, margin, imgW, imgH);
       const fileName = `${contract.userName}_근로계약서_${contract.contractStart || ""}.pdf`;
       pdf.save(fileName);
+      // ✅ 다운로드 완료 즉시 버튼 정상화
+      setPdfLoading(null);
+      // 🔄 Storage 업로드는 백그라운드로 처리
       try {
         const pdfBlob = pdf.output("blob");
         const storageRef = ref(storage, `contracts/${contract.userId}/${contract.id}.pdf`);
@@ -4048,8 +4051,10 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
         const url = await getDownloadURL(storageRef);
         await setDoc(doc(db, COL_CONTRACTS, contract.id), { ...contract, pdfUrl: url, pdfGeneratedAt: new Date().toISOString() });
       } catch(e) { console.warn("Storage 저장 실패:", e.message); }
-    } catch(e) { alert("PDF 생성 실패: " + e.message); }
-    setPdfLoading(null);
+    } catch(e) {
+      alert("PDF 생성 실패: " + e.message);
+      setPdfLoading(null);
+    }
   };
 
   const openNew = (u) => {
@@ -4673,8 +4678,12 @@ function ContractViewScreen({ user, contracts }) {
       if (imgH > maxH) { imgH = maxH; imgW = imgH * ratio; }
       pdf.addImage(imgData, "PNG", (pageW - imgW) / 2, margin, imgW, imgH);
       pdf.save(`${user.name}_근로계약서_${contract.contractStart || ""}.pdf`);
-    } catch(e) { alert("PDF 생성 실패: " + e.message); }
-    setPdfLoading(false);
+      // ✅ 다운로드 완료 즉시 버튼 정상화
+      setPdfLoading(false);
+    } catch(e) {
+      alert("PDF 생성 실패: " + e.message);
+      setPdfLoading(false);
+    }
   };
 
   const sign = async () => {
