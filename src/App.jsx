@@ -4049,7 +4049,8 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
         const storageRef = ref(storage, `contracts/${contract.userId}/${contract.id}.pdf`);
         await uploadBytes(storageRef, pdfBlob);
         const url = await getDownloadURL(storageRef);
-        await setDoc(doc(db, COL_CONTRACTS, contract.id), { ...contract, pdfUrl: url, pdfGeneratedAt: new Date().toISOString() });
+        const cacheBustUrl = `${url}&t=${Date.now()}`;
+        await setDoc(doc(db, COL_CONTRACTS, contract.id), { ...contract, pdfUrl: cacheBustUrl, pdfGeneratedAt: new Date().toISOString() });
       } catch(e) { console.warn("Storage 저장 실패:", e.message); }
     } catch(e) {
       alert("PDF 생성 실패: " + e.message);
