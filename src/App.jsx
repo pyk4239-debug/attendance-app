@@ -4928,12 +4928,6 @@ function ContractViewScreen({ user, contracts }) {
             style={{ marginTop: 12, padding: "10px 24px", borderRadius: 12, border: "none", background: "#16a34a", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: pdfLoading ? 0.6 : 1 }}>
             {pdfLoading ? "생성 중..." : "⬇ PDF 다운로드"}
           </button>
-          {contract.pdfUrl && (
-            <div style={{ marginTop: 8 }}>
-              <a href={contract.pdfUrl} target="_blank" rel="noreferrer"
-                style={{ fontSize: 12, color: "#0369a1", fontWeight: 600 }}>🔗 저장된 PDF 보기</a>
-            </div>
-          )}
         </div>
       )}
 
