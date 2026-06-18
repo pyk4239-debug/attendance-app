@@ -4012,6 +4012,10 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
   const [selUser, setSelUser] = useState(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pinModal, setPinModal] = useState(null); // { contract } 또는 null
+  const [pinInput, setPinInput] = useState("");
+  const [pinErr, setPinErr] = useState("");
+  const admin = users.find(u => u.role === "admin");
   const [form, setForm] = useState(null);
 
   const openNew = (u) => {
@@ -4111,11 +4115,24 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
 
   const deleteContract = async (contract) => {
     if (contract.status === "signed") {
-      alert("서명 완료된 계약서는 근로기준법상 3년 보관 의무가 있어 삭제할 수 없습니다.");
+      setPinInput("");
+      setPinErr("");
+      setPinModal({ contract });
       return;
     }
     if (!window.confirm(`${contract.userName}님의 근로계약서를 삭제할까요?`)) return;
     try { await deleteDoc(doc(db, COL_CONTRACTS, contract.id)); } catch(e) { alert("삭제 실패: " + e.message); }
+  };
+
+  const confirmPinDelete = async () => {
+    if (pinInput !== admin?.pin && pinInput !== MASTER_CODE) {
+      setPinErr("PIN이 맞지 않습니다.");
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, COL_CONTRACTS, pinModal.contract.id));
+      setPinModal(null);
+    } catch(e) { alert("삭제 실패: " + e.message); }
   };
 
   const statusLabel = (s) => s === "signed" ? { text: "✅ 서명완료", color: "#16a34a", bg: "#dcfce7" } : s === "sent" ? { text: "📨 서명대기", color: "#d97706", bg: "#fef3c7" } : { text: "📝 초안", color: "#6b7280", bg: "#f3f4f6" };
@@ -4315,6 +4332,39 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
           </div>
         </div>
       </div>
+
+      {/* PIN 확인 모달 */}
+      {pinModal && (
+        <div style={{ position: "fixed", inset: 0, background: "#00000060", zIndex: 999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ background: "#fff", borderRadius: 20, padding: 24, width: "100%", maxWidth: 340, boxShadow: "0 8px 32px #0000003a" }}>
+            <div style={{ fontSize: 32, textAlign: "center", marginBottom: 8 }}>🔐</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: T.text, textAlign: "center", marginBottom: 6 }}>서명완료 계약서 삭제</div>
+            <div style={{ fontSize: 12, color: "#dc2626", textAlign: "center", marginBottom: 4, fontWeight: 600 }}>⚠️ 근로기준법상 3년 보관 의무 대상</div>
+            <div style={{ fontSize: 12, color: T.muted, textAlign: "center", marginBottom: 16 }}>
+              {pinModal.contract.userName}님의 서명완료 계약서입니다.<br />삭제하려면 관리자 PIN을 입력하세요.
+            </div>
+            <input
+              type="password"
+              value={pinInput}
+              onChange={e => { setPinInput(e.target.value); setPinErr(""); }}
+              placeholder="관리자 PIN 입력"
+              style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${pinErr ? "#fca5a5" : T.border}`, fontSize: 15, textAlign: "center", letterSpacing: 6, boxSizing: "border-box", fontFamily: "inherit" }}
+              autoFocus
+            />
+            {pinErr && <div style={{ fontSize: 12, color: "#dc2626", textAlign: "center", marginTop: 6, fontWeight: 600 }}>{pinErr}</div>}
+            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+              <button onClick={() => setPinModal(null)}
+                style={{ flex: 1, padding: "12px 0", borderRadius: 12, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                취소
+              </button>
+              <button onClick={confirmPinDelete}
+                style={{ flex: 1, padding: "12px 0", borderRadius: 12, border: "none", background: "#dc2626", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ padding: 16 }}>
         {/* 직원별 계약서 현황 */}
