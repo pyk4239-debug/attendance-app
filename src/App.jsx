@@ -4178,9 +4178,17 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
             <ContractField form={form} setForm={setForm} label="직종" fkey="jobType" placeholder="포장직" />
             <ContractField form={form} setForm={setForm} label="입사일 (근로개시일)" fkey="joinDate" type="date" />
             <div style={{ marginBottom: 12, padding: "10px 12px", background: "#f0f9ff", borderRadius: 10, border: "1px solid #bae6fd" }}>
-              <div style={{ fontSize: 11, color: "#0369a1" }}>
-                본 근로계약은 <b>{form.contractStart || "____년 __월 __일"}</b>부터 적용하며, 근로개시일은 <b>{form.joinDate || "____년 __월 __일"}</b>로 한다.
+              <div style={{ fontSize: 11, color: "#0369a1", lineHeight: 1.8 }}>
+                본 근로계약은 <b>{form.contractStart || "____년 __월 __일"}</b>에 체결되었으며, 근로개시일은 <b>{form.joinDate || "____년 __월 __일"}</b>로 한다.
+                {form.contractStart && form.joinDate && form.contractStart !== form.joinDate && (
+                  <><br />본 계약의 내용은 입사일부터 적용하며, 기존 근로계약을 본 계약으로 대체한다.</>
+                )}
               </div>
+              {form.contractStart && form.joinDate && (
+                <div style={{ fontSize: 10, color: "#0891b2", marginTop: 6, fontWeight: 700 }}>
+                  {form.contractStart === form.joinDate ? "✅ 신규 입사 계약" : "🔄 재계약 / 계약 변경"}
+                </div>
+              )}
             </div>
             <ContractField form={form} setForm={setForm} label="계약 시작일" fkey="contractStart" type="date" />
             <div style={{ marginBottom: 12 }}>
@@ -4561,9 +4569,15 @@ function ContractViewScreen({ user, contracts }) {
         <Row label="입사일(근로개시일)" value={contract.joinDate} />
         {contract.contractStart && contract.joinDate && (
           <div style={{ padding: "8px 0", borderBottom: `1px solid ${T.border}` }}>
-            <span style={{ fontSize: 12, color: "#0369a1" }}>
-              본 근로계약은 <b>{contract.contractStart}</b>부터 적용하며, 근로개시일은 <b>{contract.joinDate}</b>로 한다.
-            </span>
+            <div style={{ fontSize: 12, color: "#0369a1", lineHeight: 1.8 }}>
+              본 근로계약은 <b>{contract.contractStart}</b>에 체결되었으며, 근로개시일은 <b>{contract.joinDate}</b>로 한다.
+              {contract.contractStart !== contract.joinDate && (
+                <><br />본 계약의 내용은 입사일부터 적용하며, 기존 근로계약을 본 계약으로 대체한다.</>
+              )}
+            </div>
+            <div style={{ fontSize: 10, color: "#0891b2", marginTop: 4, fontWeight: 700 }}>
+              {contract.contractStart === contract.joinDate ? "✅ 신규 입사 계약" : "🔄 재계약 / 계약 변경"}
+            </div>
           </div>
         )}
         <Row label="계약 시작" value={contract.contractStart} />
