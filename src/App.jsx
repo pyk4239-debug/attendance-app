@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { db, storage } from "./firebase";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
@@ -40,6 +40,7 @@ const COL_READS = "reads"; // 읽음 기록
 const COL_REMINDERS = "reminders";
 const COL_EVENTS   = "schedule_events";
 const COL_CONTRACTS = "contracts";
+const COL_VAULT = "vault";
 const DOC_SETTINGS = "app/settings";
 
 // ── 초기 데이터 ────────────────────────────────────────────────
@@ -409,6 +410,7 @@ function AppLoader() {
   const [reminders, setReminders] = useState([]);
   const [scheduleEvents, setScheduleEvents] = useState([]);
   const [contracts, setContracts] = useState([]);
+  const [vault, setVault] = useState([]);
 
   useEffect(() => {
     let unsubs = [];
@@ -517,6 +519,11 @@ function AppLoader() {
       setContracts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }));
 
+    // 보관함 구독
+    unsubs.push(onSnapshot(query(collection(db, COL_VAULT), orderBy("createdAt", "desc")), snap => {
+      setVault(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }));
+
     return () => unsubs.forEach(u => u());
   }, []);
 
@@ -534,7 +541,7 @@ function AppLoader() {
 
   return <App users={users} settings={settings} records={records} leaves={leaves}
     notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} reads={reads}
-    reminders={reminders} scheduleEvents={scheduleEvents} contracts={contracts}
+    reminders={reminders} scheduleEvents={scheduleEvents} contracts={contracts} vault={vault}
     onSaveUsers={fbSaveUsers} onSaveSettings={fbSaveSettings}
     onSaveRecord={fbSaveRecord} onSaveLeave={fbSaveLeave} />;
 }
@@ -2338,6 +2345,7 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
     { key: "board",      icon: "💬", label: "게시판", desc: "자유게시판",              color: "#0891b2",
       badge: board.filter(b => !reads[`${user.id}_board_${b.id}`]).length },
     { key: "contract",   icon: "📄", label: "계약서", desc: "근로계약서 작성 · 관리",  color: "#0891b2", badge: pendingSign },
+    { key: "vault",      icon: "📁", label: "보관함", desc: "메모 · 파일 보관",        color: "#7c3aed" },
     { key: "settings",   icon: "⚙",  label: "설정",   desc: "근무시간 · GPS · 공휴일", color: "#6b7280" },
     { key: "schedule",   icon: "🗓", label: "일정",    desc: "캘린더 · 리마인더",     color: "#7c3aed" },
     { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#b45309" },
@@ -5011,6 +5019,193 @@ function ContractViewScreen({ user, contracts }) {
   );
 }
 
+// ── 보관함 ─────────────────────────────────────────────────────
+function VaultSection({ onBack }) {
+  const [vault, setVaultLocal] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [text, setText] = useState("");
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState(null);
+  const [preview, setPreview] = useState(null); // { url, type, name }
+  const fileRef = useRef(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(query(collection(db, COL_VAULT), orderBy("createdAt", "desc")), snap => {
+      setVaultLocal(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleSave = async () => {
+    if (!text.trim() && !file) return;
+    setUploading(true);
+    try {
+      let fileData = null;
+      if (file) {
+        const ext = file.name.split(".").pop().toLowerCase();
+        const storageRef = ref(storage, `vault/${Date.now()}_${file.name}`);
+        await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(storageRef);
+        fileData = { url, name: file.name, size: file.size, ext, type: file.type };
+      }
+      await addDoc(collection(db, COL_VAULT), {
+        text: text.trim(),
+        file: fileData,
+        createdAt: new Date().toISOString(),
+      });
+      setText("");
+      setFile(null);
+      if (fileRef.current) fileRef.current.value = "";
+    } catch(e) { alert("저장 실패: " + e.message); }
+    setUploading(false);
+  };
+
+  const handleDelete = async (item) => {
+    if (!window.confirm("삭제할까요?")) return;
+    setDeleting(item.id);
+    try {
+      if (item.file?.url) {
+        try {
+          const storageRef = ref(storage, item.file.url);
+          await deleteObject(storageRef);
+        } catch {}
+      }
+      await deleteDoc(doc(db, COL_VAULT, item.id));
+    } catch(e) { alert("삭제 실패: " + e.message); }
+    setDeleting(null);
+  };
+
+  const isImage = (f) => f?.type?.startsWith("image/");
+  const isPdf = (f) => f?.ext === "pdf";
+  const fileIcon = (f) => {
+    if (!f) return "📎";
+    if (isImage(f)) return "🖼";
+    if (isPdf(f)) return "📄";
+    if (["doc","docx"].includes(f.ext)) return "📝";
+    if (["xls","xlsx"].includes(f.ext)) return "📊";
+    return "📎";
+  };
+  const formatSize = (bytes) => bytes > 1024*1024 ? `${(bytes/1024/1024).toFixed(1)}MB` : `${Math.round(bytes/1024)}KB`;
+  const formatDate = (iso) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 30 }}>
+      <div style={{ background: T.adminHeader, padding: "16px 16px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
+          <div>
+            <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📁 보관함</div>
+          </div>
+        </div>
+      </div>
+
+      {/* 입력 영역 */}
+      <div style={{ padding: "16px 16px 0" }}>
+        <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 16, border: `1px solid ${T.border}` }}>
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            placeholder="메모를 입력하세요..."
+            style={{ width: "100%", minHeight: 80, padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 14, color: T.text, background: T.bg, resize: "vertical", boxSizing: "border-box", fontFamily: "inherit", lineHeight: 1.6 }}
+          />
+          {/* 파일 선택 */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+            <button onClick={() => fileRef.current?.click()}
+              style={{ padding: "8px 14px", borderRadius: 10, border: `1px dashed ${T.border}`, background: T.bg, color: T.sub, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              📎 파일 첨부
+            </button>
+            {file && (
+              <div style={{ flex: 1, fontSize: 12, color: T.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {fileIcon({ type: file.type, ext: file.name.split(".").pop().toLowerCase() })} {file.name}
+                <button onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = ""; }}
+                  style={{ marginLeft: 6, background: "none", border: "none", color: "#b91c1c", cursor: "pointer", fontSize: 13 }}>✕</button>
+              </div>
+            )}
+            <input ref={fileRef} type="file" accept="*/*" style={{ display: "none" }}
+              onChange={e => setFile(e.target.files?.[0] || null)} />
+          </div>
+          {/* 이미지 미리보기 */}
+          {file && isImage({ type: file.type }) && (
+            <img src={URL.createObjectURL(file)} alt="preview"
+              style={{ width: "100%", maxHeight: 180, objectFit: "cover", borderRadius: 10, marginTop: 10 }} />
+          )}
+          <button onClick={handleSave} disabled={uploading || (!text.trim() && !file)}
+            style={{ width: "100%", marginTop: 12, padding: "12px 0", borderRadius: 12, border: "none",
+              background: (text.trim() || file) ? T.adminHeader : "#e5e7eb",
+              color: (text.trim() || file) ? "#fff" : T.muted,
+              fontSize: 14, fontWeight: 800, cursor: (text.trim() || file) ? "pointer" : "default" }}>
+            {uploading ? "저장 중..." : "💾 저장"}
+          </button>
+        </div>
+
+        {/* 피드 */}
+        {loading ? (
+          <div style={{ textAlign: "center", padding: 40, color: T.muted }}>불러오는 중...</div>
+        ) : vault.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 40 }}>
+            <div style={{ fontSize: 40, marginBottom: 10 }}>📁</div>
+            <div style={{ fontSize: 14, color: T.muted, fontWeight: 600 }}>저장된 항목이 없습니다</div>
+          </div>
+        ) : (
+          vault.map(item => (
+            <div key={item.id} style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}`, boxShadow: "0 2px 8px #0000000d", opacity: deleting === item.id ? 0.5 : 1 }}>
+              {/* 날짜 + 삭제 */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontSize: 11, color: T.muted }}>{formatDate(item.createdAt)}</span>
+                <button onClick={() => handleDelete(item)} disabled={deleting === item.id}
+                  style={{ background: "none", border: "none", color: "#b91c1c", fontSize: 16, cursor: "pointer", padding: "2px 6px" }}>🗑</button>
+              </div>
+              {/* 메모 */}
+              {item.text && (
+                <div style={{ fontSize: 14, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: item.file ? 10 : 0 }}>
+                  {item.text}
+                </div>
+              )}
+              {/* 파일 */}
+              {item.file && (
+                <>
+                  {isImage(item.file) ? (
+                    <img src={item.file.url} alt={item.file.name}
+                      onClick={() => setPreview(item.file)}
+                      style={{ width: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 10, cursor: "pointer" }} />
+                  ) : (
+                    <a href={item.file.url} target="_blank" rel="noreferrer"
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: T.bg, borderRadius: 10, border: `1px solid ${T.border}`, textDecoration: "none" }}>
+                      <span style={{ fontSize: 24 }}>{fileIcon(item.file)}</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{item.file.name}</div>
+                        <div style={{ fontSize: 11, color: T.muted }}>{formatSize(item.file.size)}</div>
+                      </div>
+                      <span style={{ marginLeft: "auto", fontSize: 12, color: "#0891b2", fontWeight: 700 }}>열기</span>
+                    </a>
+                  )}
+                </>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* 이미지 전체화면 미리보기 */}
+      {preview && (
+        <div onClick={() => setPreview(null)}
+          style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <img src={preview.url} alt={preview.name}
+            style={{ maxWidth: "100%", maxHeight: "90vh", borderRadius: 12, objectFit: "contain" }} />
+          <button onClick={() => setPreview(null)}
+            style={{ position: "absolute", top: 20, right: 20, background: "#ffffff30", border: "none", color: "#fff", fontSize: 24, cursor: "pointer", borderRadius: 10, padding: "4px 10px" }}>✕</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── 관리자 화면 (라우터) ───────────────────────────────────────
 function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
   const [section, setSection] = useState(null);
@@ -5028,6 +5223,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "settings") return <><SettingsModal settings={settings} onSave={async s => { await onSaveSettings(s); back(); }} onClose={back} /></>;
   if (section === "schedule") return <AdminSectionWrap title="🗓 일정" color="#7c3aed" onBack={back}><AdminSchedule reminders={reminders} users={users} settings={settings} scheduleEvents={scheduleEvents} /></AdminSectionWrap>;
   if (section === "contract") return <><ContractSection users={users} memberInfo={memberInfo} settings={settings} contracts={contracts} onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "vault") return <><VaultSection onBack={back} /><FloatBack onClick={back} /></>;
   return null;
 }
 
