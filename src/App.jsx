@@ -5338,44 +5338,6 @@ function VaultSection({ onBack }) {
     return () => unsub();
   }, []);
 
-  const resetForm = () => { setTitle(""); setText(""); setFiles([]); setEditItem(null); if (fileRef.current) fileRef.current.value = ""; };
-
-  const handleSave = async () => {
-    if (!title.trim() && !text.trim() && files.length === 0) return;
-    setUploading(true);
-    try {
-      // 파일 업로드 (다중)
-      const fileDataList = [];
-      for (const f of files) {
-        const ext = f.name.split(".").pop().toLowerCase();
-        const storageRef = ref(storage, `vault/${Date.now()}_${f.name}`);
-        await uploadBytes(storageRef, f);
-        const url = await getDownloadURL(storageRef);
-        fileDataList.push({ url, name: f.name, size: f.size, ext, type: f.type });
-      }
-      if (editItem) {
-        // 수정
-        await setDoc(doc(db, COL_VAULT, editItem.id), {
-          ...editItem,
-          title: title.trim(),
-          text: text.trim(),
-          files: [...(editItem.files || (editItem.file ? [editItem.file] : [])), ...fileDataList],
-          updatedAt: new Date().toISOString(),
-        });
-      } else {
-        // 새 항목
-        await addDoc(collection(db, COL_VAULT), {
-          title: title.trim(),
-          text: text.trim(),
-          files: fileDataList,
-          createdAt: new Date().toISOString(),
-        });
-      }
-      resetForm();
-    } catch(e) { alert("저장 실패: " + e.message); }
-    setUploading(false);
-  };
-
 // ── 관리자 화면 (라우터) ───────────────────────────────────────
 function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
   const [section, setSection] = useState(null);
