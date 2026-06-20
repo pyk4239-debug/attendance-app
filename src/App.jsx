@@ -5023,15 +5023,312 @@ function ContractViewScreen({ user, contracts }) {
 function VaultSection({ onBack }) {
   const [vault, setVaultLocal] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [title, setTitle] = useState("");
-  const [text, setText] = useState("");
-  const [files, setFiles] = useState([]); // 다중 파일
-  const [uploading, setUploading] = useState(false);
+  const [adding, setAdding] = useState(false); // 새 항목 입력창 토글
+  const [newTitle, setNewTitle] = useState("");
+  const [newText, setNewText] = useState("");
+  const [newFiles, setNewFiles] = useState([]);
+  const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [preview, setPreview] = useState(null);
-  const [editItem, setEditItem] = useState(null); // 수정 중인 항목
-  const [expanded, setExpanded] = useState({}); // 피드 펼치기
-  const fileRef = useRef(null);
+  const [expanded, setExpanded] = useState({});
+  const [editId, setEditId] = useState(null); // 인라인 수정 중인 항목 id
+  const [editTitle, setEditTitle] = useState("");
+  const [editText, setEditText] = useState("");
+  const [editFiles, setEditFiles] = useState([]); // 새로 추가할 파일
+  const [editSaving, setEditSaving] = useState(false);
+  const newFileRef = useRef(null);
+  const editFileRef = useRef(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(query(collection(db, COL_VAULT), orderBy("createdAt", "desc")), snap => {
+      setVaultLocal(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  // 새 항목 저장
+  const handleAdd = async () => {
+    if (!newTitle.trim() && !newText.trim() && newFiles.length === 0) return;
+    setSaving(true);
+    try {
+      const fileDataList = [];
+      for (const f of newFiles) {
+        const ext = f.name.split(".").pop().toLowerCase();
+        const sRef = ref(storage, `vault/${Date.now()}_${f.name}`);
+        await uploadBytes(sRef, f);
+        const url = await getDownloadURL(sRef);
+        fileDataList.push({ url, name: f.name, size: f.size, ext, type: f.type });
+      }
+      await addDoc(collection(db, COL_VAULT), {
+        title: newTitle.trim(), text: newText.trim(), files: fileDataList,
+        createdAt: new Date().toISOString(),
+      });
+      setNewTitle(""); setNewText(""); setNewFiles([]); setAdding(false);
+      if (newFileRef.current) newFileRef.current.value = "";
+    } catch(e) { alert("저장 실패: " + e.message); }
+    setSaving(false);
+  };
+
+  // 인라인 수정 시작
+  const startEdit = (item) => {
+    setEditId(item.id);
+    setEditTitle(item.title || "");
+    setEditText(item.text || "");
+    setEditFiles([]);
+  };
+
+  // 인라인 수정 저장
+  const handleEditSave = async (item) => {
+    setEditSaving(true);
+    try {
+      const fileDataList = [];
+      for (const f of editFiles) {
+        const ext = f.name.split(".").pop().toLowerCase();
+        const sRef = ref(storage, `vault/${Date.now()}_${f.name}`);
+        await uploadBytes(sRef, f);
+        const url = await getDownloadURL(sRef);
+        fileDataList.push({ url, name: f.name, size: f.size, ext, type: f.type });
+      }
+      const existingFiles = item.files?.length > 0 ? item.files : (item.file ? [item.file] : []);
+      await setDoc(doc(db, COL_VAULT, item.id), {
+        ...item, title: editTitle.trim(), text: editText.trim(),
+        files: [...existingFiles, ...fileDataList],
+        updatedAt: new Date().toISOString(),
+      });
+      setEditId(null); setEditFiles([]);
+      if (editFileRef.current) editFileRef.current.value = "";
+    } catch(e) { alert("수정 실패: " + e.message); }
+    setEditSaving(false);
+  };
+
+  const handleDeleteFile = async (item, fileIdx) => {
+    if (!window.confirm("파일을 삭제할까요?")) return;
+    try {
+      const fileList = item.files?.length > 0 ? item.files : (item.file ? [item.file] : []);
+      try { await deleteObject(ref(storage, fileList[fileIdx].url)); } catch {}
+      await setDoc(doc(db, COL_VAULT, item.id), { ...item, files: fileList.filter((_, i) => i !== fileIdx), file: null });
+    } catch(e) { alert("파일 삭제 실패: " + e.message); }
+  };
+
+  const handleDelete = async (item) => {
+    if (!window.confirm("삭제할까요?")) return;
+    setDeleting(item.id);
+    try {
+      const fileList = item.files?.length > 0 ? item.files : (item.file ? [item.file] : []);
+      for (const f of fileList) { try { await deleteObject(ref(storage, f.url)); } catch {} }
+      await deleteDoc(doc(db, COL_VAULT, item.id));
+    } catch(e) { alert("삭제 실패: " + e.message); }
+    setDeleting(null);
+  };
+
+  const isImage = (f) => f?.type?.startsWith("image/");
+  const fileIcon = (f) => {
+    if (!f) return "📎";
+    if (isImage(f)) return "🖼";
+    if (f.ext === "pdf") return "📄";
+    if (["doc","docx"].includes(f.ext)) return "📝";
+    if (["xls","xlsx"].includes(f.ext)) return "📊";
+    return "📎";
+  };
+  const formatSize = (b) => b > 1024*1024 ? `${(b/1024/1024).toFixed(1)}MB` : `${Math.round(b/1024)}KB`;
+  const formatDate = (iso) => new Date(iso).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  // 공통 파일 목록 UI
+  const FileList = ({ files: fList, item }) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+      {fList.map((f, i) => (
+        <div key={i} style={{ position: "relative" }}>
+          {isImage(f) ? (
+            <>
+              <img src={f.url} alt={f.name} onClick={() => setPreview(f)}
+                style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 10, cursor: "pointer", display: "block" }} />
+              <button onClick={() => handleDeleteFile(item, i)}
+                style={{ position: "absolute", top: 6, right: 6, background: "#000000aa", border: "none", color: "#fff", borderRadius: 8, padding: "3px 8px", fontSize: 12, cursor: "pointer" }}>✕</button>
+            </>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: T.bg, borderRadius: 10, border: `1px solid ${T.border}` }}>
+              <span style={{ fontSize: 22 }}>{fileIcon(f)}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</div>
+                <div style={{ fontSize: 11, color: T.muted }}>{formatSize(f.size)}</div>
+              </div>
+              <a href={f.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#0891b2", fontWeight: 700, textDecoration: "none" }}>열기</a>
+              <button onClick={() => handleDeleteFile(item, i)} style={{ background: "none", border: "none", color: "#b91c1c", cursor: "pointer", fontSize: 15 }}>✕</button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  // 새 파일 선택 목록 UI
+  const NewFileList = ({ files: fList, onRemove }) => fList.length === 0 ? null : (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+      {fList.map((f, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: T.bg, borderRadius: 8, border: `1px solid ${T.border}` }}>
+          <span>{fileIcon({ type: f.type, ext: f.name.split(".").pop().toLowerCase() })}</span>
+          {isImage({ type: f.type }) && <img src={URL.createObjectURL(f)} alt="" style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 6 }} />}
+          <span style={{ fontSize: 12, fontWeight: 600, color: T.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
+          <span style={{ fontSize: 11, color: T.muted }}>{formatSize(f.size)}</span>
+          <button onClick={() => onRemove(i)} style={{ background: "none", border: "none", color: "#b91c1c", cursor: "pointer", fontSize: 15 }}>✕</button>
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 30 }}>
+      <div style={{ background: T.adminHeader, padding: "16px 16px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📁 보관함</div>
+          </div>
+          <button onClick={() => { setAdding(p => !p); setNewTitle(""); setNewText(""); setNewFiles([]); }}
+            style={{ background: adding ? "#ffffff30" : "#ffffff18", border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", padding: "8px 16px", borderRadius: 12 }}>
+            {adding ? "✕ 취소" : "+ 새 항목"}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ padding: "16px 16px 0" }}>
+        {/* 새 항목 입력 (토글) */}
+        {adding && (
+          <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 16, border: `2px solid ${T.adminHeader}` }}>
+            <input type="text" value={newTitle} onChange={e => setNewTitle(e.target.value)}
+              placeholder="제목 (선택)"
+              style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 15, fontWeight: 700, color: T.text, background: T.bg, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 8 }} />
+            <textarea value={newText} onChange={e => setNewText(e.target.value)}
+              placeholder="메모를 입력하세요..."
+              style={{ width: "100%", minHeight: 160, padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 14, color: T.text, background: T.bg, resize: "vertical", boxSizing: "border-box", fontFamily: "inherit", lineHeight: 1.7 }} />
+            <div style={{ marginTop: 10 }}>
+              <button onClick={() => newFileRef.current?.click()}
+                style={{ padding: "8px 16px", borderRadius: 10, border: `1px dashed ${T.border}`, background: T.bg, color: T.sub, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                📎 파일 첨부
+              </button>
+              <input ref={newFileRef} type="file" accept="*/*" multiple style={{ display: "none" }}
+                onChange={e => setNewFiles(prev => [...prev, ...Array.from(e.target.files || [])])} />
+            </div>
+            <NewFileList files={newFiles} onRemove={i => setNewFiles(prev => prev.filter((_, j) => j !== i))} />
+            <button onClick={handleAdd} disabled={saving || (!newTitle.trim() && !newText.trim() && newFiles.length === 0)}
+              style={{ width: "100%", marginTop: 12, padding: "13px 0", borderRadius: 12, border: "none", background: T.adminHeader, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
+              {saving ? "저장 중..." : "💾 저장"}
+            </button>
+          </div>
+        )}
+
+        {/* 피드 */}
+        {loading ? (
+          <div style={{ textAlign: "center", padding: 40, color: T.muted }}>불러오는 중...</div>
+        ) : vault.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 40 }}>
+            <div style={{ fontSize: 40, marginBottom: 10 }}>📁</div>
+            <div style={{ fontSize: 14, color: T.muted, fontWeight: 600 }}>저장된 항목이 없습니다<br /><span style={{ fontSize: 12 }}>우측 상단 "+ 새 항목"으로 추가하세요</span></div>
+          </div>
+        ) : (
+          vault.map(item => {
+            const isExp = expanded[item.id];
+            const isEditing = editId === item.id;
+            const fileList = item.files?.length > 0 ? item.files : (item.file ? [item.file] : []);
+            const previewText = item.text?.slice(0, 80) + (item.text?.length > 80 ? "..." : "");
+            return (
+              <div key={item.id} style={{ background: T.card, borderRadius: 16, marginBottom: 10, border: `1px solid ${isEditing ? "#7c3aed" : T.border}`, boxShadow: "0 2px 8px #0000000d", overflow: "hidden", opacity: deleting === item.id ? 0.5 : 1 }}>
+                {/* 헤더 — 클릭하면 펼치기 */}
+                <div onClick={() => { if (!isEditing) setExpanded(p => ({ ...p, [item.id]: !p[item.id] })); }}
+                  style={{ padding: "12px 14px", cursor: isEditing ? "default" : "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {item.title && <div style={{ fontSize: 14, fontWeight: 800, color: T.text, marginBottom: 2 }}>{item.title}</div>}
+                    {!isExp && !isEditing && previewText && (
+                      <div style={{ fontSize: 12, color: T.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{previewText}</div>
+                    )}
+                    <div style={{ fontSize: 11, color: T.muted, marginTop: 3 }}>
+                      {formatDate(item.createdAt)}
+                      {item.updatedAt && " · 수정됨"}
+                      {fileList.length > 0 && ` · 📎 ${fileList.length}개`}
+                    </div>
+                  </div>
+                  {!isEditing && <span style={{ fontSize: 14, color: T.muted }}>{isExp ? "▲" : "▼"}</span>}
+                </div>
+
+                {/* 펼친 상태 — 보기 or 수정 */}
+                {(isExp || isEditing) && (
+                  <div style={{ padding: "0 14px 14px", borderTop: `1px solid ${T.border}` }}>
+                    {isEditing ? (
+                      /* ── 인라인 수정 폼 ── */
+                      <>
+                        <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)}
+                          placeholder="제목 (선택)"
+                          style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid #7c3aed`, fontSize: 15, fontWeight: 700, color: T.text, background: T.bg, boxSizing: "border-box", fontFamily: "inherit", marginTop: 12, marginBottom: 8 }} />
+                        <textarea value={editText} onChange={e => setEditText(e.target.value)}
+                          style={{ width: "100%", minHeight: 140, padding: "10px 12px", borderRadius: 10, border: `1px solid #7c3aed`, fontSize: 14, color: T.text, background: T.bg, resize: "vertical", boxSizing: "border-box", fontFamily: "inherit", lineHeight: 1.7 }} />
+                        {/* 기존 파일 */}
+                        {fileList.length > 0 && <FileList files={fileList} item={item} />}
+                        {/* 파일 추가 */}
+                        <div style={{ marginTop: 10 }}>
+                          <button onClick={() => editFileRef.current?.click()}
+                            style={{ padding: "7px 14px", borderRadius: 10, border: `1px dashed ${T.border}`, background: T.bg, color: T.sub, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                            📎 파일 추가
+                          </button>
+                          <input ref={editFileRef} type="file" accept="*/*" multiple style={{ display: "none" }}
+                            onChange={e => setEditFiles(prev => [...prev, ...Array.from(e.target.files || [])])} />
+                        </div>
+                        <NewFileList files={editFiles} onRemove={i => setEditFiles(prev => prev.filter((_, j) => j !== i))} />
+                        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                          <button onClick={() => { setEditId(null); setEditFiles([]); }}
+                            style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                            취소
+                          </button>
+                          <button onClick={() => handleEditSave(item)} disabled={editSaving}
+                            style={{ flex: 2, padding: "10px 0", borderRadius: 10, border: "none", background: "#7c3aed", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                            {editSaving ? "저장 중..." : "✏️ 수정 완료"}
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      /* ── 보기 모드 ── */
+                      <>
+                        {item.text && (
+                          <div style={{ fontSize: 14, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap", paddingTop: 12, marginBottom: fileList.length > 0 ? 0 : 0 }}>
+                            {item.text}
+                          </div>
+                        )}
+                        {fileList.length > 0 && <FileList files={fileList} item={item} />}
+                        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                          <button onClick={() => startEdit(item)}
+                            style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                            ✏️ 수정
+                          </button>
+                          <button onClick={() => handleDelete(item)} disabled={deleting === item.id}
+                            style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                            🗑 삭제
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* 이미지 전체화면 */}
+      {preview && (
+        <div onClick={() => setPreview(null)}
+          style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <img src={preview.url} alt={preview.name} style={{ maxWidth: "100%", maxHeight: "90vh", borderRadius: 12, objectFit: "contain" }} />
+          <button onClick={() => setPreview(null)}
+            style={{ position: "absolute", top: 20, right: 20, background: "#ffffff30", border: "none", color: "#fff", fontSize: 24, cursor: "pointer", borderRadius: 10, padding: "4px 10px" }}>✕</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 
   useEffect(() => {
     const unsub = onSnapshot(query(collection(db, COL_VAULT), orderBy("createdAt", "desc")), snap => {
@@ -5078,210 +5375,6 @@ function VaultSection({ onBack }) {
     } catch(e) { alert("저장 실패: " + e.message); }
     setUploading(false);
   };
-
-  const startEdit = (item) => {
-    setEditItem(item);
-    setTitle(item.title || "");
-    setText(item.text || "");
-    setFiles([]);
-    window.scrollTo(0, 0);
-  };
-
-  const handleDeleteFile = async (item, fileIdx) => {
-    if (!window.confirm("파일을 삭제할까요?")) return;
-    try {
-      const fileList = item.files || (item.file ? [item.file] : []);
-      const target = fileList[fileIdx];
-      try { await deleteObject(ref(storage, target.url)); } catch {}
-      const newFiles = fileList.filter((_, i) => i !== fileIdx);
-      await setDoc(doc(db, COL_VAULT, item.id), { ...item, files: newFiles, file: null });
-    } catch(e) { alert("파일 삭제 실패: " + e.message); }
-  };
-
-  const handleDelete = async (item) => {
-    if (!window.confirm("삭제할까요?")) return;
-    setDeleting(item.id);
-    try {
-      const fileList = item.files || (item.file ? [item.file] : []);
-      for (const f of fileList) { try { await deleteObject(ref(storage, f.url)); } catch {} }
-      await deleteDoc(doc(db, COL_VAULT, item.id));
-    } catch(e) { alert("삭제 실패: " + e.message); }
-    setDeleting(null);
-  };
-
-  const isImage = (f) => f?.type?.startsWith("image/");
-  const fileIcon = (f) => {
-    if (!f) return "📎";
-    if (isImage(f)) return "🖼";
-    if (f.ext === "pdf") return "📄";
-    if (["doc","docx"].includes(f.ext)) return "📝";
-    if (["xls","xlsx"].includes(f.ext)) return "📊";
-    return "📎";
-  };
-  const formatSize = (b) => b > 1024*1024 ? `${(b/1024/1024).toFixed(1)}MB` : `${Math.round(b/1024)}KB`;
-  const formatDate = (iso) => new Date(iso).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-  const hasContent = title.trim() || text.trim() || files.length > 0;
-
-  return (
-    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 30 }}>
-      <div style={{ background: T.adminHeader, padding: "16px 16px 14px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
-          <div>
-            <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📁 보관함</div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ padding: "16px 16px 0" }}>
-        {/* 입력/수정 영역 */}
-        <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 16, border: `2px solid ${editItem ? "#7c3aed" : T.border}` }}>
-          {editItem && (
-            <div style={{ fontSize: 12, color: "#7c3aed", fontWeight: 700, marginBottom: 10 }}>✏️ 수정 중 — <button onClick={resetForm} style={{ background: "none", border: "none", color: T.muted, fontSize: 12, cursor: "pointer", textDecoration: "underline" }}>취소</button></div>
-          )}
-          {/* 제목 */}
-          <input type="text" value={title} onChange={e => setTitle(e.target.value)}
-            placeholder="제목 (선택)"
-            style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 15, fontWeight: 700, color: T.text, background: T.bg, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 8 }} />
-          {/* 메모 */}
-          <textarea value={text} onChange={e => setText(e.target.value)}
-            placeholder="메모를 입력하세요..."
-            style={{ width: "100%", minHeight: 160, padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 14, color: T.text, background: T.bg, resize: "vertical", boxSizing: "border-box", fontFamily: "inherit", lineHeight: 1.7 }} />
-
-          {/* 파일 첨부 (다중) */}
-          <div style={{ marginTop: 10 }}>
-            <button onClick={() => fileRef.current?.click()}
-              style={{ padding: "8px 16px", borderRadius: 10, border: `1px dashed ${T.border}`, background: T.bg, color: T.sub, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-              📎 파일 첨부 (여러 개 가능)
-            </button>
-            <input ref={fileRef} type="file" accept="*/*" multiple style={{ display: "none" }}
-              onChange={e => setFiles(prev => [...prev, ...Array.from(e.target.files || [])])} />
-          </div>
-
-          {/* 새로 선택한 파일 목록 */}
-          {files.length > 0 && (
-            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-              {files.map((f, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: T.bg, borderRadius: 8, border: `1px solid ${T.border}` }}>
-                  <span>{fileIcon({ type: f.type, ext: f.name.split(".").pop().toLowerCase() })}</span>
-                  {isImage({ type: f.type }) && <img src={URL.createObjectURL(f)} alt="" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6 }} />}
-                  <span style={{ fontSize: 12, fontWeight: 600, color: T.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
-                  <span style={{ fontSize: 11, color: T.muted }}>{formatSize(f.size)}</span>
-                  <button onClick={() => setFiles(prev => prev.filter((_, j) => j !== i))}
-                    style={{ background: "none", border: "none", color: "#b91c1c", cursor: "pointer", fontSize: 16 }}>✕</button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <button onClick={handleSave} disabled={uploading || !hasContent}
-            style={{ width: "100%", marginTop: 12, padding: "13px 0", borderRadius: 12, border: "none",
-              background: hasContent ? (editItem ? "#7c3aed" : T.adminHeader) : "#e5e7eb",
-              color: hasContent ? "#fff" : T.muted, fontSize: 14, fontWeight: 800,
-              cursor: hasContent ? "pointer" : "default" }}>
-            {uploading ? "저장 중..." : editItem ? "✏️ 수정 완료" : "💾 저장"}
-          </button>
-        </div>
-
-        {/* 피드 */}
-        {loading ? (
-          <div style={{ textAlign: "center", padding: 40, color: T.muted }}>불러오는 중...</div>
-        ) : vault.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 40 }}>
-            <div style={{ fontSize: 40, marginBottom: 10 }}>📁</div>
-            <div style={{ fontSize: 14, color: T.muted, fontWeight: 600 }}>저장된 항목이 없습니다</div>
-          </div>
-        ) : (
-          vault.map(item => {
-            const isExp = expanded[item.id];
-            const fileList = item.files?.length > 0 ? item.files : (item.file ? [item.file] : []);
-            const previewText = item.text?.slice(0, 80) + (item.text?.length > 80 ? "..." : "");
-            return (
-              <div key={item.id} style={{ background: T.card, borderRadius: 16, marginBottom: 10, border: `1px solid ${T.border}`, boxShadow: "0 2px 8px #0000000d", overflow: "hidden", opacity: deleting === item.id ? 0.5 : 1 }}>
-                {/* 항상 보이는 헤더 — 클릭하면 펼치기 */}
-                <div onClick={() => setExpanded(p => ({ ...p, [item.id]: !p[item.id] }))}
-                  style={{ padding: "12px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {item.title && <div style={{ fontSize: 14, fontWeight: 800, color: T.text, marginBottom: 2 }}>{item.title}</div>}
-                    {!isExp && previewText && <div style={{ fontSize: 12, color: T.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{previewText}</div>}
-                    <div style={{ fontSize: 11, color: T.muted, marginTop: 3 }}>
-                      {formatDate(item.createdAt)}
-                      {item.updatedAt && " · 수정됨"}
-                      {fileList.length > 0 && ` · 📎 ${fileList.length}개`}
-                    </div>
-                  </div>
-                  <span style={{ fontSize: 14, color: T.muted }}>{isExp ? "▲" : "▼"}</span>
-                </div>
-
-                {/* 펼쳤을 때 상세 내용 */}
-                {isExp && (
-                  <div style={{ padding: "0 14px 14px", borderTop: `1px solid ${T.border}` }}>
-                    {item.text && (
-                      <div style={{ fontSize: 14, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap", paddingTop: 12, marginBottom: fileList.length > 0 ? 12 : 0 }}>
-                        {item.text}
-                      </div>
-                    )}
-                    {/* 파일 목록 */}
-                    {fileList.length > 0 && (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        {fileList.map((f, i) => (
-                          <div key={i} style={{ position: "relative" }}>
-                            {isImage(f) ? (
-                              <>
-                                <img src={f.url} alt={f.name} onClick={() => setPreview(f)}
-                                  style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 10, cursor: "pointer", display: "block" }} />
-                                <button onClick={() => handleDeleteFile(item, i)}
-                                  style={{ position: "absolute", top: 6, right: 6, background: "#000000aa", border: "none", color: "#fff", borderRadius: 8, padding: "3px 8px", fontSize: 12, cursor: "pointer" }}>✕</button>
-                              </>
-                            ) : (
-                              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: T.bg, borderRadius: 10, border: `1px solid ${T.border}` }}>
-                                <span style={{ fontSize: 22 }}>{fileIcon(f)}</span>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</div>
-                                  <div style={{ fontSize: 11, color: T.muted }}>{formatSize(f.size)}</div>
-                                </div>
-                                <a href={f.url} target="_blank" rel="noreferrer"
-                                  style={{ fontSize: 12, color: "#0891b2", fontWeight: 700, textDecoration: "none" }}>열기</a>
-                                <button onClick={() => handleDeleteFile(item, i)}
-                                  style={{ background: "none", border: "none", color: "#b91c1c", cursor: "pointer", fontSize: 15 }}>✕</button>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {/* 수정/삭제 버튼 */}
-                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                      <button onClick={() => startEdit(item)}
-                        style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                        ✏️ 수정
-                      </button>
-                      <button onClick={() => handleDelete(item)} disabled={deleting === item.id}
-                        style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                        🗑 삭제
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      {/* 이미지 전체화면 */}
-      {preview && (
-        <div onClick={() => setPreview(null)}
-          style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-          <img src={preview.url} alt={preview.name} style={{ maxWidth: "100%", maxHeight: "90vh", borderRadius: 12, objectFit: "contain" }} />
-          <button onClick={() => setPreview(null)}
-            style={{ position: "absolute", top: 20, right: 20, background: "#ffffff30", border: "none", color: "#fff", fontSize: 24, cursor: "pointer", borderRadius: 10, padding: "4px 10px" }}>✕</button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── 관리자 화면 (라우터) ───────────────────────────────────────
 function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
