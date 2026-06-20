@@ -5328,16 +5328,6 @@ function VaultSection({ onBack }) {
   );
 }
 
-
-
-  useEffect(() => {
-    const unsub = onSnapshot(query(collection(db, COL_VAULT), orderBy("createdAt", "desc")), snap => {
-      setVaultLocal(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setLoading(false);
-    });
-    return () => unsub();
-  }, []);
-
 // ── 관리자 화면 (라우터) ───────────────────────────────────────
 function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
   const [section, setSection] = useState(null);
