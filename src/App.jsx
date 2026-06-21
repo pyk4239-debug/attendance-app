@@ -4789,98 +4789,168 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
                   {myDocs.length === 0 && (
                     <div style={{ fontSize: 12, color: T.muted }}>작성된 문서가 없습니다</div>
                   )}
-                  {myDocs.map(c => {
-                    const dst = statusLabel(c.status);
-                    const dk = `det_${c.id}`;
-                    const sd = expandedHistory[dk];
-                    return (
-                      <div key={c.id} style={{ background: T.bg, borderRadius: 12, border: `1px solid ${T.border}`, overflow: "hidden", marginBottom: 8 }}>
-                        <div style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {c.docTitle || DOC_TYPES.find(d => d.key === c.docType)?.label || ""}
-                            </div>
-                            <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
-                              {c.createdAt ? new Date(c.createdAt).toLocaleDateString("ko-KR") : ""}
-                              {c.signedAt ? ` · 서명 ${new Date(c.signedAt).toLocaleDateString("ko-KR")}` : ""}
-                            </div>
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: dst.color, background: dst.bg, borderRadius: 6, padding: "2px 7px" }}>{dst.text}</span>
-                            <button onClick={() => setExpandedHistory(p => ({ ...p, [dk]: !p[dk] }))}
-                              style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                              {sd ? "▲" : "▼"}
-                            </button>
-                          </div>
-                        </div>
-                        {sd && (
-                          <div style={{ borderTop: `1px solid ${T.border}`, padding: "12px 14px" }}>
-                            {c.docContent && (
-                              <div style={{ fontSize: 12, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 10 }}>{c.docContent}</div>
-                            )}
-                            {c.signedAt && (
-                              <div style={{ padding: "8px 10px", background: "#dcfce7", borderRadius: 8, marginBottom: 8 }}>
-                                <div style={{ fontSize: 11, color: "#15803d", fontWeight: 700 }}>✅ {new Date(c.signedAt).toLocaleString("ko-KR")}</div>
-                                {c.signIp && <div style={{ fontSize: 11, color: "#16a34a", marginTop: 2 }}>🌐 {c.signIp} · {c.signDevice}</div>}
+                  {/* docTitle 기준으로 그룹핑 */}
+                  {(() => {
+                    const groups = [];
+                    const seen = {};
+                    myDocs.forEach(c => {
+                      const key = c.docTitle || "__no_title__";
+                      if (!seen[key]) { seen[key] = []; groups.push(seen[key]); }
+                      seen[key].push(c);
+                    });
+                    return groups.map((group, gi) => {
+                      const latest = group[0];
+                      const history = group.slice(1);
+                      const dst = statusLabel(latest.status);
+                      const dk = `det_${latest.id}`;
+                      const sd = expandedHistory[dk];
+                      const histKey = `ghist_${latest.docTitle || gi}_${u.id}`;
+                      const showGHist = expandedHistory[histKey];
+                      return (
+                        <div key={latest.id} style={{ background: T.bg, borderRadius: 12, border: `1px solid ${T.border}`, overflow: "hidden", marginBottom: 8 }}>
+                          {/* 최신 문서 헤더 */}
+                          <div style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {latest.docTitle || DOC_TYPES.find(d => d.key === latest.docType)?.label || ""}
                               </div>
-                            )}
-                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                              {c.status === "draft" && (
-                                <button onClick={() => sendToEmployee(c)}
-                                  style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#0891b2", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                                  📨 서명 요청
-                                </button>
-                              )}
-                              {c.status !== "signed" && (
-                                <button onClick={() => openEdit(c)}
-                                  style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                                  수정
-                                </button>
-                              )}
-                              <button id={`contract-pdf-btn-${c.id}`} onClick={() => downloadContractPDF(c)} disabled={pdfLoading === c.id}
-                                style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#16a34a", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", opacity: pdfLoading === c.id ? 0.6 : 1 }}>
-                                {pdfLoading === c.id ? "생성 중..." : "⬇ PDF"}
-                              </button>
-                              {c.pdfUrl && (
-                                <a href={c.pdfUrl} target="_blank" rel="noreferrer"
-                                  style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid #16a34a`, background: "#f0fdf4", color: "#16a34a", fontSize: 11, fontWeight: 700, textDecoration: "none" }}>
-                                  🔗 저장본
-                                </a>
-                              )}
-                              <button onClick={() => deleteContract(c)}
-                                style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                                🗑 삭제
+                              <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
+                                {latest.createdAt ? new Date(latest.createdAt).toLocaleDateString("ko-KR") : ""}
+                                {latest.signedAt ? ` · 서명 ${new Date(latest.signedAt).toLocaleDateString("ko-KR")}` : ""}
+                              </div>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: dst.color, background: dst.bg, borderRadius: 6, padding: "2px 7px" }}>{dst.text}</span>
+                              <button onClick={() => setExpandedHistory(p => ({ ...p, [dk]: !p[dk] }))}
+                                style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                                {sd ? "▲" : "▼"}
                               </button>
                             </div>
-                            {/* 동의서/확인서 숨김 인쇄 */}
-                            <div id={`contract-print-${c.id}`} style={{ position: "fixed", left: -9999, top: 0, width: 794, background: "#fff", padding: "40px 50px", fontFamily: "'Noto Sans KR', sans-serif", fontSize: 12, color: "#111", lineHeight: 1.8 }}>
-                              <div style={{ textAlign: "center", fontSize: 20, fontWeight: 900, marginBottom: 8, letterSpacing: 4 }}>
-                                {DOC_TYPES.find(d => d.key === c.docType)?.label || "문서"}
-                              </div>
-                              {c.docTitle && <div style={{ textAlign: "center", fontSize: 14, fontWeight: 700, marginBottom: 24, color: "#444" }}>{c.docTitle}</div>}
-                              <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 20, fontSize: 12 }}>
-                                <tbody>
-                                  <tr><td style={{ padding: "4px 8px", fontWeight: 700, width: 80 }}>사업체명</td><td style={{ padding: "4px 8px" }}>하나기업</td></tr>
-                                  <tr><td style={{ padding: "4px 8px", fontWeight: 700 }}>대표자</td><td style={{ padding: "4px 8px" }}>박용균</td></tr>
-                                  <tr><td style={{ padding: "4px 8px", fontWeight: 700 }}>성명</td><td style={{ padding: "4px 8px" }}>{c.userName}</td></tr>
-                                </tbody>
-                              </table>
-                              {c.docContent && (
-                                <div style={{ fontSize: 12, lineHeight: 1.9, whiteSpace: "pre-wrap", marginBottom: 24, padding: "12px 0", borderTop: "1px solid #e5e7eb", borderBottom: "1px solid #e5e7eb" }}>
-                                  {c.docContent}
+                          </div>
+                          {/* 최신 문서 상세 */}
+                          {sd && (
+                            <div style={{ borderTop: `1px solid ${T.border}`, padding: "12px 14px" }}>
+                              {latest.docContent && (
+                                <div style={{ fontSize: 12, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 10 }}>{latest.docContent}</div>
+                              )}
+                              {latest.signedAt && (
+                                <div style={{ padding: "8px 10px", background: "#dcfce7", borderRadius: 8, marginBottom: 8 }}>
+                                  <div style={{ fontSize: 11, color: "#15803d", fontWeight: 700 }}>✅ {new Date(latest.signedAt).toLocaleString("ko-KR")}</div>
+                                  {latest.signIp && <div style={{ fontSize: 11, color: "#16a34a", marginTop: 2 }}>🌐 {latest.signIp} · {latest.signDevice}</div>}
                                 </div>
                               )}
-                              <div style={{ marginTop: 24, fontSize: 12 }}>{c.createdAt ? new Date(c.createdAt).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" }) : ""}</div>
-                              <div style={{ marginTop: 16, display: "flex", justifyContent: "space-around", fontSize: 12 }}>
-                                <div>(사업자) 박용균 &nbsp;&nbsp; {c.sentAt ? `📨 ${new Date(c.sentAt).toLocaleDateString("ko-KR")} 발송` : ""}</div>
-                                <div>(서명인) {c.userName} &nbsp;&nbsp; {c.status === "signed" && c.signedAt ? `✅ ${new Date(c.signedAt).toLocaleDateString("ko-KR")} 전자서명` : ""}</div>
+                              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                {latest.status === "draft" && (
+                                  <button onClick={() => sendToEmployee(latest)}
+                                    style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#0891b2", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                                    📨 서명 요청
+                                  </button>
+                                )}
+                                {latest.status !== "signed" && (
+                                  <button onClick={() => openEdit(latest)}
+                                    style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                                    수정
+                                  </button>
+                                )}
+                                <button id={`contract-pdf-btn-${latest.id}`} onClick={() => downloadContractPDF(latest)} disabled={pdfLoading === latest.id}
+                                  style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#16a34a", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", opacity: pdfLoading === latest.id ? 0.6 : 1 }}>
+                                  {pdfLoading === latest.id ? "생성 중..." : "⬇ PDF"}
+                                </button>
+                                {latest.pdfUrl && (
+                                  <a href={latest.pdfUrl} target="_blank" rel="noreferrer"
+                                    style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid #16a34a`, background: "#f0fdf4", color: "#16a34a", fontSize: 11, fontWeight: 700, textDecoration: "none" }}>
+                                    🔗 저장본
+                                  </a>
+                                )}
+                                <button onClick={() => deleteContract(latest)}
+                                  style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                                  🗑 삭제
+                                </button>
+                              </div>
+                              {/* 숨김 인쇄 */}
+                              <div id={`contract-print-${latest.id}`} style={{ position: "fixed", left: -9999, top: 0, width: 794, background: "#fff", padding: "40px 50px", fontFamily: "'Noto Sans KR', sans-serif", fontSize: 12, color: "#111", lineHeight: 1.8 }}>
+                                <div style={{ textAlign: "center", fontSize: 20, fontWeight: 900, marginBottom: 8, letterSpacing: 4 }}>
+                                  {DOC_TYPES.find(d => d.key === latest.docType)?.label || "문서"}
+                                </div>
+                                {latest.docTitle && <div style={{ textAlign: "center", fontSize: 14, fontWeight: 700, marginBottom: 24, color: "#444" }}>{latest.docTitle}</div>}
+                                <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 20, fontSize: 12 }}>
+                                  <tbody>
+                                    <tr><td style={{ padding: "4px 8px", fontWeight: 700, width: 80 }}>사업체명</td><td style={{ padding: "4px 8px" }}>하나기업</td></tr>
+                                    <tr><td style={{ padding: "4px 8px", fontWeight: 700 }}>대표자</td><td style={{ padding: "4px 8px" }}>박용균</td></tr>
+                                    <tr><td style={{ padding: "4px 8px", fontWeight: 700 }}>성명</td><td style={{ padding: "4px 8px" }}>{latest.userName}</td></tr>
+                                  </tbody>
+                                </table>
+                                {latest.docContent && (
+                                  <div style={{ fontSize: 12, lineHeight: 1.9, whiteSpace: "pre-wrap", marginBottom: 24, padding: "12px 0", borderTop: "1px solid #e5e7eb", borderBottom: "1px solid #e5e7eb" }}>
+                                    {latest.docContent}
+                                  </div>
+                                )}
+                                <div style={{ marginTop: 24, fontSize: 12 }}>{latest.createdAt ? new Date(latest.createdAt).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" }) : ""}</div>
+                                <div style={{ marginTop: 16, display: "flex", justifyContent: "space-around", fontSize: 12 }}>
+                                  <div>(사업자) 박용균 &nbsp;&nbsp; {latest.sentAt ? `📨 ${new Date(latest.sentAt).toLocaleDateString("ko-KR")} 발송` : ""}</div>
+                                  <div>(서명인) {latest.userName} &nbsp;&nbsp; {latest.status === "signed" && latest.signedAt ? `✅ ${new Date(latest.signedAt).toLocaleDateString("ko-KR")} 전자서명` : ""}</div>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                          )}
+                          {/* 이전 버전 히스토리 */}
+                          {history.length > 0 && (
+                            <div style={{ borderTop: `1px solid ${T.border}`, padding: "8px 14px", background: "#fafafa" }}>
+                              <button onClick={() => setExpandedHistory(p => ({ ...p, [histKey]: !p[histKey] }))}
+                                style={{ width: "100%", padding: "5px 0", background: "transparent", border: "none", color: T.muted, fontSize: 11, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
+                                📁 이전 버전 {history.length}건 {showGHist ? "▲ 접기" : "▼ 보기"}
+                              </button>
+                              {showGHist && (
+                                <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+                                  {history.map(c => {
+                                    const hst = statusLabel(c.status);
+                                    const hdk = `hdet_${c.id}`;
+                                    const hsd = expandedHistory[hdk];
+                                    return (
+                                      <div key={c.id} style={{ background: "#fff", borderRadius: 8, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+                                        <div style={{ padding: "8px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                          <div>
+                                            <div style={{ fontSize: 11, color: T.muted }}>
+                                              작성: {c.createdAt ? new Date(c.createdAt).toLocaleDateString("ko-KR") : "-"}
+                                              {c.signedAt ? ` · 서명: ${new Date(c.signedAt).toLocaleDateString("ko-KR")}` : ""}
+                                            </div>
+                                          </div>
+                                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                            <span style={{ fontSize: 10, fontWeight: 700, color: hst.color, background: hst.bg, borderRadius: 6, padding: "2px 6px" }}>{hst.text}</span>
+                                            <button onClick={() => setExpandedHistory(p => ({ ...p, [hdk]: !p[hdk] }))}
+                                              style={{ padding: "3px 7px", borderRadius: 5, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                                              {hsd ? "▲" : "▼"}
+                                            </button>
+                                            {c.status !== "signed" && (
+                                              <button onClick={() => deleteContract(c)}
+                                                style={{ padding: "3px 7px", borderRadius: 5, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>삭제</button>
+                                            )}
+                                          </div>
+                                        </div>
+                                        {hsd && (
+                                          <div style={{ borderTop: `1px solid ${T.border}`, padding: "8px 12px" }}>
+                                            {c.docContent && (
+                                              <div style={{ fontSize: 11, color: T.text, lineHeight: 1.6, whiteSpace: "pre-wrap", marginBottom: 6 }}>{c.docContent}</div>
+                                            )}
+                                            {c.signedAt && (
+                                              <div style={{ padding: "5px 8px", background: "#dcfce7", borderRadius: 6 }}>
+                                                <div style={{ fontSize: 10, color: "#15803d", fontWeight: 700 }}>✅ {new Date(c.signedAt).toLocaleString("ko-KR")}</div>
+                                                {c.signIp && <div style={{ fontSize: 10, color: "#16a34a" }}>🌐 {c.signIp} · {c.signDevice}</div>}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
                 </>
               )}
             </div>
