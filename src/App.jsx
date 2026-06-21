@@ -4966,13 +4966,14 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
 function ContractViewScreen({ user, contracts }) {
   const [docTypeTab, setDocTypeTab] = useState("contract");
   const myDocs = contracts.filter(c => c.userId === user.id && (c.docType || "contract") === docTypeTab);
-  const contract = myDocs[0];
+  const contract = myDocs[0]; // 근로계약서용 최신 1건
   const [signing, setSigning] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [signAddr, setSignAddr] = useState("");
   const [signPhone, setSignPhone] = useState("");
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [expandedDoc, setExpandedDoc] = useState({});
 
   const downloadMyPDF = async () => {
     if (!contract) return;
@@ -5048,7 +5049,7 @@ function ContractViewScreen({ user, contracts }) {
     setSigning(false);
   };
 
-  if (!contract) return (
+  if (!contract && (docTypeTab === "contract" || myDocs.length === 0)) return (
     <div style={{ padding: 32, textAlign: "center" }}>
       <div style={{ fontSize: 48, marginBottom: 12 }}>📄</div>
       <div style={{ fontSize: 15, color: T.muted, fontWeight: 600 }}>등록된 {DOC_TYPES.find(d=>d.key===docTypeTab)?.label||"문서"}가 없습니다</div>
@@ -5083,15 +5084,144 @@ function ContractViewScreen({ user, contracts }) {
         })}
       </div>
 
-      {/* 동의서/확인서/기타 내용 표시 */}
-      {contract.docType && contract.docType !== "contract" && contract.docContent && (
-        <div style={{ margin: "12px 16px 0", background: T.card, borderRadius: 14, padding: 16, border: `1px solid ${T.border}` }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: T.text, marginBottom: 8 }}>
-            {DOC_TYPES.find(d => d.key === contract.docType)?.icon} {contract.docTitle || ""}
+      {/* 동의서/확인서/기타 탭 — 그룹핑해서 전부 표시 */}
+      {docTypeTab !== "contract" && myDocs.length > 0 && (() => {
+        const groups = [];
+        const seen = {};
+        myDocs.forEach(c => {
+          const key = c.docTitle || "__no_title__";
+          if (!seen[key]) { seen[key] = []; groups.push(seen[key]); }
+          seen[key].push(c);
+        });
+        return (
+          <div style={{ padding: "12px 16px 0" }}>
+            {groups.map((group, gi) => {
+              const latest = group[0];
+              const history = group.slice(1);
+              const dst = latest.status === "signed"
+                ? { text: "✅ 서명완료", color: "#16a34a", bg: "#dcfce7" }
+                : latest.status === "sent"
+                ? { text: "📨 서명 대기", color: "#d97706", bg: "#fef3c7" }
+                : { text: "📝 초안", color: "#6b7280", bg: "#f3f4f6" };
+              const dk = `mdoc_${latest.id}`;
+              const sd = expandedDoc[dk];
+              const histKey = `mhist_${gi}_${latest.docTitle}`;
+              const showHist = expandedDoc[histKey];
+              return (
+                <div key={latest.id} style={{ background: T.card, borderRadius: 14, border: `1px solid ${T.border}`, marginBottom: 10, overflow: "hidden" }}>
+                  {/* 헤더 */}
+                  <div style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                    onClick={() => setExpandedDoc(p => ({ ...p, [dk]: !p[dk] }))}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>{latest.docTitle || ""}</div>
+                      <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
+                        {latest.createdAt ? new Date(latest.createdAt).toLocaleDateString("ko-KR") : ""}
+                        {latest.signedAt ? ` · 서명 ${new Date(latest.signedAt).toLocaleDateString("ko-KR")}` : ""}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: dst.color, background: dst.bg, borderRadius: 8, padding: "3px 8px" }}>{dst.text}</span>
+                      <span style={{ fontSize: 14, color: T.muted }}>{sd ? "▲" : "▼"}</span>
+                    </div>
+                  </div>
+                  {/* 내용 + 서명 */}
+                  {sd && (
+                    <div style={{ borderTop: `1px solid ${T.border}`, padding: "12px 14px" }}>
+                      {latest.docContent && (
+                        <div style={{ fontSize: 13, color: T.text, lineHeight: 1.8, whiteSpace: "pre-wrap", marginBottom: 12 }}>
+                          {latest.docContent}
+                        </div>
+                      )}
+                      {/* 서명 대기 */}
+                      {latest.status === "sent" && (
+                        <div style={{ background: T.card, borderRadius: 12, padding: 14, border: `2px solid #0891b2`, marginTop: 8 }}>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: "#0891b2", marginBottom: 10 }}>✍️ 전자서명 (동의)</div>
+                          <div style={{ marginBottom: 10, padding: "8px 12px", background: T.bg, borderRadius: 8, fontSize: 13, fontWeight: 700, color: T.text }}>{user.name}</div>
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12, padding: 10, background: "#f0f9ff", borderRadius: 8 }}>
+                            <input type="checkbox" id={`agree_${latest.id}`}
+                              checked={!!expandedDoc[`agree_${latest.id}`]}
+                              onChange={e => setExpandedDoc(p => ({ ...p, [`agree_${latest.id}`]: e.target.checked }))}
+                              style={{ width: 18, height: 18, marginTop: 1, cursor: "pointer" }} />
+                            <label htmlFor={`agree_${latest.id}`} style={{ fontSize: 13, color: T.text, lineHeight: 1.6, cursor: "pointer" }}>
+                              본인은 위 {latest.docTitle || "문서"}의 내용을 충분히 읽고 이해하였으며, 이에 동의합니다.
+                            </label>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              if (!expandedDoc[`agree_${latest.id}`]) { alert("동의 체크 후 서명해주세요."); return; }
+                              if (!window.confirm(`${latest.docTitle || "문서"}에 전자서명(동의)하시겠습니까?`)) return;
+                              try {
+                                let signIp = "";
+                                try { const r = await fetch("https://api.ipify.org?format=json"); signIp = (await r.json()).ip || ""; } catch {}
+                                await setDoc(doc(db, COL_CONTRACTS, latest.id), {
+                                  ...latest, status: "signed",
+                                  signedAt: new Date().toISOString(), signIp,
+                                  signUserAgent: navigator.userAgent,
+                                  signDevice: /Mobi|Android/i.test(navigator.userAgent) ? "모바일" : "PC",
+                                  signBrowser: navigator.userAgent.match(/(Chrome|Safari|Firefox|Edge|Samsung)/)?.[1] || "기타",
+                                });
+                                await addDoc(collection(db, COL_NOTICES), {
+                                  title: `✅ ${user.name}님 ${latest.docTitle || "문서"} 서명 완료`,
+                                  content: `${user.name}님이 ${latest.docTitle || "문서"}에 전자서명하였습니다.`,
+                                  recipient: "admin", author: user.name, createdAt: new Date().toISOString(),
+                                });
+                                await sendPush({ title: `✅ ${latest.docTitle || "문서"} 서명 완료`, message: `${user.name}님이 서명하였습니다.`, targetUserId: "admin" });
+                                alert("서명이 완료되었습니다.");
+                              } catch(e) { alert("서명 실패: " + e.message); }
+                            }}
+                            disabled={!expandedDoc[`agree_${latest.id}`]}
+                            style={{ width: "100%", padding: "12px 0", borderRadius: 12, border: "none",
+                              background: expandedDoc[`agree_${latest.id}`] ? "#0891b2" : "#e5e7eb",
+                              color: expandedDoc[`agree_${latest.id}`] ? "#fff" : T.muted,
+                              fontSize: 14, fontWeight: 800, cursor: expandedDoc[`agree_${latest.id}`] ? "pointer" : "default" }}>
+                            📝 서명하기 (동의)
+                          </button>
+                        </div>
+                      )}
+                      {/* 서명 완료 */}
+                      {latest.status === "signed" && (
+                        <div style={{ padding: 12, background: "#dcfce7", borderRadius: 10, textAlign: "center" }}>
+                          <div style={{ fontSize: 24, marginBottom: 4 }}>✅</div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: "#15803d" }}>서명 완료</div>
+                          <div style={{ fontSize: 11, color: "#16a34a", marginTop: 2 }}>
+                            {latest.signedAt && new Date(latest.signedAt).toLocaleString("ko-KR")}
+                          </div>
+                          <button onClick={downloadMyPDF} disabled={pdfLoading}
+                            style={{ marginTop: 10, padding: "8px 20px", borderRadius: 10, border: "none", background: "#16a34a", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: pdfLoading ? 0.6 : 1 }}>
+                            {pdfLoading ? "생성 중..." : "⬇ PDF"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* 이전 버전 히스토리 */}
+                  {history.length > 0 && (
+                    <div style={{ borderTop: `1px solid ${T.border}`, padding: "8px 14px", background: "#fafafa" }}>
+                      <button onClick={() => setExpandedDoc(p => ({ ...p, [histKey]: !p[histKey] }))}
+                        style={{ width: "100%", padding: "4px 0", background: "transparent", border: "none", color: T.muted, fontSize: 11, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
+                        📁 이전 버전 {history.length}건 {showHist ? "▲ 접기" : "▼ 보기"}
+                      </button>
+                      {showHist && (
+                        <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+                          {history.map(c => (
+                            <div key={c.id} style={{ padding: "8px 10px", background: "#fff", borderRadius: 8, border: `1px solid ${T.border}` }}>
+                              <div style={{ fontSize: 11, color: T.muted }}>
+                                작성: {c.createdAt ? new Date(c.createdAt).toLocaleDateString("ko-KR") : "-"}
+                                {c.signedAt ? ` · 서명: ${new Date(c.signedAt).toLocaleDateString("ko-KR")}` : ""}
+                              </div>
+                              {c.signedAt && <div style={{ fontSize: 11, color: "#15803d", marginTop: 2 }}>✅ 서명완료</div>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-          <div style={{ fontSize: 13, color: T.text, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{contract.docContent}</div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 상태 배너 */}
       <div style={{ margin: 16, padding: "14px 16px", borderRadius: 14, background: st.bg, border: `1px solid ${st.color}30`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
