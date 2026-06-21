@@ -39,8 +39,55 @@ const COL_MEMBER_INFO = "member_info";
 const COL_READS = "reads"; // 읽음 기록
 const COL_REMINDERS = "reminders";
 const COL_EVENTS   = "schedule_events";
-const COL_CONTRACTS = "contracts";
+const COL_CONTRACTS = "contracts"; // 하위호환 유지
+const COL_DOCS = "contracts";      // 문서함 (동일 컬렉션 사용)
 const COL_VAULT = "vault";
+
+// 문서 종류
+const DOC_TYPES = [
+  { key: "contract",   label: "근로계약서", icon: "📋" },
+  { key: "agreement",  label: "동의서",     icon: "✍️" },
+  { key: "confirm",    label: "확인서",     icon: "✅" },
+  { key: "other",      label: "기타 문서",  icon: "📄" },
+];
+
+// 동의서 템플릿
+const AGREEMENT_TEMPLATES = [
+  { key: "overtime", label: "연장·휴일근로 포괄 동의서",
+    content: `본인은 업무상 필요에 의한 연장근로 및 휴일근로에 대해 사전에 포괄적으로 동의하며, 해당 수당은 근로계약서에 명시된 임금 구성 항목에 따라 별도 지급받음을 확인합니다.\n\n단, 연장근로는 1주 12시간을 초과할 수 없으며, 본 동의는 근로자의 자유의사에 의한 것으로 언제든지 철회할 수 있습니다.` },
+  { key: "privacy", label: "개인정보 수집·이용 동의서",
+    content: `본인은 아래와 같이 개인정보를 수집·이용하는 것에 동의합니다.\n\n1. 수집 항목: 성명, 주민등록번호, 주소, 연락처, 계좌정보\n2. 수집 목적: 근로계약 체결, 급여 지급, 4대보험 처리\n3. 보유 기간: 퇴직 후 3년\n4. 동의를 거부할 권리가 있으나, 거부 시 근로계약 체결이 어려울 수 있습니다.` },
+  { key: "custom", label: "직접 입력", content: "" },
+];
+
+// 확인서 템플릿
+const CONFIRM_TEMPLATES = [
+  { key: "wage", label: "임금변경 확인서",
+    content: `본인은 아래와 같이 임금이 변경됨을 확인하고 동의합니다.\n\n변경 시급: ______원\n적용 시작일: ______년 __월 __일\n\n위 변경 내용은 근로기준법 및 최저임금법에 따른 것으로, 기존 근로계약서의 해당 조항을 본 확인서로 갈음합니다.` },
+  { key: "safety", label: "안전보건교육 이수 확인서",
+    content: `본인은 아래 안전보건교육을 이수하였음을 확인합니다.\n\n교육 일시: ______년 __월 __일\n교육 내용: 산업안전보건법에 따른 정기 안전보건교육\n교육 시간: __시간\n\n위 교육을 성실히 이수하였으며 그 내용을 숙지하였습니다.` },
+  { key: "rule", label: "취업규칙 교부 확인서",
+    content: `본인은 취업규칙을 교부받았으며 그 내용을 충분히 읽고 이해하였음을 확인합니다.\n\n교부 일시: ______년 __월 __일` },
+  { key: "custom", label: "직접 입력", content: "" },
+];
+
+const DOC_TYPE_MAP = Object.fromEntries(DOC_TYPES.map(d => [d.key, d]));
+
+// 동의서/확인서 기본 템플릿
+const DOC_TEMPLATES = {
+  agreement: {
+    title: "연장·휴일근로 포괄 동의서",
+    content: `본인은 업무상 필요에 의한 연장근로 및 휴일근로에 대해 사전에 포괄적으로 동의합니다.\n\n해당 수당은 근로계약서에 명시된 임금 구성 항목에 따라 별도 지급됩니다.\n\n단, 1주 연장근로는 12시간을 초과하지 않으며, 본 동의는 자유의사에 의한 것으로 언제든지 철회할 수 있습니다.`,
+  },
+  confirm: {
+    title: "임금 변경 확인서",
+    content: `위 당사자는 아래와 같이 임금 변경 사항을 확인합니다.\n\n변경 내용:\n- 변경 시급: \n- 적용 일자: \n- 사유: 최저임금 변동\n\n이 확인서는 기존 근로계약서의 임금 조항을 갈음합니다.`,
+  },
+  other: {
+    title: "",
+    content: "",
+  },
+}
 const DOC_SETTINGS = "app/settings";
 
 // ── 초기 데이터 ────────────────────────────────────────────────
@@ -2344,7 +2391,7 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
     { key: "notice",     icon: "📢", label: "공지",   desc: "공지사항 작성 · 관리",   color: "#ea580c" },
     { key: "board",      icon: "💬", label: "게시판", desc: "자유게시판",              color: "#0891b2",
       badge: board.filter(b => !reads[`${user.id}_board_${b.id}`]).length },
-    { key: "contract",   icon: "📄", label: "계약서", desc: "근로계약서 작성 · 관리",  color: "#0891b2", badge: pendingSign },
+    { key: "contract",   icon: "📄", label: "문서함", desc: "계약서 · 동의서 · 확인서",  color: "#0891b2", badge: pendingSign },
     { key: "vault",      icon: "📁", label: "보관함", desc: "메모 · 파일 보관",        color: "#7c3aed" },
     { key: "settings",   icon: "⚙",  label: "설정",   desc: "근무시간 · GPS · 공휴일", color: "#6b7280" },
     { key: "schedule",   icon: "🗓", label: "일정",    desc: "캘린더 · 리마인더",     color: "#7c3aed" },
@@ -4015,8 +4062,9 @@ function ContractField({ label, fkey, type = "text", placeholder = "", form, set
 }
 
 // ── 근로계약서 (관리자) ─────────────────────────────────────────
-function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
+function DocSection({ users, memberInfo, settings, contracts, onBack }) {
   const members = users.filter(u => u.role === "member");
+  const [docTypeFilter, setDocTypeFilter] = useState("contract"); // 상단 탭
   const [selUser, setSelUser] = useState(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -4066,7 +4114,7 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
     }
   };
 
-  const openNew = (u) => {
+  const openNew = (u, dtype = docTypeFilter) => {
     const info = memberInfo[u.id] || {};
     const now = new Date();
     const thisYear = now.getFullYear();
@@ -4119,6 +4167,7 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
       terminationReasons: "1. 정당한 업무명령을 위반하였을 때\n2. 무단결근 계속 3일 이상(지각, 조퇴 3회는 결근 1일로 간주)\n3. 근로계약기간이 종료되었을 때\n4. \"갑\"의 발주처로부터 \"을\"의 귀책사유로 교체요청이 있을 때\n5. \"갑\"의 발주처와의 도급계약의 해지가 있을 때 또는 계약의 연장이 안되었을 때\n6. 상기 해지 사유 발생 시 30일전에 통보한다",
       bonus: "설 50%, 추석 50% / 지급시기 변동시 통보 후 변경가능",
       specialTerms: "",
+      docType: dtype,
       status: "draft",
       signedAt: null,
       createdAt: now.toISOString(),
@@ -4195,6 +4244,7 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
 
   // 편집 화면
   if (editing && form) {
+    const docTypeInfo = DOC_TYPES.find(d => d.key === (form.docType || "contract")) || DOC_TYPES[0];
     return (
       <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 90 }}>
         <div style={{ background: T.adminHeader, padding: "16px 16px 14px" }}>
@@ -4202,12 +4252,27 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
             <button onClick={() => { setEditing(false); setForm(null); }} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
             <div>
               <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📄 {selUser?.name} 근로계약서</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>{docTypeInfo.icon} {selUser?.name} {docTypeInfo.label}</div>
             </div>
           </div>
         </div>
 
         <div style={{ padding: "16px 16px 0" }}>
+          {/* 문서 종류 선택 */}
+          <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 10 }}>📌 문서 종류</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {DOC_TYPES.map(dt => (
+                <button key={dt.key} onClick={() => setForm(p => ({ ...p, docType: dt.key }))}
+                  style={{ padding: "10px 0", borderRadius: 10, border: `2px solid ${form.docType === dt.key ? T.adminHeader : T.border}`, background: form.docType === dt.key ? T.adminHeader : T.bg, color: form.docType === dt.key ? "#fff" : T.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  {dt.icon} {dt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 근로계약서 폼 */}
+          {(form.docType || "contract") === "contract" && (<>
 
           {/* (갑) 사업주 정보 */}
           <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}` }}>
@@ -4376,6 +4441,81 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
                 style={{ ...CONTRACT_ISTYLE, minHeight: 80, resize: "vertical" }} />
             </div>
           </div>
+          </>)}
+
+          {/* 동의서 폼 */}
+          {form.docType === "agreement" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ background: T.card, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#7c3aed", marginBottom: 10 }}>📋 템플릿 선택</div>
+                {AGREEMENT_TEMPLATES.map(t => (
+                  <button key={t.key} onClick={() => setForm(p => ({ ...p, docTitle: t.label, docContent: t.content }))}
+                    style={{ display: "block", width: "100%", padding: "10px 12px", marginBottom: 8, borderRadius: 10, border: `1px solid ${form.docTitle === t.label ? "#7c3aed" : T.border}`, background: form.docTitle === t.label ? "#f5f3ff" : T.bg, color: T.text, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+                    {form.docTitle === t.label ? "✅ " : ""}{t.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ background: T.card, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 10 }}>✍️ 문서 내용</div>
+                <div style={{ marginBottom: 12, padding: "8px 12px", background: T.bg, borderRadius: 10 }}>
+                  <span style={{ fontSize: 12, color: T.muted }}>대상: </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{form.userName}</span>
+                </div>
+                <ContractField form={form} setForm={setForm} label="제목" fkey="docTitle" placeholder="동의서 제목" />
+                <div style={{ marginBottom: 12 }}>
+                  <ContractLabel>내용</ContractLabel>
+                  <textarea value={form.docContent || ""} onChange={e => setForm(p => ({ ...p, docContent: e.target.value }))}
+                    placeholder="동의서 내용을 입력하세요" style={{ ...CONTRACT_ISTYLE, minHeight: 200, resize: "vertical" }} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 확인서 폼 */}
+          {form.docType === "confirm" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ background: T.card, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#16a34a", marginBottom: 10 }}>📋 템플릿 선택</div>
+                {CONFIRM_TEMPLATES.map(t => (
+                  <button key={t.key} onClick={() => setForm(p => ({ ...p, docTitle: t.label, docContent: t.content }))}
+                    style={{ display: "block", width: "100%", padding: "10px 12px", marginBottom: 8, borderRadius: 10, border: `1px solid ${form.docTitle === t.label ? "#16a34a" : T.border}`, background: form.docTitle === t.label ? "#f0fdf4" : T.bg, color: T.text, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+                    {form.docTitle === t.label ? "✅ " : ""}{t.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ background: T.card, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 10 }}>✅ 문서 내용</div>
+                <div style={{ marginBottom: 12, padding: "8px 12px", background: T.bg, borderRadius: 10 }}>
+                  <span style={{ fontSize: 12, color: T.muted }}>대상: </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{form.userName}</span>
+                </div>
+                <ContractField form={form} setForm={setForm} label="제목" fkey="docTitle" placeholder="확인서 제목" />
+                <div style={{ marginBottom: 12 }}>
+                  <ContractLabel>내용</ContractLabel>
+                  <textarea value={form.docContent || ""} onChange={e => setForm(p => ({ ...p, docContent: e.target.value }))}
+                    placeholder="확인서 내용을 입력하세요" style={{ ...CONTRACT_ISTYLE, minHeight: 200, resize: "vertical" }} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 기타 문서 폼 */}
+          {form.docType === "other" && (
+            <div style={{ background: T.card, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 10 }}>📄 문서 내용</div>
+              <div style={{ marginBottom: 12, padding: "8px 12px", background: T.bg, borderRadius: 10 }}>
+                <span style={{ fontSize: 12, color: T.muted }}>대상: </span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{form.userName}</span>
+              </div>
+              <ContractField form={form} setForm={setForm} label="제목" fkey="docTitle" placeholder="문서 제목" />
+              <div style={{ marginBottom: 12 }}>
+                <ContractLabel>내용</ContractLabel>
+                <textarea value={form.docContent || ""} onChange={e => setForm(p => ({ ...p, docContent: e.target.value }))}
+                  placeholder="내용을 자유롭게 입력하세요" style={{ ...CONTRACT_ISTYLE, minHeight: 200, resize: "vertical" }} />
+              </div>
+            </div>
+          )}
+
         </div>
 
         <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: T.card, borderTop: `1px solid ${T.border}`, padding: "12px 16px", paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}>
@@ -4389,6 +4529,8 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
   }
 
   // 목록 화면
+  const filteredContracts = (userId) => contracts.filter(c => c.userId === userId && (c.docType || "contract") === docTypeFilter);
+
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 30 }}>
       <div style={{ background: T.adminHeader, padding: "16px 16px 14px" }}>
@@ -4396,8 +4538,17 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
           <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
           <div>
             <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3 }}>ADMIN</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📄 근로계약서</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📄 문서함</div>
           </div>
+        </div>
+        {/* 문서 종류 탭 */}
+        <div style={{ display: "flex", gap: 6, marginTop: 12, overflowX: "auto", paddingBottom: 2 }}>
+          {DOC_TYPES.map(dt => (
+            <button key={dt.key} onClick={() => setDocTypeFilter(dt.key)}
+              style={{ flexShrink: 0, padding: "6px 14px", borderRadius: 20, border: "none", background: docTypeFilter === dt.key ? "#fff" : "#ffffff25", color: docTypeFilter === dt.key ? T.adminHeader : "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              {dt.icon} {dt.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -4437,9 +4588,9 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
       <div style={{ padding: 16 }}>
         {/* 직원별 계약서 현황 */}
         {members.map(u => {
-          const myContracts = contracts.filter(c => c.userId === u.id);
+          const myContracts = filteredContracts(u.id);
           const latest = myContracts[0];
-          const history = myContracts.slice(1); // 이전 계약서들
+          const history = myContracts.slice(1); // 이전 문서들
           const st = latest ? statusLabel(latest.status) : null;
           const showHistory = expandedHistory[u.id];
           return (
@@ -4470,9 +4621,9 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
                 </div>
               )}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button onClick={() => openNew(u)}
+                <button onClick={() => openNew(u, docTypeFilter)}
                   style={{ padding: "8px 14px", borderRadius: 10, border: "none", background: T.adminHeader, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                  {latest ? "✏️ 새 계약서" : "📝 작성"}
+                  {latest ? `✏️ 새 ${DOC_TYPES.find(d=>d.key===docTypeFilter)?.label||"문서"}` : `📝 작성`}
                 </button>
                 {latest && latest.status === "draft" && (
                   <button onClick={() => sendToEmployee(latest)}
@@ -4663,8 +4814,9 @@ function ContractSection({ users, memberInfo, settings, contracts, onBack }) {
 
 // ── 근로계약서 (팀원 조회 + 서명) ──────────────────────────────
 function ContractViewScreen({ user, contracts }) {
-  const myContracts = contracts.filter(c => c.userId === user.id);
-  const contract = myContracts[0];
+  const [docTypeTab, setDocTypeTab] = useState("contract");
+  const myDocs = contracts.filter(c => c.userId === user.id && (c.docType || "contract") === docTypeTab);
+  const contract = myDocs[0];
   const [signing, setSigning] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
@@ -4749,8 +4901,8 @@ function ContractViewScreen({ user, contracts }) {
   if (!contract) return (
     <div style={{ padding: 32, textAlign: "center" }}>
       <div style={{ fontSize: 48, marginBottom: 12 }}>📄</div>
-      <div style={{ fontSize: 15, color: T.muted, fontWeight: 600 }}>등록된 근로계약서가 없습니다</div>
-      <div style={{ fontSize: 13, color: T.muted, marginTop: 6 }}>관리자가 계약서를 발송하면 여기서 확인할 수 있어요</div>
+      <div style={{ fontSize: 15, color: T.muted, fontWeight: 600 }}>등록된 {DOC_TYPES.find(d=>d.key===docTypeTab)?.label||"문서"}가 없습니다</div>
+      <div style={{ fontSize: 13, color: T.muted, marginTop: 6 }}>관리자가 발송하면 여기서 확인할 수 있어요</div>
     </div>
   );
 
@@ -4767,6 +4919,30 @@ function ContractViewScreen({ user, contracts }) {
 
   return (
     <div style={{ padding: "0 0 30px" }}>
+      {/* 문서 종류 탭 */}
+      <div style={{ display: "flex", gap: 6, padding: "12px 16px 0", overflowX: "auto" }}>
+        {DOC_TYPES.map(dt => {
+          const hasPending = contracts.some(c => c.userId === user.id && (c.docType || "contract") === dt.key && c.status === "sent");
+          return (
+            <button key={dt.key} onClick={() => { setDocTypeTab(dt.key); setConfirmed(false); setSignAddr(""); setSignPhone(""); }}
+              style={{ flexShrink: 0, padding: "7px 14px", borderRadius: 20, border: `2px solid ${docTypeTab === dt.key ? T.adminHeader : T.border}`, background: docTypeTab === dt.key ? T.adminHeader : T.bg, color: docTypeTab === dt.key ? "#fff" : T.text, fontSize: 12, fontWeight: 700, cursor: "pointer", position: "relative" }}>
+              {dt.icon} {dt.label}
+              {hasPending && <span style={{ position: "absolute", top: -4, right: -4, width: 8, height: 8, borderRadius: "50%", background: "#ef4444" }} />}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 동의서/확인서/기타 내용 표시 */}
+      {contract.docType && contract.docType !== "contract" && contract.docContent && (
+        <div style={{ margin: "12px 16px 0", background: T.card, borderRadius: 14, padding: 16, border: `1px solid ${T.border}` }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: T.text, marginBottom: 8 }}>
+            {DOC_TYPES.find(d => d.key === contract.docType)?.icon} {contract.docTitle || ""}
+          </div>
+          <div style={{ fontSize: 13, color: T.text, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{contract.docContent}</div>
+        </div>
+      )}
+
       {/* 상태 배너 */}
       <div style={{ margin: 16, padding: "14px 16px", borderRadius: 14, background: st.bg, border: `1px solid ${st.color}30`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
@@ -5344,7 +5520,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "board") return <AdminSectionWrap title="💬 게시판" color="#0891b2" onBack={back}><BoardScreen user={user} board={board} reads={reads} /></AdminSectionWrap>;
   if (section === "settings") return <><SettingsModal settings={settings} onSave={async s => { await onSaveSettings(s); back(); }} onClose={back} /></>;
   if (section === "schedule") return <AdminSectionWrap title="🗓 일정" color="#7c3aed" onBack={back}><AdminSchedule reminders={reminders} users={users} settings={settings} scheduleEvents={scheduleEvents} /></AdminSectionWrap>;
-  if (section === "contract") return <><ContractSection users={users} memberInfo={memberInfo} settings={settings} contracts={contracts} onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "contract") return <><DocSection users={users} memberInfo={memberInfo} settings={settings} contracts={contracts} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "vault") return <><VaultSection onBack={back} /><FloatBack onClick={back} /></>;
   return null;
 }
@@ -6192,7 +6368,7 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips,
     ["notice",   "📢", "공지",   unreadNotice],
     ["annual",   "📅", "연차",   isAdmin ? pendingCount : 0],
     ["payslip",  "💰", "명세서", unreadPayslip],
-    ["contract", "📄", "계약서", contractBadge],
+    ["contract", "📄", "문서함", contractBadge],
     ["schedule", "🗓", "일정",   0],
   ];
 
