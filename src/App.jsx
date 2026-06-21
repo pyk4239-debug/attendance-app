@@ -4923,10 +4923,8 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
                                               style={{ padding: "3px 7px", borderRadius: 5, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
                                               {hsd ? "▲" : "▼"}
                                             </button>
-                                            {c.status !== "signed" && (
-                                              <button onClick={() => deleteContract(c)}
-                                                style={{ padding: "3px 7px", borderRadius: 5, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>삭제</button>
-                                            )}
+                                            <button onClick={() => deleteContract(c)}
+                                              style={{ padding: "3px 7px", borderRadius: 5, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>삭제</button>
                                           </div>
                                         </div>
                                         {hsd && (
@@ -5205,15 +5203,40 @@ function ContractViewScreen({ user, contracts }) {
                       </button>
                       {showHist && (
                         <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
-                          {history.map(c => (
-                            <div key={c.id} style={{ padding: "8px 10px", background: "#fff", borderRadius: 8, border: `1px solid ${T.border}` }}>
-                              <div style={{ fontSize: 11, color: T.muted }}>
-                                작성: {c.createdAt ? new Date(c.createdAt).toLocaleDateString("ko-KR") : "-"}
-                                {c.signedAt ? ` · 서명: ${new Date(c.signedAt).toLocaleDateString("ko-KR")}` : ""}
+                          {history.map(c => {
+                            const hdk = `mhdet_${c.id}`;
+                            const hsd = expandedDoc[hdk];
+                            return (
+                              <div key={c.id} style={{ background: "#fff", borderRadius: 8, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+                                <div style={{ padding: "8px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                  <div>
+                                    <div style={{ fontSize: 11, color: T.muted }}>
+                                      작성: {c.createdAt ? new Date(c.createdAt).toLocaleDateString("ko-KR") : "-"}
+                                      {c.signedAt ? ` · 서명: ${new Date(c.signedAt).toLocaleDateString("ko-KR")}` : ""}
+                                    </div>
+                                    {c.signedAt && <div style={{ fontSize: 11, color: "#15803d", marginTop: 2 }}>✅ 서명완료</div>}
+                                  </div>
+                                  <button onClick={() => setExpandedDoc(p => ({ ...p, [hdk]: !p[hdk] }))}
+                                    style={{ padding: "3px 7px", borderRadius: 5, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 10, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+                                    {hsd ? "▲" : "▼"}
+                                  </button>
+                                </div>
+                                {hsd && (
+                                  <div style={{ borderTop: `1px solid ${T.border}`, padding: "8px 10px" }}>
+                                    {c.docContent && (
+                                      <div style={{ fontSize: 11, color: T.text, lineHeight: 1.6, whiteSpace: "pre-wrap", marginBottom: 6 }}>{c.docContent}</div>
+                                    )}
+                                    {c.signedAt && (
+                                      <div style={{ padding: "5px 8px", background: "#dcfce7", borderRadius: 6 }}>
+                                        <div style={{ fontSize: 10, color: "#15803d", fontWeight: 700 }}>✅ {new Date(c.signedAt).toLocaleString("ko-KR")}</div>
+                                        {c.signIp && <div style={{ fontSize: 10, color: "#16a34a" }}>🌐 {c.signIp} · {c.signDevice}</div>}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
-                              {c.signedAt && <div style={{ fontSize: 11, color: "#15803d", marginTop: 2 }}>✅ 서명완료</div>}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
