@@ -4744,12 +4744,12 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
                 </div>
               )}
 
-              {/* 이전 계약서 히스토리 */}
+              {/* 이전 문서 히스토리 */}
               {history.length > 0 && (
                 <div style={{ marginTop: 12 }}>
                   <button onClick={() => setExpandedHistory(p => ({ ...p, [u.id]: !p[u.id] }))}
                     style={{ width: "100%", padding: "7px 0", borderRadius: 8, border: `1px dashed ${T.border}`, background: "transparent", color: T.muted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                    📁 이전 계약서 {history.length}건 {showHistory ? "▲ 접기" : "▼ 보기"}
+                    📁 이전 {DOC_TYPES.find(d => d.key === docTypeFilter)?.label || "문서"} {history.length}건 {showHistory ? "▲ 접기" : "▼ 보기"}
                   </button>
                   {showHistory && (
                     <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
@@ -4790,21 +4790,32 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
                             {/* 상세 내용 */}
                             {showDetail && (
                               <div style={{ borderTop: `1px solid ${T.border}`, padding: "10px 12px", fontSize: 11, color: T.text }}>
-                                {[
-                                  ["직종", c.jobType],
-                                  ["입사일", c.joinDate],
-                                  ["근로장소", c.workPlace],
-                                  ["근로시간", c.workStart && c.workEnd ? `${c.workStart} ~ ${c.workEnd}` : null],
-                                  ["시급", c.hourlyWage ? `${Number(c.hourlyWage).toLocaleString()}원` : null],
-                                  ["월급", c.monthlyWage ? `${Number(c.monthlyWage).toLocaleString()}원` : null],
-                                  ["지급일", c.payDay ? `매월 ${c.payDay}일` : null],
-                                  ["상여금", c.bonus],
-                                ].filter(([, v]) => v).map(([label, value]) => (
-                                  <div key={label} style={{ display: "flex", gap: 8, padding: "3px 0", borderBottom: `1px solid ${T.border}` }}>
-                                    <span style={{ color: T.muted, minWidth: 60 }}>{label}</span>
-                                    <span style={{ fontWeight: 600 }}>{value}</span>
+                                {/* 근로계약서 상세 */}
+                                {(!c.docType || c.docType === "contract") && (
+                                  <>
+                                    {[
+                                      ["직종", c.jobType],
+                                      ["입사일", c.joinDate],
+                                      ["근로장소", c.workPlace],
+                                      ["근로시간", c.workStart && c.workEnd ? `${c.workStart} ~ ${c.workEnd}` : null],
+                                      ["시급", c.hourlyWage ? `${Number(c.hourlyWage).toLocaleString()}원` : null],
+                                      ["월급", c.monthlyWage ? `${Number(c.monthlyWage).toLocaleString()}원` : null],
+                                      ["지급일", c.payDay ? `매월 ${c.payDay}일` : null],
+                                      ["상여금", c.bonus],
+                                    ].filter(([, v]) => v).map(([label, value]) => (
+                                      <div key={label} style={{ display: "flex", gap: 8, padding: "3px 0", borderBottom: `1px solid ${T.border}` }}>
+                                        <span style={{ color: T.muted, minWidth: 60 }}>{label}</span>
+                                        <span style={{ fontWeight: 600 }}>{value}</span>
+                                      </div>
+                                    ))}
+                                  </>
+                                )}
+                                {/* 동의서/확인서/기타 상세 */}
+                                {c.docType && c.docType !== "contract" && c.docContent && (
+                                  <div style={{ fontSize: 12, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap", paddingBottom: 6 }}>
+                                    {c.docContent}
                                   </div>
-                                ))}
+                                )}
                                 {c.signedAt && (
                                   <div style={{ marginTop: 6, padding: "6px 8px", background: "#dcfce7", borderRadius: 6 }}>
                                     <div style={{ color: "#15803d", fontWeight: 700 }}>✅ 서명완료</div>
