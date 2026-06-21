@@ -4962,10 +4962,12 @@ function ContractViewScreen({ user, contracts }) {
             <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>내용을 확인하고 서명해주세요</div>
           )}
         </div>
-        <button onClick={() => setShowDetail(!showDetail)}
-          style={{ padding: "7px 14px", borderRadius: 10, border: "none", background: "#fff", color: T.text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-          {showDetail ? "접기 ▲" : "상세보기 ▼"}
-        </button>
+        {(!contract.docType || contract.docType === "contract") && (
+          <button onClick={() => setShowDetail(!showDetail)}
+            style={{ padding: "7px 14px", borderRadius: 10, border: "none", background: "#fff", color: T.text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            {showDetail ? "접기 ▲" : "상세보기 ▼"}
+          </button>
+        )}
       </div>
 
       {/* 근로계약서일 때만 주요내용/상세보기/PDF 표시 */}
@@ -5066,8 +5068,9 @@ function ContractViewScreen({ user, contracts }) {
           </div>
         </div>
       )}
+      </>)}
 
-      {/* 서명 영역 */}
+      {/* 서명 영역 — 모든 문서 공통 */}
       {contract.status === "sent" && (() => {
         const isContract = !contract.docType || contract.docType === "contract";
         const docLabel = DOC_TYPES.find(d => d.key === (contract.docType || "contract"))?.label || "문서";
@@ -5075,13 +5078,9 @@ function ContractViewScreen({ user, contracts }) {
         return (
           <div style={{ margin: "0 16px", background: T.card, borderRadius: 16, padding: 16, border: `2px solid #0891b2` }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: "#0891b2", marginBottom: 12 }}>✍️ 전자서명 (동의)</div>
-
-            {/* 성명 (자동) */}
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 12, color: T.sub, fontWeight: 600, marginBottom: 4 }}>성명</div>
-              <div style={{ padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700, color: T.text, background: "#f8fafc" }}>
-                {user.name}
-              </div>
+              <div style={{ padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700, color: T.text, background: "#f8fafc" }}>{user.name}</div>
             </div>
 
             {/* 주소/전화 — 근로계약서만 */}
@@ -5144,7 +5143,6 @@ function ContractViewScreen({ user, contracts }) {
           )}
         </div>
       )}
-      </>)}
 
       {/* 팀원용 숨김 인쇄 영역 — 근로계약서만 */}
       {contract && (!contract.docType || contract.docType === "contract") && (
