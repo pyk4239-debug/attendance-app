@@ -4602,7 +4602,9 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
                   <div style={{ fontWeight: 800, fontSize: 15, color: T.text }}>{u.name}</div>
                   {latest && (
                     <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
-                      {latest.contractStart} ~ {latest.contractEnd || "기간 없음"} · {latest.jobType || ""}
+                      {(!latest.docType || latest.docType === "contract")
+                        ? `${latest.contractStart} ~ ${latest.contractEnd || "기간 없음"} · ${latest.jobType || ""}`
+                        : latest.docTitle || DOC_TYPES.find(d => d.key === latest.docType)?.label || ""}
                     </div>
                   )}
                 </div>
@@ -4761,7 +4763,9 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
                             <div style={{ padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                               <div>
                                 <div style={{ fontSize: 12, fontWeight: 700, color: T.text }}>
-                                  {c.contractStart} ~ {c.contractEnd || "기간 없음"}
+                                  {(!c.docType || c.docType === "contract")
+                                    ? `${c.contractStart} ~ ${c.contractEnd || "기간 없음"}`
+                                    : c.docTitle || DOC_TYPES.find(d => d.key === c.docType)?.label || ""}
                                 </div>
                                 <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
                                   작성: {c.createdAt ? new Date(c.createdAt).toLocaleDateString("ko-KR") : "-"}
