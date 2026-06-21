@@ -5223,6 +5223,8 @@ function ContractViewScreen({ user, contracts }) {
         );
       })()}
 
+      {/* 상태 배너 ~ 서명/PDF — 근로계약서 탭만 */}
+      {docTypeTab === "contract" && contract && (<>
       {/* 상태 배너 */}
       <div style={{ margin: 16, padding: "14px 16px", borderRadius: 14, background: st.bg, border: `1px solid ${st.color}30`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
@@ -5498,12 +5500,10 @@ function ContractViewScreen({ user, contracts }) {
           </>)}
         </div>
       )}
+      </>)}
     </div>
   );
 }
-
-
-// ── 보관함 ─────────────────────────────────────────────────────
 function VaultSection({ onBack }) {
   const [vault, setVaultLocal] = useState([]);
   const [loading, setLoading] = useState(true);
