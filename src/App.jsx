@@ -4594,7 +4594,7 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
           const latest = myContracts[0];
           const history = myContracts.slice(1); // 이전 문서들
           const st = latest ? statusLabel(latest.status) : null;
-          const showHistory = expandedHistory[u.id];
+          const showHistory = expandedHistory[`${docTypeFilter}_${u.id}`];
           return (
             <div key={u.id} style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${T.border}`, boxShadow: "0 2px 8px #0000000d" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: latest ? 10 : 0 }}>
@@ -4747,7 +4747,7 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
               {/* 이전 문서 히스토리 */}
               {history.length > 0 && (
                 <div style={{ marginTop: 12 }}>
-                  <button onClick={() => setExpandedHistory(p => ({ ...p, [u.id]: !p[u.id] }))}
+                  <button onClick={() => setExpandedHistory(p => ({ ...p, [`${docTypeFilter}_${u.id}`]: !p[`${docTypeFilter}_${u.id}`] }))}
                     style={{ width: "100%", padding: "7px 0", borderRadius: 8, border: `1px dashed ${T.border}`, background: "transparent", color: T.muted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                     📁 이전 {DOC_TYPES.find(d => d.key === docTypeFilter)?.label || "문서"} {history.length}건 {showHistory ? "▲ 접기" : "▼ 보기"}
                   </button>
