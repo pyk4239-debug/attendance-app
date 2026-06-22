@@ -3336,11 +3336,6 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
                   {pending > 0 && <Badge label={`연차신청 ${pending}건`} color="yellow" />}
                   <button onClick={() => setEditInfo({ user: u })}
                     style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>기초데이터</button>
-                  <button onClick={async () => {
-                    if (!window.confirm(`${u.name}님을 퇴직 처리할까요?\n\n모든 데이터는 보관되며 언제든 복원 가능합니다.`)) return;
-                    await fbRetireUser(u);
-                  }}
-                    style={{ background: "#fff7ed", border: "none", color: "#d97706", borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}>퇴직</button>
                 </div>
               </div>
               {info.joinDate || info.hourlyWage || info.bank ? (
