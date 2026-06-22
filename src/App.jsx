@@ -5990,12 +5990,13 @@ function VaultSection({ onBack }) {
           </div>
         ) : (
           vault.map(item => {
+            const isCert = item.title?.includes("수료증") || item.text?.includes("수료증");
             const isExp = expanded[item.id];
             const isEditing = editId === item.id;
             const fileList = item.files?.length > 0 ? item.files : (item.file ? [item.file] : []);
             const previewText = item.text?.slice(0, 80) + (item.text?.length > 80 ? "..." : "");
             return (
-              <div key={item.id} style={{ background: T.card, borderRadius: 16, marginBottom: 10, border: `1px solid ${isEditing ? "#7c3aed" : T.border}`, boxShadow: "0 2px 8px #0000000d", overflow: "hidden", opacity: deleting === item.id ? 0.5 : 1 }}>
+              <div key={item.id} style={{ background: isCert ? "#fefce8" : T.card, borderRadius: 16, marginBottom: 10, border: `2px solid ${isEditing ? "#7c3aed" : isCert ? "#fbbf24" : T.border}`, boxShadow: "0 2px 8px #0000000d", overflow: "hidden", opacity: deleting === item.id ? 0.5 : 1 }}>
                 {/* 헤더 — 클릭하면 펼치기 */}
                 <div onClick={() => { if (!isEditing) setExpanded(p => ({ ...p, [item.id]: !p[item.id] })); }}
                   style={{ padding: "12px 14px", cursor: isEditing ? "default" : "pointer", display: "flex", alignItems: "center", gap: 10 }}>
