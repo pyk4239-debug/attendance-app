@@ -4035,7 +4035,7 @@ function AdminReminder({ reminders = [], users = [], presetDate = null, onClearP
 function AdminSectionWrap({ title, color, onBack, children }) {
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
-      <div style={{ background: color || T.adminHeader, padding: "16px 16px 14px" }}>
+      <div style={{ background: color || T.adminHeader, paddingTop: "calc(16px + env(safe-area-inset-top))", paddingBottom: "14px", paddingLeft: "16px", paddingRight: "16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
           <div>
@@ -4253,7 +4253,7 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
     const docTypeInfo = DOC_TYPES.find(d => d.key === (form.docType || "contract")) || DOC_TYPES[0];
     return (
       <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 90 }}>
-        <div style={{ background: T.adminHeader, padding: "16px 16px 14px" }}>
+        <div style={{ background: T.adminHeader, paddingTop: "calc(16px + env(safe-area-inset-top))", paddingBottom: "14px", paddingLeft: "16px", paddingRight: "16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <button onClick={() => { setEditing(false); setForm(null); }} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
             <div>
@@ -4540,7 +4540,7 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
 
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 30 }}>
-      <div style={{ background: T.adminHeader, padding: "16px 16px 14px" }}>
+      <div style={{ background: T.adminHeader, paddingTop: "calc(16px + env(safe-area-inset-top))", paddingBottom: "14px", paddingLeft: "16px", paddingRight: "16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
           <div style={{ flex: 1 }}>
@@ -5795,7 +5795,7 @@ function VaultSection({ onBack }) {
 
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 30 }}>
-      <div style={{ background: T.adminHeader, padding: "16px 16px 14px" }}>
+      <div style={{ background: T.adminHeader, paddingTop: "calc(16px + env(safe-area-inset-top))", paddingBottom: "14px", paddingLeft: "16px", paddingRight: "16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
           <div style={{ flex: 1 }}>
@@ -6881,7 +6881,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
       {tab !== "att" && <FloatBack onClick={() => setTab("att")} />}
       {tab === "notice" && (
         <>
-          <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
+          <div style={{ background: T.headerBg, paddingTop: "calc(18px + env(safe-area-inset-top))", paddingBottom: "14px", paddingLeft: "16px", paddingRight: "16px" }}>
             <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>공지</div>
           </div>
@@ -6890,7 +6890,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
       )}
       {tab === "annual" && (
         <>
-          <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
+          <div style={{ background: T.headerBg, paddingTop: "calc(18px + env(safe-area-inset-top))", paddingBottom: "14px", paddingLeft: "16px", paddingRight: "16px" }}>
             <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>연차</div>
           </div>
@@ -6899,7 +6899,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
       )}
       {tab === "payslip" && (
         <>
-          <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
+          <div style={{ background: T.headerBg, paddingTop: "calc(18px + env(safe-area-inset-top))", paddingBottom: "14px", paddingLeft: "16px", paddingRight: "16px" }}>
             <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>급여명세서</div>
           </div>
@@ -6908,7 +6908,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
       )}
       {tab === "contract" && (
         <>
-          <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
+          <div style={{ background: T.headerBg, paddingTop: "calc(18px + env(safe-area-inset-top))", paddingBottom: "14px", paddingLeft: "16px", paddingRight: "16px" }}>
             <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📄 근로계약서</div>
           </div>
@@ -6917,7 +6917,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
       )}
       {tab === "schedule" && (
         <>
-          <div style={{ background: T.headerBg, padding: "18px 16px 14px" }}>
+          <div style={{ background: T.headerBg, paddingTop: "calc(18px + env(safe-area-inset-top))", paddingBottom: "14px", paddingLeft: "16px", paddingRight: "16px" }}>
             <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>🗓 일정</div>
           </div>
