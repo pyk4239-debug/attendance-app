@@ -5174,7 +5174,7 @@ function ContractViewScreen({ user, contracts }) {
                                     <div style={{ display: "flex", gap: 8 }}>
                                       <label style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px dashed ${T.border}`, background: T.bg, color: T.sub, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "center" }}>
                                         📷 사진
-                                        <input type="file" accept="image/*" capture="environment" style={{ display: "none" }}
+                                        <input type="file" accept="image/*" style={{ display: "none" }}
                                           onChange={e => { const f = e.target.files?.[0]; if (f) setExpandedDoc(p => ({ ...p, [fileKey]: f })); }} />
                                       </label>
                                       <label style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px dashed ${T.border}`, background: T.bg, color: T.sub, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "center" }}>
