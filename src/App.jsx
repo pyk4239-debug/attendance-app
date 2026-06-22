@@ -4478,16 +4478,31 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
           )}
 
           {/* 확인서 폼 */}
-          {form.docType === "confirm" && (
+          {form.docType === "confirm" && (() => {
+            const now = new Date();
+            const year = now.getFullYear();
+            const quarter = Math.ceil((now.getMonth() + 1) / 3);
+            const autoTitle = (key, label) => {
+              if (key === "safety") return `${label} ${year}-${quarter}분기`;
+              if (key === "harassment") return `${label} ${year}`;
+              if (key === "wage") return `${label} ${year}`;
+              if (key === "rule") return `${label} ${year}`;
+              return label; // custom
+            };
+            return (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ background: T.card, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: "#16a34a", marginBottom: 10 }}>📋 템플릿 선택</div>
-                {CONFIRM_TEMPLATES.map(t => (
-                  <button key={t.key} onClick={() => setForm(p => ({ ...p, docTitle: t.label, docContent: t.content }))}
-                    style={{ display: "block", width: "100%", padding: "10px 12px", marginBottom: 8, borderRadius: 10, border: `1px solid ${form.docTitle === t.label ? "#16a34a" : T.border}`, background: form.docTitle === t.label ? "#f0fdf4" : T.bg, color: T.text, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
-                    {form.docTitle === t.label ? "✅ " : ""}{t.label}
-                  </button>
-                ))}
+                {CONFIRM_TEMPLATES.map(t => {
+                  const title = autoTitle(t.key, t.label);
+                  return (
+                    <button key={t.key} onClick={() => setForm(p => ({ ...p, docTitle: title, docContent: t.content }))}
+                      style={{ display: "block", width: "100%", padding: "10px 12px", marginBottom: 8, borderRadius: 10, border: `1px solid ${form.docTitle === title ? "#16a34a" : T.border}`, background: form.docTitle === title ? "#f0fdf4" : T.bg, color: T.text, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+                      {form.docTitle === title ? "✅ " : ""}{t.label}
+                      {t.key !== "custom" && <span style={{ fontSize: 11, color: T.muted, marginLeft: 6 }}>({title.replace(t.label, "").trim()})</span>}
+                    </button>
+                  );
+                })}
               </div>
               <div style={{ background: T.card, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 10 }}>✅ 문서 내용</div>
@@ -4503,7 +4518,8 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* 기타 문서 폼 */}
           {form.docType === "other" && (
