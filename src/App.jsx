@@ -386,9 +386,7 @@ async function fbSaveLeave(userId, date, leaveData) {
 }
 async function fbSaveUsers(newUsers, allUsers) {
   const batch = writeBatch(db);
-  // 새 목록 저장
   newUsers.forEach(u => batch.set(doc(db, COL_USERS, u.id), u));
-  // 삭제된 팀원 Firebase에서 제거
   if (allUsers) {
     const newIds = newUsers.map(u => u.id);
     allUsers.filter(u => !newIds.includes(u.id)).forEach(u => {
@@ -396,6 +394,18 @@ async function fbSaveUsers(newUsers, allUsers) {
     });
   }
   await batch.commit();
+}
+
+async function fbRetireUser(user) {
+  await setDoc(doc(db, COL_USERS, user.id), { ...user, status: "retired", retiredAt: new Date().toISOString() });
+}
+
+async function fbRestoreUser(user) {
+  await setDoc(doc(db, COL_USERS, user.id), { ...user, status: "active", retiredAt: null });
+}
+
+async function fbDeleteUserCompletely(userId) {
+  await deleteDoc(doc(db, COL_USERS, userId));
 }
 async function fbSaveSettings(settings) {
   await setDoc(doc(db, "app", "settings"), settings);
@@ -431,7 +441,8 @@ function Btn({ children, onClick, variant = "default", disabled, fullWidth = tru
     admin: { background: "#1e3a5f", color: "#fff" },
     primary: { background: "#2563eb", color: "#fff" },
     orange: { background: "#ea580c", color: "#fff" },
-    ghost: { background: "#fff", color: T.text, border: `1px solid ${T.border}` }
+    ghost: { background: "#fff", color: T.text, border: `1px solid ${T.border}` },
+    yellow: { background: "#d97706", color: "#fff" }
   };
   const s = V[variant] || V.default;
   return (
@@ -603,6 +614,7 @@ function LoginScreen({ users, onLogin, onUpdateUsers }) {
 
   const login = () => {
     const u = users.find(u => u.name === name.trim() && u.pin === pin);
+    if (u && u.status === "retired") { setErr("퇴직 처리된 계정입니다. 관리자에게 문의하세요."); return; }
     if (u) {
       // OneSignal 태그 설정 + 알림 권한 요청
       try {
@@ -1993,7 +2005,7 @@ function UserManageModal({ users, onSave, onClose }) {
                 <div style={{ fontSize: 11, color: T.muted }}>PIN 본인 관리</div>
               </div>
               <button onClick={() => { setEditing({ ...u }); setMode("edit"); }} style={{ background: T.card, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "5px 10px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>이름수정</button>
-              <button onClick={() => { setDelTarget(u); setMode("delete"); }} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 10px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>삭제</button>
+              <button onClick={() => { setDelTarget(u); setMode("retire"); }} style={{ background: "#fff7ed", border: "none", color: "#d97706", borderRadius: 8, padding: "5px 10px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>퇴직</button>
             </div>
           ))}
           <button onClick={() => { setEditing({ id: "u" + Date.now(), name: "", newPin: "", newPin2: "", role: "member" }); setMode("add"); }} style={{ width: "100%", padding: "11px 0", borderRadius: 12, border: `2px dashed ${T.border}`, background: "none", color: T.muted, fontSize: 13, cursor: "pointer", marginBottom: 14, fontWeight: 600 }}>+ 팀원 추가</button>
@@ -2021,15 +2033,20 @@ function UserManageModal({ users, onSave, onClose }) {
           {err && <div style={{ color: T.red, fontSize: 13, marginBottom: 8, fontWeight: 600 }}>{err}</div>}
           <Btn variant="green" onClick={applyAdd}>추가</Btn>
         </>}
-        {mode === "delete" && <>
+        {mode === "retire" && <>
           <div style={{ textAlign: "center", padding: "20px 0" }}>
-            <div style={{ fontSize: 36, marginBottom: 14 }}>⚠️</div>
-            <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 10 }}>{delTarget?.name} 삭제</div>
-            <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.7 }}>출퇴근 기록도 함께 삭제됩니다.<br />계속할까요?</div>
+            <div style={{ fontSize: 36, marginBottom: 14 }}>👤</div>
+            <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 10 }}>{delTarget?.name} 퇴직 처리</div>
+            <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.7 }}>
+              출퇴근·급여·계약서 등 모든 데이터는<br />보관됩니다. 언제든 복원 가능합니다.
+            </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <Btn variant="ghost" onClick={() => { setMode("list"); setDelTarget(null); }}>취소</Btn>
-            <Btn variant="red" onClick={() => { setList(l => l.filter(u => u.id !== delTarget.id)); setMode("list"); setDelTarget(null); }}>삭제</Btn>
+            <Btn variant="yellow" onClick={async () => {
+              await fbRetireUser(delTarget);
+              setMode("list"); setDelTarget(null); onClose();
+            }}>퇴직 처리</Btn>
           </div>
         </>}
       </div>
@@ -2086,7 +2103,7 @@ function calcIncomeTax(taxBase) {
 
 // ── 퇴직금 계산 ────────────────────────────────────────────────
 function AdminSeverance({ users, memberInfo, annual, onBack }) {
-  const members = users.filter(u => u.role === "member");
+  const members = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
 
 ;
   const [selUser, setSelUser] = useState(members[0]?.id || "");
@@ -2446,7 +2463,7 @@ function AdminAttendance({ users, settings, records, leaves, leaveRequests, onSa
   const [now, setNow] = useState(new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(t); }, []);
   const today = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const members = users.filter(u => u.role === "member");
+  const members = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
 
   const handleSaveRecord = async (date, newRec, leaveData) => {
     await onSaveRecord(editTarget.user.id, date, newRec);
@@ -2757,7 +2774,7 @@ function WageModal({ user, info, monthStats, yearMonth, existing, holidays, annu
 
 // ── 관리자 임금 섹션 ──────────────────────────────────────────
 function AdminWage({ users, records, leaves, settings, memberInfo, annual, leaveRequests, payslips, reads, onBack }) {
-  const members = users.filter(u => u.role === "member");
+  const members = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
   const kst = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const [selectedMonth, setSelectedMonth] = useState(kst.toISOString().slice(0, 7));
   const [wageModal, setWageModal] = useState(null);
@@ -3249,16 +3266,33 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
   const [showUserModal, setShowUserModal] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
   const [editInfo, setEditInfo] = useState(null);
-  const members = users.filter(u => u.role === "member");
+  const [tab, setTab] = useState("active"); // active | retired
+  const [deleteModal, setDeleteModal] = useState(null); // { user }
+  const [deleteInput, setDeleteInput] = useState("");
+  const [deletePin, setDeletePin] = useState("");
+  const [deleteErr, setDeleteErr] = useState("");
+  const admin = users.find(u => u.role === "admin");
+
+  const activeMembers = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
+  const retiredMembers = users.filter(u => u.role === "member" && u.status === "retired");
 
   const saveInfo = async (userId, data) => {
     await setDoc(doc(db, COL_MEMBER_INFO, userId), data);
     setEditInfo(null);
   };
 
+  const handleCompleteDelete = async () => {
+    if (deleteInput !== deleteModal.user.name) { setDeleteErr("이름이 일치하지 않습니다."); return; }
+    if (deletePin !== admin?.pin && deletePin !== MASTER_CODE) { setDeleteErr("PIN이 맞지 않습니다."); return; }
+    try {
+      await fbDeleteUserCompletely(deleteModal.user.id);
+      setDeleteModal(null); setDeleteInput(""); setDeletePin(""); setDeleteErr("");
+    } catch(e) { setDeleteErr("삭제 실패: " + e.message); }
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
-      <div style={{ background: "#7c3aed", padding: "16px 16px 20px" }}>
+      <div style={{ background: "#7c3aed", paddingTop: "calc(16px + env(safe-area-inset-top))", paddingBottom: 20, paddingLeft: 16, paddingRight: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
@@ -3269,26 +3303,34 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => setShowAccount(true)} style={{ background: "#ffffff18", border: "none", color: "#fff", padding: "7px 14px", borderRadius: 18, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>👤 내 계정</button>
-            <button onClick={() => setShowUserModal(true)} style={{ background: "#ffffff18", border: "none", color: "#fff", padding: "7px 14px", borderRadius: 18, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>+ 관리</button>
+            {tab === "active" && <button onClick={() => setShowUserModal(true)} style={{ background: "#ffffff18", border: "none", color: "#fff", padding: "7px 14px", borderRadius: 18, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>+ 관리</button>}
           </div>
+        </div>
+        {/* 탭 */}
+        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+          <button onClick={() => setTab("active")}
+            style={{ padding: "6px 16px", borderRadius: 20, border: "none", background: tab === "active" ? "#fff" : "#ffffff25", color: tab === "active" ? "#7c3aed" : "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            재직중 {activeMembers.length}명
+          </button>
+          <button onClick={() => setTab("retired")}
+            style={{ padding: "6px 16px", borderRadius: 20, border: "none", background: tab === "retired" ? "#fff" : "#ffffff25", color: tab === "retired" ? "#7c3aed" : "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            퇴직자 {retiredMembers.length}명
+          </button>
         </div>
       </div>
 
       <div style={{ padding: 16 }}>
-        {members.map(u => {
+        {/* 재직중 탭 */}
+        {tab === "active" && activeMembers.map(u => {
           const pending = leaveRequests.filter(r => r.userId === u.id && r.status === "대기").length;
           const info = memberInfo[u.id] || {};
-
           return (
             <div key={u.id} style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 14, border: `1px solid ${T.border}`, boxShadow: "0 1px 4px #0000000a" }}>
-              {/* 이름 + 버튼 */}
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
                 <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: "#fff" }}>{u.name[0]}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 800, fontSize: 16, color: T.text }}>{u.name}</div>
-                  <div style={{ fontSize: 12, color: T.muted }}>
-                    {info.empNo && `사번 ${info.empNo} · `}{info.employType || ""}
-                  </div>
+                  <div style={{ fontSize: 12, color: T.muted }}>{info.empNo && `사번 ${info.empNo} · `}{info.employType || ""}</div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
                   {pending > 0 && <Badge label={`연차신청 ${pending}건`} color="yellow" />}
@@ -3296,8 +3338,6 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
                     style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>기초데이터</button>
                 </div>
               </div>
-
-              {/* 기초 데이터 요약 */}
               {info.joinDate || info.hourlyWage || info.bank ? (
                 <div style={{ background: T.bg, borderRadius: 10, padding: "10px 14px", marginBottom: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                   {info.joinDate && <div style={{ fontSize: 11 }}><span style={{ color: T.muted }}>입사일 </span><span style={{ fontWeight: 600, color: T.text }}>{info.joinDate}</span></div>}
@@ -3312,20 +3352,81 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
                   기초 데이터 미입력 — 우측 버튼을 눌러 입력해주세요
                 </div>
               )}
-
             </div>
           );
         })}
 
+        {/* 퇴직자 탭 */}
+        {tab === "retired" && (
+          retiredMembers.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 40 }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>👤</div>
+              <div style={{ fontSize: 14, color: T.muted, fontWeight: 600 }}>퇴직자가 없습니다</div>
+            </div>
+          ) : retiredMembers.map(u => (
+            <div key={u.id} style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 14, border: `1px solid ${T.border}`, opacity: 0.85 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#9ca3af", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: "#fff" }}>{u.name[0]}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: T.text }}>{u.name}</div>
+                  <div style={{ fontSize: 11, color: T.muted }}>
+                    퇴직일: {u.retiredAt ? new Date(u.retiredAt).toLocaleDateString("ko-KR") : "-"}
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <button onClick={async () => { await fbRestoreUser(u); }}
+                    style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#dcfce7", color: "#16a34a", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                    복원
+                  </button>
+                  <button onClick={() => { setDeleteModal({ user: u }); setDeleteInput(""); setDeletePin(""); setDeleteErr(""); }}
+                    style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                    완전삭제
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
+      {/* 완전삭제 모달 */}
+      {deleteModal && (
+        <div style={{ position: "fixed", inset: 0, background: "#00000066", zIndex: 999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ background: "#fff", borderRadius: 20, padding: 24, width: "100%", maxWidth: 340 }}>
+            <div style={{ fontSize: 32, textAlign: "center", marginBottom: 8 }}>⚠️</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: T.text, textAlign: "center", marginBottom: 6 }}>완전 삭제</div>
+            <div style={{ fontSize: 12, color: "#dc2626", textAlign: "center", marginBottom: 4, fontWeight: 600 }}>이 작업은 되돌릴 수 없습니다</div>
+            <div style={{ fontSize: 12, color: T.muted, textAlign: "center", marginBottom: 16, lineHeight: 1.7 }}>
+              모든 데이터가 영구 삭제됩니다.<br />계속하려면 아래를 입력하세요.
+            </div>
+            <div style={{ fontSize: 12, color: T.muted, marginBottom: 4, fontWeight: 600 }}>팀원 이름 입력</div>
+            <input value={deleteInput} onChange={e => { setDeleteInput(e.target.value); setDeleteErr(""); }}
+              placeholder={deleteModal.user.name}
+              style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${deleteErr ? "#fca5a5" : T.border}`, fontSize: 14, marginBottom: 10, boxSizing: "border-box", fontFamily: "inherit" }} />
+            <div style={{ fontSize: 12, color: T.muted, marginBottom: 4, fontWeight: 600 }}>관리자 PIN</div>
+            <input type="password" value={deletePin} onChange={e => { setDeletePin(e.target.value); setDeleteErr(""); }}
+              placeholder="관리자 PIN 입력"
+              style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${deleteErr ? "#fca5a5" : T.border}`, fontSize: 14, marginBottom: 10, boxSizing: "border-box", fontFamily: "inherit", letterSpacing: 4 }} />
+            {deleteErr && <div style={{ fontSize: 12, color: "#dc2626", textAlign: "center", marginBottom: 10, fontWeight: 600 }}>{deleteErr}</div>}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <button onClick={() => setDeleteModal(null)}
+                style={{ padding: "12px 0", borderRadius: 12, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>취소</button>
+              <button onClick={handleCompleteDelete}
+                disabled={deleteInput !== deleteModal.user.name}
+                style={{ padding: "12px 0", borderRadius: 12, border: "none", background: deleteInput === deleteModal.user.name ? "#dc2626" : "#e5e7eb", color: deleteInput === deleteModal.user.name ? "#fff" : T.muted, fontSize: 14, fontWeight: 700, cursor: deleteInput === deleteModal.user.name ? "pointer" : "default" }}>
+                완전 삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editInfo && (
         <MemberInfoModal user={editInfo.user} info={memberInfo[editInfo.user.id] || {}}
           onSave={data => saveInfo(editInfo.user.id, data)} onClose={() => setEditInfo(null)} />
       )}
 
-      {showUserModal && <UserManageModal users={users} onSave={async u => { await fbSaveUsers(u, users); setShowUserModal(false); }} onClose={() => setShowUserModal(false)} />}
+      {showUserModal && <UserManageModal users={activeMembers} onSave={async u => { await fbSaveUsers(u, activeMembers); setShowUserModal(false); }} onClose={() => setShowUserModal(false)} />}
       {showAccount && <AdminAccountModal users={users} onUpdateUsers={onSaveUsers} onClose={() => setShowAccount(false)} />}
     </div>
   );
@@ -4065,7 +4166,7 @@ function ContractField({ label, fkey, type = "text", placeholder = "", form, set
 
 // ── 근로계약서 (관리자) ─────────────────────────────────────────
 function DocSection({ users, memberInfo, settings, contracts, onBack }) {
-  const members = users.filter(u => u.role === "member");
+  const members = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
   const [docTypeFilter, setDocTypeFilter] = useState("contract"); // 상단 탭
   const [selUser, setSelUser] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -6007,7 +6108,7 @@ function NoticeBoardScreen({ user, users, notices, board, reads }) {
 
 function NoticeScreen({ user, users, notices, reads }) {
   const isAdmin = user.role === "admin";
-  const members = users.filter(u => u.role === "member");
+  const members = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
   const [showWrite, setShowWrite] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [title, setTitle] = useState("");
@@ -6301,7 +6402,7 @@ function PayslipScreen({ user, users, payslips, reads }) {
   const kstNow = new Date(new Date().getTime() + 9*60*60*1000);
   const [selectedYear, setSelectedYear] = useState(kstNow.getFullYear());
 
-  const members = users.filter(u => u.role === "member");
+  const members = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
   const allPayslips = isAdmin ? payslips : payslips.filter(p => p.userId === user.id);
   // 연도 필터 적용
   const myPayslips = allPayslips.filter(p => (p.month || "").startsWith(String(selectedYear)));
@@ -6555,7 +6656,7 @@ function PayslipScreen({ user, users, payslips, reads }) {
 // ── 연차 현황 ────────────────────────────────────────────────────
 function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
   const isAdmin = user.role === "admin";
-  const members = users.filter(u => u.role === "member");
+  const members = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
   const [editUser, setEditUser] = useState(null);
   const [total, setTotal] = useState(15);
   const [used, setUsed] = useState(0);
