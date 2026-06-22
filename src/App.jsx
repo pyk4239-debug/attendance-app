@@ -4839,6 +4839,12 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
                                 <div style={{ padding: "8px 10px", background: "#dcfce7", borderRadius: 8, marginBottom: 8 }}>
                                   <div style={{ fontSize: 11, color: "#15803d", fontWeight: 700 }}>✅ {new Date(latest.signedAt).toLocaleString("ko-KR")}</div>
                                   {latest.signIp && <div style={{ fontSize: 11, color: "#16a34a", marginTop: 2 }}>🌐 {latest.signIp} · {latest.signDevice}</div>}
+                                  {latest.attachment && (
+                                    <a href={latest.attachment.url} target="_blank" rel="noreferrer"
+                                      style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 6, padding: "4px 10px", borderRadius: 6, background: "#fff", color: "#0369a1", fontSize: 11, fontWeight: 700, textDecoration: "none", border: "1px solid #bae6fd" }}>
+                                      📎 {latest.attachment.name}
+                                    </a>
+                                  )}
                                 </div>
                               )}
                               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -4936,6 +4942,12 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
                                               <div style={{ padding: "5px 8px", background: "#dcfce7", borderRadius: 6 }}>
                                                 <div style={{ fontSize: 10, color: "#15803d", fontWeight: 700 }}>✅ {new Date(c.signedAt).toLocaleString("ko-KR")}</div>
                                                 {c.signIp && <div style={{ fontSize: 10, color: "#16a34a" }}>🌐 {c.signIp} · {c.signDevice}</div>}
+                                                {c.attachment && (
+                                                  <a href={c.attachment.url} target="_blank" rel="noreferrer"
+                                                    style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4, fontSize: 10, color: "#0369a1", fontWeight: 700, textDecoration: "none" }}>
+                                                    📎 {c.attachment.name}
+                                                  </a>
+                                                )}
                                               </div>
                                             )}
                                           </div>
@@ -5133,51 +5145,94 @@ function ContractViewScreen({ user, contracts }) {
                         </div>
                       )}
                       {/* 서명 대기 */}
-                      {latest.status === "sent" && (
-                        <div style={{ background: T.card, borderRadius: 12, padding: 14, border: `2px solid #0891b2`, marginTop: 8 }}>
-                          <div style={{ fontSize: 13, fontWeight: 800, color: "#0891b2", marginBottom: 10 }}>✍️ 전자서명 (동의)</div>
-                          <div style={{ marginBottom: 10, padding: "8px 12px", background: T.bg, borderRadius: 8, fontSize: 13, fontWeight: 700, color: T.text }}>{user.name}</div>
-                          <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12, padding: 10, background: "#f0f9ff", borderRadius: 8 }}>
-                            <input type="checkbox" id={`agree_${latest.id}`}
-                              checked={!!expandedDoc[`agree_${latest.id}`]}
-                              onChange={e => setExpandedDoc(p => ({ ...p, [`agree_${latest.id}`]: e.target.checked }))}
-                              style={{ width: 18, height: 18, marginTop: 1, cursor: "pointer" }} />
-                            <label htmlFor={`agree_${latest.id}`} style={{ fontSize: 13, color: T.text, lineHeight: 1.6, cursor: "pointer" }}>
-                              본인은 위 {latest.docTitle || "문서"}의 내용을 충분히 읽고 이해하였으며, 이에 동의합니다.
-                            </label>
+                      {latest.status === "sent" && (() => {
+                        const needsFile = latest.docType === "confirm" || latest.docType === "other";
+                        const fileKey = `file_${latest.id}`;
+                        const attachedFile = expandedDoc[fileKey];
+                        const canSign = !!expandedDoc[`agree_${latest.id}`];
+                        return (
+                          <div style={{ background: T.card, borderRadius: 12, padding: 14, border: `2px solid #0891b2`, marginTop: 8 }}>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: "#0891b2", marginBottom: 10 }}>✍️ 전자서명 (동의)</div>
+                            <div style={{ marginBottom: 10, padding: "8px 12px", background: T.bg, borderRadius: 8, fontSize: 13, fontWeight: 700, color: T.text }}>{user.name}</div>
+
+                            {/* 파일 첨부 — 확인서/기타만 */}
+                            {needsFile && (
+                              <div style={{ marginBottom: 12 }}>
+                                <div style={{ fontSize: 12, color: T.sub, fontWeight: 600, marginBottom: 6 }}>
+                                  📎 파일 첨부 <span style={{ color: T.muted, fontWeight: 400 }}>(수료증 등 선택사항)</span>
+                                </div>
+                                {attachedFile ? (
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: T.bg, borderRadius: 8, border: `1px solid ${T.border}` }}>
+                                    <span style={{ fontSize: 18 }}>{attachedFile.type?.startsWith("image/") ? "🖼" : "📄"}</span>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: T.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attachedFile.name}</span>
+                                    <button onClick={() => setExpandedDoc(p => ({ ...p, [fileKey]: null }))}
+                                      style={{ background: "none", border: "none", color: "#b91c1c", cursor: "pointer", fontSize: 15 }}>✕</button>
+                                  </div>
+                                ) : (
+                                  <label style={{ display: "block", padding: "10px 14px", borderRadius: 10, border: `1px dashed ${T.border}`, background: T.bg, color: T.sub, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "center" }}>
+                                    📁 파일 선택
+                                    <input type="file" accept="image/*,.pdf,.doc,.docx" style={{ display: "none" }}
+                                      onChange={e => {
+                                        const f = e.target.files?.[0];
+                                        if (f) setExpandedDoc(p => ({ ...p, [fileKey]: f }));
+                                      }} />
+                                  </label>
+                                )}
+                              </div>
+                            )}
+
+                            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12, padding: 10, background: "#f0f9ff", borderRadius: 8 }}>
+                              <input type="checkbox" id={`agree_${latest.id}`}
+                                checked={!!expandedDoc[`agree_${latest.id}`]}
+                                onChange={e => setExpandedDoc(p => ({ ...p, [`agree_${latest.id}`]: e.target.checked }))}
+                                style={{ width: 18, height: 18, marginTop: 1, cursor: "pointer" }} />
+                              <label htmlFor={`agree_${latest.id}`} style={{ fontSize: 13, color: T.text, lineHeight: 1.6, cursor: "pointer" }}>
+                                본인은 위 {latest.docTitle || "문서"}의 내용을 충분히 읽고 이해하였으며, 이에 동의합니다.
+                              </label>
+                            </div>
+                            <button
+                              onClick={async () => {
+                                if (!canSign) { alert("동의 체크 후 서명해주세요."); return; }
+                                if (!window.confirm(`${latest.docTitle || "문서"}에 전자서명(동의)하시겠습니까?`)) return;
+                                try {
+                                  let signIp = "";
+                                  try { const r = await fetch("https://api.ipify.org?format=json"); signIp = (await r.json()).ip || ""; } catch {}
+                                  // 파일 업로드 (확인서/기타)
+                                  let attachmentData = null;
+                                  if (needsFile && attachedFile) {
+                                    const ext = attachedFile.name.split(".").pop().toLowerCase();
+                                    const sRef = ref(storage, `doc_attachments/${latest.userId}/${latest.id}_${Date.now()}.${ext}`);
+                                    await uploadBytes(sRef, attachedFile);
+                                    const url = await getDownloadURL(sRef);
+                                    attachmentData = { url, name: attachedFile.name, type: attachedFile.type, size: attachedFile.size };
+                                  }
+                                  await setDoc(doc(db, COL_CONTRACTS, latest.id), {
+                                    ...latest, status: "signed",
+                                    signedAt: new Date().toISOString(), signIp,
+                                    signUserAgent: navigator.userAgent,
+                                    signDevice: /Mobi|Android/i.test(navigator.userAgent) ? "모바일" : "PC",
+                                    signBrowser: navigator.userAgent.match(/(Chrome|Safari|Firefox|Edge|Samsung)/)?.[1] || "기타",
+                                    ...(attachmentData ? { attachment: attachmentData } : {}),
+                                  });
+                                  await addDoc(collection(db, COL_NOTICES), {
+                                    title: `✅ ${user.name}님 ${latest.docTitle || "문서"} 서명 완료`,
+                                    content: `${user.name}님이 ${latest.docTitle || "문서"}에 전자서명하였습니다.${attachmentData ? "\n📎 첨부파일: " + attachmentData.name : ""}`,
+                                    recipient: "admin", author: user.name, createdAt: new Date().toISOString(),
+                                  });
+                                  await sendPush({ title: `✅ ${latest.docTitle || "문서"} 서명 완료`, message: `${user.name}님이 서명하였습니다.${attachmentData ? " (첨부파일 있음)" : ""}`, targetUserId: "admin" });
+                                  alert("서명이 완료되었습니다.");
+                                } catch(e) { alert("서명 실패: " + e.message); }
+                              }}
+                              disabled={!canSign}
+                              style={{ width: "100%", padding: "12px 0", borderRadius: 12, border: "none",
+                                background: canSign ? "#0891b2" : "#e5e7eb",
+                                color: canSign ? "#fff" : T.muted,
+                                fontSize: 14, fontWeight: 800, cursor: canSign ? "pointer" : "default" }}>
+                              📝 서명하기 (동의)
+                            </button>
                           </div>
-                          <button
-                            onClick={async () => {
-                              if (!expandedDoc[`agree_${latest.id}`]) { alert("동의 체크 후 서명해주세요."); return; }
-                              if (!window.confirm(`${latest.docTitle || "문서"}에 전자서명(동의)하시겠습니까?`)) return;
-                              try {
-                                let signIp = "";
-                                try { const r = await fetch("https://api.ipify.org?format=json"); signIp = (await r.json()).ip || ""; } catch {}
-                                await setDoc(doc(db, COL_CONTRACTS, latest.id), {
-                                  ...latest, status: "signed",
-                                  signedAt: new Date().toISOString(), signIp,
-                                  signUserAgent: navigator.userAgent,
-                                  signDevice: /Mobi|Android/i.test(navigator.userAgent) ? "모바일" : "PC",
-                                  signBrowser: navigator.userAgent.match(/(Chrome|Safari|Firefox|Edge|Samsung)/)?.[1] || "기타",
-                                });
-                                await addDoc(collection(db, COL_NOTICES), {
-                                  title: `✅ ${user.name}님 ${latest.docTitle || "문서"} 서명 완료`,
-                                  content: `${user.name}님이 ${latest.docTitle || "문서"}에 전자서명하였습니다.`,
-                                  recipient: "admin", author: user.name, createdAt: new Date().toISOString(),
-                                });
-                                await sendPush({ title: `✅ ${latest.docTitle || "문서"} 서명 완료`, message: `${user.name}님이 서명하였습니다.`, targetUserId: "admin" });
-                                alert("서명이 완료되었습니다.");
-                              } catch(e) { alert("서명 실패: " + e.message); }
-                            }}
-                            disabled={!expandedDoc[`agree_${latest.id}`]}
-                            style={{ width: "100%", padding: "12px 0", borderRadius: 12, border: "none",
-                              background: expandedDoc[`agree_${latest.id}`] ? "#0891b2" : "#e5e7eb",
-                              color: expandedDoc[`agree_${latest.id}`] ? "#fff" : T.muted,
-                              fontSize: 14, fontWeight: 800, cursor: expandedDoc[`agree_${latest.id}`] ? "pointer" : "default" }}>
-                            📝 서명하기 (동의)
-                          </button>
-                        </div>
-                      )}
+                        );
+                      })()}
                       {/* 서명 완료 */}
                       {latest.status === "signed" && (
                         <div style={{ padding: 12, background: "#dcfce7", borderRadius: 10, textAlign: "center" }}>
@@ -5186,8 +5241,14 @@ function ContractViewScreen({ user, contracts }) {
                           <div style={{ fontSize: 11, color: "#16a34a", marginTop: 2 }}>
                             {latest.signedAt && new Date(latest.signedAt).toLocaleString("ko-KR")}
                           </div>
+                          {latest.attachment && (
+                            <a href={latest.attachment.url} target="_blank" rel="noreferrer"
+                              style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, padding: "6px 14px", borderRadius: 8, background: "#fff", color: "#15803d", fontSize: 12, fontWeight: 700, textDecoration: "none", border: "1px solid #86efac" }}>
+                              📎 {latest.attachment.name}
+                            </a>
+                          )}
                           <button onClick={downloadMyPDF} disabled={pdfLoading}
-                            style={{ marginTop: 10, padding: "8px 20px", borderRadius: 10, border: "none", background: "#16a34a", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: pdfLoading ? 0.6 : 1 }}>
+                            style={{ display: "block", width: "100%", marginTop: 8, padding: "8px 0", borderRadius: 10, border: "none", background: "#16a34a", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: pdfLoading ? 0.6 : 1 }}>
                             {pdfLoading ? "생성 중..." : "⬇ PDF"}
                           </button>
                         </div>
