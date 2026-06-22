@@ -3369,19 +3369,41 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
                 <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#9ca3af", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: "#fff" }}>{u.name[0]}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 800, fontSize: 16, color: T.text }}>{u.name}</div>
-                  <div style={{ fontSize: 11, color: T.muted }}>
+                  <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
                     퇴직일: {u.retiredAt ? new Date(u.retiredAt).toLocaleDateString("ko-KR") : "-"}
                   </div>
+                  {u.retiredAt && (() => {
+                    const deleteAvailDate = new Date(u.retiredAt);
+                    deleteAvailDate.setFullYear(deleteAvailDate.getFullYear() + 3);
+                    const canDelete = new Date() >= deleteAvailDate;
+                    return canDelete ? (
+                      <div style={{ fontSize: 11, color: "#16a34a", fontWeight: 700, marginTop: 2 }}>✅ 3년 경과 — 삭제 가능</div>
+                    ) : (
+                      <div style={{ fontSize: 11, color: "#d97706", fontWeight: 600, marginTop: 2 }}>
+                        ⏳ 삭제 가능: {deleteAvailDate.toLocaleDateString("ko-KR")}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <button onClick={async () => { await fbRestoreUser(u); }}
                     style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#dcfce7", color: "#16a34a", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                     복원
                   </button>
-                  <button onClick={() => { setDeleteModal({ user: u }); setDeleteInput(""); setDeletePin(""); setDeleteErr(""); }}
-                    style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                    완전삭제
-                  </button>
+                  {(() => {
+                    const deleteAvailDate = new Date(u.retiredAt || Date.now());
+                    deleteAvailDate.setFullYear(deleteAvailDate.getFullYear() + 3);
+                    const canDelete = new Date() >= deleteAvailDate;
+                    return (
+                      <button onClick={() => {
+                        if (!canDelete && !window.confirm(`아직 3년 보관 의무 기간입니다.\n(삭제 가능일: ${deleteAvailDate.toLocaleDateString("ko-KR")})\n\n그래도 삭제하시겠습니까?`)) return;
+                        setDeleteModal({ user: u }); setDeleteInput(""); setDeletePin(""); setDeleteErr("");
+                      }}
+                        style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: canDelete ? "#fee2e2" : "#f3f4f6", color: canDelete ? "#b91c1c" : "#9ca3af", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                        완전삭제
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
