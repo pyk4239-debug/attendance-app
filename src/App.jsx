@@ -5157,31 +5157,35 @@ function ContractViewScreen({ user, contracts }) {
                             <div style={{ fontSize: 13, fontWeight: 800, color: "#0891b2", marginBottom: 10 }}>✍️ 전자서명 (동의)</div>
                             <div style={{ marginBottom: 10, padding: "8px 12px", background: T.bg, borderRadius: 8, fontSize: 13, fontWeight: 700, color: T.text }}>{user.name}</div>
 
-                            {/* 파일 첨부 — 확인서/기타만 */}
-                            {needsFile && (
-                              <div style={{ marginBottom: 12 }}>
-                                <div style={{ fontSize: 12, color: T.sub, fontWeight: 600, marginBottom: 6 }}>
-                                  📎 파일 첨부 <span style={{ color: T.muted, fontWeight: 400 }}>(수료증 등 선택사항)</span>
-                                </div>
-                                {attachedFile ? (
-                                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: T.bg, borderRadius: 8, border: `1px solid ${T.border}` }}>
-                                    <span style={{ fontSize: 18 }}>{attachedFile.type?.startsWith("image/") ? "🖼" : "📄"}</span>
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: T.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attachedFile.name}</span>
-                                    <button onClick={() => setExpandedDoc(p => ({ ...p, [fileKey]: null }))}
-                                      style={{ background: "none", border: "none", color: "#b91c1c", cursor: "pointer", fontSize: 15 }}>✕</button>
+                              {/* 파일 첨부 — 확인서/기타만 */}
+                              {needsFile && (
+                                <div style={{ marginBottom: 12 }}>
+                                  <div style={{ fontSize: 12, color: T.sub, fontWeight: 600, marginBottom: 6 }}>
+                                    📎 파일 첨부 <span style={{ color: T.muted, fontWeight: 400 }}>(수료증 등 선택사항)</span>
                                   </div>
-                                ) : (
-                                  <label style={{ display: "block", padding: "10px 14px", borderRadius: 10, border: `1px dashed ${T.border}`, background: T.bg, color: T.sub, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "center" }}>
-                                    📁 파일 선택
-                                    <input type="file" accept="image/*,.pdf,.doc,.docx" style={{ display: "none" }}
-                                      onChange={e => {
-                                        const f = e.target.files?.[0];
-                                        if (f) setExpandedDoc(p => ({ ...p, [fileKey]: f }));
-                                      }} />
-                                  </label>
-                                )}
-                              </div>
-                            )}
+                                  {attachedFile ? (
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: T.bg, borderRadius: 8, border: `1px solid ${T.border}` }}>
+                                      <span style={{ fontSize: 18 }}>{attachedFile.type?.startsWith("image/") ? "🖼" : "📄"}</span>
+                                      <span style={{ fontSize: 12, fontWeight: 600, color: T.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attachedFile.name}</span>
+                                      <button onClick={() => setExpandedDoc(p => ({ ...p, [fileKey]: null }))}
+                                        style={{ background: "none", border: "none", color: "#b91c1c", cursor: "pointer", fontSize: 15 }}>✕</button>
+                                    </div>
+                                  ) : (
+                                    <div style={{ display: "flex", gap: 8 }}>
+                                      <label style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px dashed ${T.border}`, background: T.bg, color: T.sub, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "center" }}>
+                                        📷 사진
+                                        <input type="file" accept="image/*" capture="environment" style={{ display: "none" }}
+                                          onChange={e => { const f = e.target.files?.[0]; if (f) setExpandedDoc(p => ({ ...p, [fileKey]: f })); }} />
+                                      </label>
+                                      <label style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px dashed ${T.border}`, background: T.bg, color: T.sub, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "center" }}>
+                                        📁 파일
+                                        <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,image/*,application/pdf" style={{ display: "none" }}
+                                          onChange={e => { const f = e.target.files?.[0]; if (f) setExpandedDoc(p => ({ ...p, [fileKey]: f })); }} />
+                                      </label>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
 
                             <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12, padding: 10, background: "#f0f9ff", borderRadius: 8 }}>
                               <input type="checkbox" id={`agree_${latest.id}`}
