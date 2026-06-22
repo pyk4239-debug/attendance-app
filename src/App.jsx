@@ -5118,7 +5118,7 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
 // ── 근로계약서 (팀원 조회 + 서명) ──────────────────────────────
 function ContractViewScreen({ user, contracts }) {
   const [docTypeTab, setDocTypeTab] = useState("contract");
-  const myDocs = contracts.filter(c => c.userId === user.id && (c.docType || "contract") === docTypeTab);
+  const myDocs = contracts.filter(c => c.userId === user.id && (c.docType || "contract") === docTypeTab && (c.status === "sent" || c.status === "signed"));
   const contract = myDocs[0]; // 근로계약서용 최신 1건
   const [signing, setSigning] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
