@@ -5253,12 +5253,52 @@ function ContractViewScreen({ user, contracts }) {
                               📎 {latest.attachment.name}
                             </a>
                           )}
-                          <button onClick={downloadMyPDF} disabled={pdfLoading}
-                            style={{ display: "block", width: "100%", marginTop: 8, padding: "8px 0", borderRadius: 10, border: "none", background: "#16a34a", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: pdfLoading ? 0.6 : 1 }}>
-                            {pdfLoading ? "생성 중..." : "⬇ PDF"}
+                          <button onClick={async () => {
+                            const el = document.getElementById(`doc-print-${latest.id}`);
+                            if (!el) { alert("PDF 생성 영역을 찾을 수 없습니다."); return; }
+                            try {
+                              const canvas = await html2canvas(el, { scale: 2.5, useCORS: true, backgroundColor: "#ffffff" });
+                              const imgData = canvas.toDataURL("image/png");
+                              const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+                              const pageW = pdf.internal.pageSize.getWidth();
+                              const pageH = pdf.internal.pageSize.getHeight();
+                              const margin = 8;
+                              const ratio = canvas.width / canvas.height;
+                              let imgW = pageW - margin * 2, imgH = imgW / ratio;
+                              if (imgH > pageH - margin * 2) { imgH = pageH - margin * 2; imgW = imgH * ratio; }
+                              pdf.addImage(imgData, "PNG", (pageW - imgW) / 2, margin, imgW, imgH);
+                              pdf.save(`${user.name}_${latest.docTitle || "문서"}_${latest.createdAt?.slice(0,10) || ""}.pdf`);
+                            } catch(e) { alert("PDF 생성 실패: " + e.message); }
+                          }}
+                            style={{ display: "block", width: "100%", marginTop: 8, padding: "8px 0", borderRadius: 10, border: "none", background: "#16a34a", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                            ⬇ PDF
                           </button>
                         </div>
                       )}
+                      {/* 동의서/확인서 숨김 인쇄 영역 */}
+                      <div id={`doc-print-${latest.id}`} style={{ position: "fixed", left: -9999, top: 0, width: 794, background: "#fff", padding: "40px 50px", fontFamily: "'Noto Sans KR', sans-serif", fontSize: 12, color: "#111", lineHeight: 1.8 }}>
+                        <div style={{ textAlign: "center", fontSize: 20, fontWeight: 900, marginBottom: 8, letterSpacing: 4 }}>
+                          {DOC_TYPES.find(d => d.key === latest.docType)?.label || "문서"}
+                        </div>
+                        {latest.docTitle && <div style={{ textAlign: "center", fontSize: 14, fontWeight: 700, marginBottom: 24, color: "#444" }}>{latest.docTitle}</div>}
+                        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 20, fontSize: 12 }}>
+                          <tbody>
+                            <tr><td style={{ padding: "4px 8px", fontWeight: 700, width: 80 }}>사업체명</td><td style={{ padding: "4px 8px" }}>하나기업</td></tr>
+                            <tr><td style={{ padding: "4px 8px", fontWeight: 700 }}>대표자</td><td style={{ padding: "4px 8px" }}>박용균</td></tr>
+                            <tr><td style={{ padding: "4px 8px", fontWeight: 700 }}>성명</td><td style={{ padding: "4px 8px" }}>{user.name}</td></tr>
+                          </tbody>
+                        </table>
+                        {latest.docContent && (
+                          <div style={{ fontSize: 12, lineHeight: 1.9, whiteSpace: "pre-wrap", marginBottom: 24, padding: "12px 0", borderTop: "1px solid #e5e7eb", borderBottom: "1px solid #e5e7eb" }}>
+                            {latest.docContent}
+                          </div>
+                        )}
+                        <div style={{ marginTop: 24, fontSize: 12 }}>{latest.createdAt ? new Date(latest.createdAt).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" }) : ""}</div>
+                        <div style={{ marginTop: 16, display: "flex", justifyContent: "space-around", fontSize: 12 }}>
+                          <div>(사업자) 박용균</div>
+                          <div>(서명인) {user.name} &nbsp;&nbsp; {latest.signedAt ? `✅ ${new Date(latest.signedAt).toLocaleDateString("ko-KR")} 전자서명` : ""}</div>
+                        </div>
+                      </div>
                     </div>
                   )}
                   {/* 이전 버전 히스토리 */}
