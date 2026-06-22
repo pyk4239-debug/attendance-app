@@ -4081,7 +4081,7 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
     setPdfLoading(contract.id);
     try {
       const el = document.getElementById(`contract-print-${contract.id}`);
-      if (!el) { alert("계약서 영역 없음"); setPdfLoading(null); return; }
+      if (!el) { alert("PDF 생성 영역을 찾을 수 없습니다."); setPdfLoading(null); return; }
       const pdfBtn = document.getElementById(`contract-pdf-btn-${contract.id}`);
       if (pdfBtn) pdfBtn.style.visibility = "hidden";
       const canvas = await html2canvas(el, { scale: 2.5, useCORS: true, backgroundColor: "#ffffff" });
@@ -4215,13 +4215,15 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
   };
 
   const deleteContract = async (contract) => {
+    const docLabel = DOC_TYPES.find(d => d.key === (contract.docType || "contract"))?.label || "문서";
+    const docName = contract.docTitle || docLabel;
     if (contract.status === "signed") {
       setPinInput("");
       setPinErr("");
       setPinModal({ contract });
       return;
     }
-    if (!window.confirm(`${contract.userName}님의 근로계약서를 삭제할까요?`)) return;
+    if (!window.confirm(`${contract.userName}님의 ${docName}을(를) 삭제할까요?`)) return;
     try { await deleteDoc(doc(db, COL_CONTRACTS, contract.id)); } catch(e) { alert("삭제 실패: " + e.message); }
   };
 
@@ -4992,7 +4994,7 @@ function ContractViewScreen({ user, contracts }) {
     setPdfLoading(true);
     try {
       const el = document.getElementById(`contract-member-print-${contract.id}`);
-      if (!el) { alert("계약서 영역 없음"); setPdfLoading(false); return; }
+      if (!el) { alert("PDF 생성 영역을 찾을 수 없습니다."); setPdfLoading(false); return; }
       const btn = document.getElementById("member-pdf-btn");
       if (btn) btn.style.visibility = "hidden";
       const canvas = await html2canvas(el, { scale: 2.5, useCORS: true, backgroundColor: "#ffffff" });
