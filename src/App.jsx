@@ -4224,7 +4224,11 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
       let imgW = maxW, imgH = imgW / ratio;
       if (imgH > maxH) { imgH = maxH; imgW = imgH * ratio; }
       pdf.addImage(imgData, "PNG", (pageW - imgW) / 2, margin, imgW, imgH);
-      const fileName = `${contract.userName}_근로계약서_${contract.contractStart || ""}.pdf`;
+      const docLabel = DOC_TYPES.find(d => d.key === (contract.docType || "contract"))?.label || "문서";
+      const docName = (!contract.docType || contract.docType === "contract")
+        ? `근로계약서_${contract.contractStart || ""}`
+        : `${contract.docTitle || docLabel}_${contract.createdAt?.slice(0,10) || ""}`;
+      const fileName = `${contract.userName}_${docName}.pdf`;
       pdf.save(fileName);
       // ✅ 다운로드 완료 즉시 버튼 정상화
       setPdfLoading(null);
