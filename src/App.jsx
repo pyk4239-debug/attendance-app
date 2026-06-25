@@ -6150,13 +6150,14 @@ function NoticeScreen({ user, users, notices, reads }) {
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [expanded, setExpanded] = useState(null);
+  const [requireConfirm, setRequireConfirm] = useState(false);
 
   // 내가 볼 수 있는 공지 필터
   const visibleNotices = notices.filter(n =>
     n.recipient === "all" || n.recipient === user.id || user.role === "admin"
   );
 
-  const resetForm = () => { setTitle(""); setContent(""); setRecipient("all"); setFile(null); setShowWrite(false); setEditTarget(null); };
+  const resetForm = () => { setTitle(""); setContent(""); setRecipient("all"); setFile(null); setShowWrite(false); setEditTarget(null); setRequireConfirm(false); };
 
   const markRead = async (id) => {
     const key = `${user.id}_notice_${id}`;
@@ -6181,7 +6182,7 @@ function NoticeScreen({ user, users, notices, reads }) {
       fileUrl = await getDownloadURL(storageRef);
       fileName = file.name;
     }
-    const data = { title: title.trim(), content: content.trim(), recipient, author: user.name, createdAt: new Date().toISOString() };
+    const data = { title: title.trim(), content: content.trim(), recipient, author: user.name, createdAt: new Date().toISOString(), requireConfirm };
     if (fileUrl) { data.fileUrl = fileUrl; data.fileName = fileName; }
     await addDoc(collection(db, COL_NOTICES), data);
     const pushTarget = recipient === "all" ? null : recipient;
@@ -6244,6 +6245,15 @@ function NoticeScreen({ user, users, notices, reads }) {
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="제목" style={iStyle} />
           <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="내용" rows={4}
             style={{ ...iStyle, resize: "none", lineHeight: 1.6 }} />
+          {/* 읽음 확인 요청 */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: requireConfirm ? "#fffbeb" : T.bg, borderRadius: 10, border: `1px solid ${requireConfirm ? "#fbbf24" : T.border}`, marginBottom: 10, cursor: "pointer" }}
+            onClick={() => setRequireConfirm(p => !p)}>
+            <input type="checkbox" checked={requireConfirm} onChange={() => {}} style={{ width: 16, height: 16, cursor: "pointer" }} />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>📋 읽음 확인 요청</div>
+              <div style={{ fontSize: 11, color: T.muted }}>팀원이 "확인했습니다" 버튼을 눌러야 완료됩니다</div>
+            </div>
+          </div>
           {/* 첨부파일 */}
           <label style={{ display: "block", padding: "10px 0", borderRadius: 10, border: `2px dashed ${T.border}`, textAlign: "center", fontSize: 12, color: file ? T.green : T.muted, fontWeight: 600, cursor: "pointer", marginBottom: 10 }}>
             {file ? `✓ ${file.name}` : editTarget?.fileName ? `📎 ${editTarget.fileName} (변경하려면 선택)` : "📎 파일 첨부 (선택)"}
@@ -6258,7 +6268,16 @@ function NoticeScreen({ user, users, notices, reads }) {
 
       {visibleNotices.length === 0
         ? <div style={{ textAlign: "center", color: T.muted, padding: 40 }}>공지사항이 없어요</div>
-        : visibleNotices.map(n => (
+        : visibleNotices.map(n => {
+          // 확인 현황 계산
+          const targetMembers = n.recipient === "all"
+            ? members
+            : members.filter(m => m.id === n.recipient);
+          const confirmedIds = targetMembers.filter(m => reads[`${m.id}_confirm_${n.id}`]).map(m => m.id);
+          const unconfirmedMembers = targetMembers.filter(m => !reads[`${m.id}_confirm_${n.id}`]);
+          const myConfirmed = reads[`${user.id}_confirm_${n.id}`];
+
+          return (
           <div key={n.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${isUnread(n) ? T.blue : T.border}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }} onClick={() => toggleExpanded(n.id)}>
               <div style={{ flex: 1 }}>
@@ -6267,8 +6286,16 @@ function NoticeScreen({ user, users, notices, reads }) {
                   <div style={{ fontWeight: isUnread(n) ? 800 : 700, fontSize: 14, color: T.text }}>{n.title}</div>
                   {recipientLabel(n.recipient)}
                   {n.fileName && <Badge label="📎" color="gray" />}
+                  {n.requireConfirm && <Badge label="📋 확인요청" color="yellow" />}
                 </div>
-                <div style={{ fontSize: 11, color: T.muted }}>{n.author} · {n.createdAt?.slice(0,10)}</div>
+                <div style={{ fontSize: 11, color: T.muted }}>
+                  {n.author} · {n.createdAt?.slice(0,10)}
+                  {n.requireConfirm && isAdmin && targetMembers.length > 0 && (
+                    <span style={{ marginLeft: 8, fontWeight: 700, color: confirmedIds.length === targetMembers.length ? "#16a34a" : "#d97706" }}>
+                      ✅ {confirmedIds.length}/{targetMembers.length}명 확인
+                    </span>
+                  )}
+                </div>
               </div>
               <span style={{ color: T.muted, fontSize: 14 }}>{expanded === n.id ? "▲" : "▼"}</span>
             </div>
@@ -6281,6 +6308,59 @@ function NoticeScreen({ user, users, notices, reads }) {
                     📎 {n.fileName} 다운로드
                   </a>
                 )}
+
+                {/* 팀원: 확인했습니다 버튼 */}
+                {!isAdmin && n.requireConfirm && (
+                  <div style={{ marginBottom: 10 }}>
+                    {myConfirmed ? (
+                      <div style={{ padding: "10px 14px", background: "#dcfce7", borderRadius: 10, fontSize: 13, fontWeight: 700, color: "#16a34a" }}>
+                        ✅ 확인완료 · {new Date(reads[`${user.id}_confirm_${n.id}`]?.readAt || "").toLocaleString("ko-KR")}
+                      </div>
+                    ) : (
+                      <button onClick={async () => {
+                        const key = `${user.id}_confirm_${n.id}`;
+                        await setDoc(doc(db, COL_READS, key), { userId: user.id, type: "confirm", docId: n.id, readAt: new Date().toISOString() });
+                        await addDoc(collection(db, COL_NOTICES), {
+                          title: `✅ ${user.name}님 공지 확인 완료`,
+                          content: `"${n.title}" 공지를 확인하였습니다.`,
+                          recipient: "admin", author: user.name, createdAt: new Date().toISOString(),
+                        });
+                        await sendPush({ title: `✅ ${user.name}님 공지 확인`, message: `"${n.title}" 공지를 확인하였습니다.`, targetUserId: "admin" });
+                      }}
+                        style={{ width: "100%", padding: "12px 0", borderRadius: 12, border: "none", background: "#0891b2", color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
+                        ✅ 확인했습니다
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* 관리자: 확인 현황 + 독촉 버튼 */}
+                {isAdmin && n.requireConfirm && targetMembers.length > 0 && (
+                  <div style={{ background: T.bg, borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 8 }}>📋 확인 현황</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                      {targetMembers.map(m => (
+                        <span key={m.id} style={{ fontSize: 12, padding: "4px 10px", borderRadius: 20, fontWeight: 600,
+                          background: reads[`${m.id}_confirm_${n.id}`] ? "#dcfce7" : "#fee2e2",
+                          color: reads[`${m.id}_confirm_${n.id}`] ? "#16a34a" : "#b91c1c" }}>
+                          {reads[`${m.id}_confirm_${n.id}`] ? "✅" : "⏳"} {m.name}
+                        </span>
+                      ))}
+                    </div>
+                    {unconfirmedMembers.length > 0 && (
+                      <button onClick={async () => {
+                        for (const m of unconfirmedMembers) {
+                          await sendPush({ title: `📣 확인 요청`, message: `"${n.title}" 공지를 아직 확인하지 않으셨습니다. 확인 부탁드립니다.`, targetUserId: m.id });
+                        }
+                        alert(`${unconfirmedMembers.map(m => m.name).join(", ")}님께 독촉 알림을 보냈습니다.`);
+                      }}
+                        style={{ width: "100%", padding: "9px 0", borderRadius: 10, border: "none", background: "#d97706", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                        📣 미확인자 독촉 ({unconfirmedMembers.length}명)
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {isAdmin && (
                   <div>
                     {editTarget?.id === n.id ? (
@@ -6310,7 +6390,8 @@ function NoticeScreen({ user, users, notices, reads }) {
               </div>
             )}
           </div>
-        ))
+          );
+        })
       }
     </div>
   );
