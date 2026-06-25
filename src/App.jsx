@@ -6513,11 +6513,27 @@ function NoticeScreen({ user, users, notices, reads }) {
                     {!editTarget && !n.auto && (() => {
                       const targets = n.recipient === "all" ? members : members.filter(m => m.id === n.recipient);
                       if (targets.length === 0) return null;
+                      if (n.nudgeDone) return (
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#f0fdf4", borderRadius: 10, border: "1px solid #86efac", marginBottom: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#16a34a" }}>✅ 독촉 완료 처리됨</span>
+                          <button onClick={async () => await setDoc(doc(db, COL_NOTICES, n.id), { ...n, nudgeDone: false }, { merge: true })}
+                            style={{ background: "none", border: "none", color: T.muted, fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>되돌리기</button>
+                        </div>
+                      );
                       return (
-                        <button onClick={() => setNudgeModal({ notice: n, targets, selected: targets.map(m => m.id) })}
-                          style={{ width: "100%", padding: "9px 0", borderRadius: 10, border: "none", background: "#fff7ed", color: "#d97706", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
-                          📣 독촉 알림 발송
-                        </button>
+                        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                          <button onClick={() => setNudgeModal({ notice: n, targets, selected: targets.map(m => m.id) })}
+                            style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: "none", background: "#fff7ed", color: "#d97706", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                            📣 독촉 알림 발송
+                          </button>
+                          <button onClick={async () => {
+                            if (!window.confirm("독촉 완료 처리하면 독촉 버튼이 숨겨집니다. 계속할까요?")) return;
+                            await setDoc(doc(db, COL_NOTICES, n.id), { ...n, nudgeDone: true }, { merge: true });
+                          }}
+                            style={{ padding: "9px 12px", borderRadius: 10, border: `1px solid ${T.border}`, background: T.bg, color: T.muted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                            완료
+                          </button>
+                        </div>
                       );
                     })()}
                     {editTarget?.id === n.id ? (
