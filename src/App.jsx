@@ -6150,8 +6150,12 @@ function NoticeScreen({ user, users, notices, reads }) {
   const [uploading, setUploading] = useState(false);
   const [expanded, setExpanded] = useState(null);
   const [requireConfirm, setRequireConfirm] = useState(false);
-  const [nudgeModal, setNudgeModal] = useState(null); // { notice, targets, selected }
+  const [requireReply, setRequireReply] = useState(false); // 회신 요청
+  const [replyType, setReplyType] = useState("both"); // text | file | both
+  const [nudgeModal, setNudgeModal] = useState(null);
   const [nudgeSending, setNudgeSending] = useState(false);
+  const [replyInputs, setReplyInputs] = useState({}); // { noticeId: { text, file } }
+  const [replySending, setReplySending] = useState(null);
   const [noticeTab, setNoticeTab] = useState("manual"); // manual | auto
 
   // 내가 볼 수 있는 공지 필터
@@ -6165,7 +6169,7 @@ function NoticeScreen({ user, users, notices, reads }) {
   const autoNotices = visibleNotices.filter(n => isAutoNotice(n));
   const displayNotices = isAdmin ? (noticeTab === "manual" ? manualNotices : autoNotices) : visibleNotices;
 
-  const resetForm = () => { setTitle(""); setContent(""); setRecipient("all"); setFile(null); setShowWrite(false); setEditTarget(null); setRequireConfirm(false); };
+  const resetForm = () => { setTitle(""); setContent(""); setRecipient("all"); setFile(null); setShowWrite(false); setEditTarget(null); setRequireConfirm(false); setRequireReply(false); setReplyType("both"); };
 
   const markRead = async (id) => {
     const key = `${user.id}_notice_${id}`;
@@ -6190,7 +6194,7 @@ function NoticeScreen({ user, users, notices, reads }) {
       fileUrl = await getDownloadURL(storageRef);
       fileName = file.name;
     }
-    const data = { title: title.trim(), content: content.trim(), recipient, author: user.name, createdAt: new Date().toISOString(), requireConfirm };
+    const data = { title: title.trim(), content: content.trim(), recipient, author: user.name, createdAt: new Date().toISOString(), requireConfirm, requireReply, replyType };
     if (fileUrl) { data.fileUrl = fileUrl; data.fileName = fileName; }
     await addDoc(collection(db, COL_NOTICES), data);
     const pushTarget = recipient === "all" ? null : recipient;
@@ -6268,13 +6272,34 @@ function NoticeScreen({ user, users, notices, reads }) {
           <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="내용" rows={4}
             style={{ ...iStyle, resize: "none", lineHeight: 1.6 }} />
           {/* 읽음 확인 요청 */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: requireConfirm ? "#fffbeb" : T.bg, borderRadius: 10, border: `1px solid ${requireConfirm ? "#fbbf24" : T.border}`, marginBottom: 10, cursor: "pointer" }}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: requireConfirm ? "#fffbeb" : T.bg, borderRadius: 10, border: `1px solid ${requireConfirm ? "#fbbf24" : T.border}`, marginBottom: 8, cursor: "pointer" }}
             onClick={() => setRequireConfirm(p => !p)}>
             <input type="checkbox" checked={requireConfirm} onChange={() => {}} style={{ width: 16, height: 16, cursor: "pointer" }} />
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>📋 읽음 확인 요청</div>
               <div style={{ fontSize: 11, color: T.muted }}>팀원이 "확인했습니다" 버튼을 눌러야 완료됩니다</div>
             </div>
+          </div>
+          {/* 회신 요청 */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: requireReply ? "#f0f9ff" : T.bg, borderRadius: 10, border: `1px solid ${requireReply ? "#0891b2" : T.border}`, cursor: "pointer" }}
+              onClick={() => setRequireReply(p => !p)}>
+              <input type="checkbox" checked={requireReply} onChange={() => {}} style={{ width: 16, height: 16, cursor: "pointer" }} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>💬 회신 요청</div>
+                <div style={{ fontSize: 11, color: T.muted }}>팀원이 텍스트/파일로 회신할 수 있습니다</div>
+              </div>
+            </div>
+            {requireReply && (
+              <div style={{ display: "flex", gap: 6, marginTop: 8, paddingLeft: 4 }}>
+                {[["text", "💬 텍스트"], ["file", "📎 파일"], ["both", "💬+📎 둘 다"]].map(([val, label]) => (
+                  <button key={val} onClick={() => setReplyType(val)}
+                    style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: `1px solid ${replyType === val ? "#0891b2" : T.border}`, background: replyType === val ? "#0891b2" : T.bg, color: replyType === val ? "#fff" : T.text, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           {/* 첨부파일 */}
           <label style={{ display: "block", padding: "10px 0", borderRadius: 10, border: `2px dashed ${T.border}`, textAlign: "center", fontSize: 12, color: file ? T.green : T.muted, fontWeight: 600, cursor: "pointer", marginBottom: 10 }}>
@@ -6298,6 +6323,9 @@ function NoticeScreen({ user, users, notices, reads }) {
           const confirmedIds = targetMembers.filter(m => reads[`${m.id}_confirm_${n.id}`]).map(m => m.id);
           const unconfirmedMembers = targetMembers.filter(m => !reads[`${m.id}_confirm_${n.id}`]);
           const myConfirmed = reads[`${user.id}_confirm_${n.id}`];
+          // 회신 관련
+          const myReply = reads[`${user.id}_reply_${n.id}`];
+          const memberReplies = targetMembers.map(m => ({ member: m, reply: reads[`${m.id}_reply_${n.id}`] }));
 
           return (
           <div key={n.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${isUnread(n) ? T.blue : T.border}` }}>
@@ -6309,6 +6337,7 @@ function NoticeScreen({ user, users, notices, reads }) {
                   {recipientLabel(n.recipient)}
                   {n.fileName && <Badge label="📎" color="gray" />}
                   {n.requireConfirm && <Badge label="📋 확인요청" color="yellow" />}
+                  {n.requireReply && <Badge label="💬 회신요청" color="blue" />}
                 </div>
                 <div style={{ fontSize: 11, color: T.muted }}>
                   {n.author} · {n.createdAt?.slice(0,10)}
@@ -6353,6 +6382,101 @@ function NoticeScreen({ user, users, notices, reads }) {
                         ✅ 확인했습니다
                       </button>
                     )}
+                  </div>
+                )}
+
+                {/* 팀원: 회신 입력 */}
+                {!isAdmin && n.requireReply && (
+                  <div style={{ marginBottom: 10 }}>
+                    {myReply ? (
+                      <div style={{ padding: "10px 14px", background: "#f0f9ff", borderRadius: 10, border: "1px solid #bae6fd" }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#0891b2", marginBottom: 4 }}>💬 회신 완료</div>
+                        {myReply.text && <div style={{ fontSize: 13, color: T.text, marginBottom: 4 }}>{myReply.text}</div>}
+                        {myReply.fileUrl && (
+                          <a href={myReply.fileUrl} target="_blank" rel="noreferrer"
+                            style={{ fontSize: 12, color: "#0891b2", fontWeight: 700, textDecoration: "none" }}>📎 {myReply.fileName}</a>
+                        )}
+                        <div style={{ fontSize: 11, color: T.muted, marginTop: 4 }}>{myReply.repliedAt ? new Date(myReply.repliedAt).toLocaleString("ko-KR") : ""}</div>
+                      </div>
+                    ) : (
+                      <div style={{ padding: "12px 14px", background: T.bg, borderRadius: 10, border: `1px solid #0891b2` }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#0891b2", marginBottom: 10 }}>💬 회신하기</div>
+                        {(n.replyType === "text" || n.replyType === "both" || !n.replyType) && (
+                          <textarea
+                            value={replyInputs[n.id]?.text || ""}
+                            onChange={e => setReplyInputs(p => ({ ...p, [n.id]: { ...p[n.id], text: e.target.value } }))}
+                            placeholder="회신 내용을 입력하세요"
+                            style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, resize: "vertical", minHeight: 80, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 8 }} />
+                        )}
+                        {(n.replyType === "file" || n.replyType === "both") && (
+                          <div style={{ marginBottom: 8 }}>
+                            {replyInputs[n.id]?.file ? (
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "#fff", borderRadius: 8, border: `1px solid ${T.border}` }}>
+                                <span>📎</span>
+                                <span style={{ fontSize: 12, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{replyInputs[n.id].file.name}</span>
+                                <button onClick={() => setReplyInputs(p => ({ ...p, [n.id]: { ...p[n.id], file: null } }))}
+                                  style={{ background: "none", border: "none", color: "#b91c1c", cursor: "pointer" }}>✕</button>
+                              </div>
+                            ) : (
+                              <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 8, border: `1px dashed ${T.border}`, cursor: "pointer", fontSize: 12, color: T.muted, fontWeight: 600 }}>
+                                📎 파일 첨부
+                                <input type="file" style={{ display: "none" }}
+                                  onChange={e => setReplyInputs(p => ({ ...p, [n.id]: { ...p[n.id], file: e.target.files?.[0] } }))} />
+                              </label>
+                            )}
+                          </div>
+                        )}
+                        <button onClick={async () => {
+                          const input = replyInputs[n.id] || {};
+                          if (!input.text?.trim() && !input.file) { alert("내용 또는 파일을 입력해주세요."); return; }
+                          setReplySending(n.id);
+                          try {
+                            let fileUrl = null, fileName = null;
+                            if (input.file) {
+                              const sRef = ref(storage, `notice_replies/${n.id}/${user.id}_${Date.now()}_${input.file.name}`);
+                              await uploadBytes(sRef, input.file);
+                              fileUrl = await getDownloadURL(sRef);
+                              fileName = input.file.name;
+                            }
+                            const replyData = { text: input.text?.trim() || "", fileUrl, fileName, repliedAt: new Date().toISOString(), userId: user.id, userName: user.name };
+                            await setDoc(doc(db, COL_READS, `${user.id}_reply_${n.id}`), { ...replyData, type: "reply", docId: n.id });
+                            await addDoc(collection(db, COL_NOTICES), {
+                              title: `💬 ${user.name}님 회신`,
+                              content: `"${n.title}" 공지에 회신하였습니다.${input.text?.trim() ? `\n내용: ${input.text.trim()}` : ""}${fileName ? `\n파일: ${fileName}` : ""}`,
+                              recipient: "admin", author: user.name, auto: true, createdAt: new Date().toISOString(),
+                            });
+                            await sendPush({ title: `💬 ${user.name}님 회신`, message: `"${n.title}" 공지에 회신하였습니다.`, targetUserId: "admin" });
+                            setReplyInputs(p => ({ ...p, [n.id]: {} }));
+                            alert("회신이 완료되었습니다.");
+                          } catch(e) { alert("회신 실패: " + e.message); }
+                          setReplySending(null);
+                        }} disabled={replySending === n.id}
+                          style={{ width: "100%", padding: "11px 0", borderRadius: 10, border: "none", background: "#0891b2", color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer", opacity: replySending === n.id ? 0.6 : 1 }}>
+                          {replySending === n.id ? "전송 중..." : "💬 회신하기"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 관리자: 회신 현황 */}
+                {isAdmin && n.requireReply && targetMembers.length > 0 && (
+                  <div style={{ background: T.bg, borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 8 }}>💬 회신 현황</div>
+                    {memberReplies.map(({ member: m, reply }) => (
+                      <div key={m.id} style={{ padding: "8px 10px", borderRadius: 8, background: reply ? "#f0f9ff" : "#fff", border: `1px solid ${reply ? "#bae6fd" : T.border}`, marginBottom: 6 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{m.name}</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: reply ? "#0891b2" : T.muted }}>{reply ? "✅ 회신완료" : "⏳ 미회신"}</span>
+                        </div>
+                        {reply?.text && <div style={{ fontSize: 12, color: T.text, marginTop: 4, lineHeight: 1.5 }}>{reply.text}</div>}
+                        {reply?.fileUrl && (
+                          <a href={reply.fileUrl} target="_blank" rel="noreferrer"
+                            style={{ display: "inline-block", marginTop: 4, fontSize: 12, color: "#0891b2", fontWeight: 700, textDecoration: "none" }}>📎 {reply.fileName}</a>
+                        )}
+                        {reply?.repliedAt && <div style={{ fontSize: 10, color: T.muted, marginTop: 4 }}>{new Date(reply.repliedAt).toLocaleString("ko-KR")}</div>}
+                      </div>
+                    ))}
                   </div>
                 )}
 
