@@ -6150,6 +6150,8 @@ function NoticeScreen({ user, users, notices, reads }) {
   const [uploading, setUploading] = useState(false);
   const [expanded, setExpanded] = useState(null);
   const [requireConfirm, setRequireConfirm] = useState(false);
+  const [nudgeModal, setNudgeModal] = useState(null); // { notice, targets, selected }
+  const [nudgeSending, setNudgeSending] = useState(false);
   const [noticeTab, setNoticeTab] = useState("manual"); // manual | auto
 
   // 내가 볼 수 있는 공지 필터
@@ -6158,12 +6160,7 @@ function NoticeScreen({ user, users, notices, reads }) {
   );
 
   // 관리자: 직접작성 vs 자동생성 분리
-  const isAutoNotice = (n) => {
-    if (n.auto === true) return true;
-    // 기존 데이터 하위호환 — 제목 패턴으로 판단
-    const autoPatterns = ["✅", "📨", "💰", "📅", "🔔", "📄 ", "서명 완료", "서명 요청", "급여명세서", "연차 신청", "공지 확인 완료", "반려", "승인"];
-    return autoPatterns.some(p => n.title?.includes(p));
-  };
+  const isAutoNotice = (n) => n.auto === true;
   const manualNotices = visibleNotices.filter(n => !isAutoNotice(n));
   const autoNotices = visibleNotices.filter(n => isAutoNotice(n));
   const displayNotices = isAdmin ? (noticeTab === "manual" ? manualNotices : autoNotices) : visibleNotices;
@@ -6389,24 +6386,16 @@ function NoticeScreen({ user, users, notices, reads }) {
                 {isAdmin && (
                   <div>
                     {/* 독촉 알림 버튼 — 작성 공지에만 */}
-                    {!editTarget && !n.auto && (
-                      <button onClick={async () => {
-                        const targets = n.recipient === "all" ? members : members.filter(m => m.id === n.recipient);
-                        if (targets.length === 0) { alert("수신 대상이 없습니다."); return; }
-                        if (!window.confirm(`${targets.map(m => m.name).join(", ")}님께 독촉 알림을 보낼까요?`)) return;
-                        for (const m of targets) {
-                          await sendPush({
-                            title: `📣 업무 독촉`,
-                            message: `"${n.title}" 공지 내용을 아직 처리하지 않으셨습니다. 확인 부탁드립니다.`,
-                            targetUserId: m.id
-                          });
-                        }
-                        alert(`독촉 알림을 보냈습니다.`);
-                      }}
-                        style={{ width: "100%", padding: "9px 0", borderRadius: 10, border: "none", background: "#fff7ed", color: "#d97706", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
-                        📣 독촉 알림 발송
-                      </button>
-                    )}
+                    {!editTarget && !n.auto && (() => {
+                      const targets = n.recipient === "all" ? members : members.filter(m => m.id === n.recipient);
+                      if (targets.length === 0) return null;
+                      return (
+                        <button onClick={() => setNudgeModal({ notice: n, targets, selected: targets.map(m => m.id) })}
+                          style={{ width: "100%", padding: "9px 0", borderRadius: 10, border: "none", background: "#fff7ed", color: "#d97706", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
+                          📣 독촉 알림 발송
+                        </button>
+                      );
+                    })()}
                     {editTarget?.id === n.id ? (
                       <div style={{ marginTop: 10 }}>
                         <input value={title} onChange={e => setTitle(e.target.value)}
@@ -6437,11 +6426,60 @@ function NoticeScreen({ user, users, notices, reads }) {
           );
         })
       }
+      {/* 독촉 알림 선택 모달 */}
+      {nudgeModal && (
+        <div style={{ position: "fixed", inset: 0, background: "#00000066", zIndex: 999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ background: "#fff", borderRadius: 20, padding: 24, width: "100%", maxWidth: 340 }}>
+            <div style={{ fontSize: 18, textAlign: "center", marginBottom: 6 }}>📣</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: T.text, textAlign: "center", marginBottom: 4 }}>독촉 알림 발송</div>
+            <div style={{ fontSize: 12, color: T.muted, textAlign: "center", marginBottom: 16, lineHeight: 1.6 }}>
+              "{nudgeModal.notice.title}"
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              {nudgeModal.targets.map(m => {
+                const checked = nudgeModal.selected.includes(m.id);
+                return (
+                  <div key={m.id} onClick={() => setNudgeModal(p => ({
+                    ...p,
+                    selected: checked ? p.selected.filter(id => id !== m.id) : [...p.selected, m.id]
+                  }))}
+                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 10, border: `1px solid ${checked ? "#d97706" : T.border}`, background: checked ? "#fff7ed" : T.bg, marginBottom: 8, cursor: "pointer" }}>
+                    <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${checked ? "#d97706" : T.border}`, background: checked ? "#d97706" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {checked && <span style={{ color: "#fff", fontSize: 13, fontWeight: 800 }}>✓</span>}
+                    </div>
+                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#d97706", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff" }}>{m.name[0]}</div>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{m.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <button onClick={() => setNudgeModal(null)}
+                style={{ padding: "12px 0", borderRadius: 12, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>취소</button>
+              <button onClick={async () => {
+                if (nudgeModal.selected.length === 0) { alert("보낼 대상을 선택해주세요."); return; }
+                setNudgeSending(true);
+                for (const id of nudgeModal.selected) {
+                  await sendPush({
+                    title: `📣 업무 독촉`,
+                    message: `"${nudgeModal.notice.title}" 공지 내용을 아직 처리하지 않으셨습니다. 확인 부탁드립니다.`,
+                    targetUserId: id
+                  });
+                }
+                setNudgeSending(false);
+                setNudgeModal(null);
+                alert(`${nudgeModal.selected.length}명에게 독촉 알림을 보냈습니다.`);
+              }} disabled={nudgeSending || nudgeModal.selected.length === 0}
+                style={{ padding: "12px 0", borderRadius: 12, border: "none", background: nudgeModal.selected.length > 0 ? "#d97706" : "#e5e7eb", color: nudgeModal.selected.length > 0 ? "#fff" : T.muted, fontSize: 14, fontWeight: 700, cursor: nudgeModal.selected.length > 0 ? "pointer" : "default" }}>
+                {nudgeSending ? "발송 중..." : `발송 (${nudgeModal.selected.length}명)`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-// ── 자유게시판 ──────────────────────────────────────────────────
 function BoardScreen({ user, board, reads }) {
   const isAdmin = user.role === "admin";
   const [showWrite, setShowWrite] = useState(false);
