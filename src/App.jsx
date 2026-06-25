@@ -6158,8 +6158,14 @@ function NoticeScreen({ user, users, notices, reads }) {
   );
 
   // 관리자: 직접작성 vs 자동생성 분리
-  const manualNotices = visibleNotices.filter(n => !n.auto);
-  const autoNotices = visibleNotices.filter(n => n.auto);
+  const isAutoNotice = (n) => {
+    if (n.auto === true) return true;
+    // 기존 데이터 하위호환 — 제목 패턴으로 판단
+    const autoPatterns = ["✅", "📨", "💰", "📅", "🔔", "📄 ", "서명 완료", "서명 요청", "급여명세서", "연차 신청", "공지 확인 완료", "반려", "승인"];
+    return autoPatterns.some(p => n.title?.includes(p));
+  };
+  const manualNotices = visibleNotices.filter(n => !isAutoNotice(n));
+  const autoNotices = visibleNotices.filter(n => isAutoNotice(n));
   const displayNotices = isAdmin ? (noticeTab === "manual" ? manualNotices : autoNotices) : visibleNotices;
 
   const resetForm = () => { setTitle(""); setContent(""); setRecipient("all"); setFile(null); setShowWrite(false); setEditTarget(null); setRequireConfirm(false); };
