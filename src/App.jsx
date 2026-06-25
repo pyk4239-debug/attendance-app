@@ -6363,6 +6363,25 @@ function NoticeScreen({ user, users, notices, reads }) {
 
                 {isAdmin && (
                   <div>
+                    {/* 독촉 알림 버튼 — 모든 공지 */}
+                    {!editTarget && (
+                      <button onClick={async () => {
+                        const targets = n.recipient === "all" ? members : members.filter(m => m.id === n.recipient);
+                        if (targets.length === 0) { alert("수신 대상이 없습니다."); return; }
+                        if (!window.confirm(`${targets.map(m => m.name).join(", ")}님께 독촉 알림을 보낼까요?`)) return;
+                        for (const m of targets) {
+                          await sendPush({
+                            title: `📣 업무 독촉`,
+                            message: `"${n.title}" 공지 내용을 아직 처리하지 않으셨습니다. 확인 부탁드립니다.`,
+                            targetUserId: m.id
+                          });
+                        }
+                        alert(`독촉 알림을 보냈습니다.`);
+                      }}
+                        style={{ width: "100%", padding: "9px 0", borderRadius: 10, border: "none", background: "#fff7ed", color: "#d97706", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
+                        📣 독촉 알림 발송
+                      </button>
+                    )}
                     {editTarget?.id === n.id ? (
                       <div style={{ marginTop: 10 }}>
                         <input value={title} onChange={e => setTitle(e.target.value)}
