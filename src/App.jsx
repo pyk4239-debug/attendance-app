@@ -4338,9 +4338,8 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
         content: `${docTitle}이(가) 발송되었습니다.\n문서함 탭에서 내용을 확인하고 동의(서명)해주세요.`,
         recipient: contract.userId,
         author: "관리자",
-        createdAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(), auto: true,
       });
-      await sendPush({ title: `📄 ${docTitle} 서명 요청`, message: `${docTitle}이(가) 발송되었습니다. 확인 후 서명해주세요.`, targetUserId: contract.userId });
       alert(`${contract.userName}님께 ${docLabel} 서명 요청을 보냈습니다.`);
     } catch(e) { alert("발송 실패: " + e.message); }
   };
@@ -5203,7 +5202,7 @@ function ContractViewScreen({ user, contracts }) {
         title: `✅ ${user.name}님 ${docLabel} 서명 완료`,
         content: `${user.name}님이 ${docLabel}에 전자서명(동의)하였습니다.\n서명일시: ${new Date().toLocaleString("ko-KR")}\nIP: ${signIp}`,
         recipient: "admin",
-        author: user.name,
+        author: user.name, auto: true,
         createdAt: new Date().toISOString(),
       });
       await sendPush({ title: `✅ ${docLabel} 서명 완료`, message: `${user.name}님이 ${docLabel}에 서명하였습니다.`, targetUserId: "admin" });
@@ -5372,7 +5371,7 @@ function ContractViewScreen({ user, contracts }) {
                                   await addDoc(collection(db, COL_NOTICES), {
                                     title: `✅ ${user.name}님 ${latest.docTitle || "문서"} 서명 완료`,
                                     content: `${user.name}님이 ${latest.docTitle || "문서"}에 전자서명하였습니다.${attachmentData ? "\n📎 첨부파일: " + attachmentData.name : ""}`,
-                                    recipient: "admin", author: user.name, createdAt: new Date().toISOString(),
+                                    recipient: "admin", author: user.name, auto: true, createdAt: new Date().toISOString(),
                                   });
                                   await sendPush({ title: `✅ ${latest.docTitle || "문서"} 서명 완료`, message: `${user.name}님이 서명하였습니다.${attachmentData ? " (첨부파일 있음)" : ""}`, targetUserId: "admin" });
                                   alert("서명이 완료되었습니다.");
@@ -6151,11 +6150,17 @@ function NoticeScreen({ user, users, notices, reads }) {
   const [uploading, setUploading] = useState(false);
   const [expanded, setExpanded] = useState(null);
   const [requireConfirm, setRequireConfirm] = useState(false);
+  const [noticeTab, setNoticeTab] = useState("manual"); // manual | auto
 
   // 내가 볼 수 있는 공지 필터
   const visibleNotices = notices.filter(n =>
     n.recipient === "all" || n.recipient === user.id || user.role === "admin"
   );
+
+  // 관리자: 직접작성 vs 자동생성 분리
+  const manualNotices = visibleNotices.filter(n => !n.auto);
+  const autoNotices = visibleNotices.filter(n => n.auto);
+  const displayNotices = isAdmin ? (noticeTab === "manual" ? manualNotices : autoNotices) : visibleNotices;
 
   const resetForm = () => { setTitle(""); setContent(""); setRecipient("all"); setFile(null); setShowWrite(false); setEditTarget(null); setRequireConfirm(false); };
 
@@ -6226,10 +6231,24 @@ function NoticeScreen({ user, users, notices, reads }) {
 
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isAdmin ? 10 : 16 }}>
         <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>📢 공지사항</div>
-        {isAdmin && !showWrite && <button onClick={() => { resetForm(); setShowWrite(true); }} style={{ background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ 작성</button>}
+        {isAdmin && !showWrite && noticeTab === "manual" && <button onClick={() => { resetForm(); setShowWrite(true); }} style={{ background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ 작성</button>}
       </div>
+
+      {/* 관리자 탭 */}
+      {isAdmin && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <button onClick={() => { setNoticeTab("manual"); setExpanded(null); }}
+            style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `2px solid ${noticeTab === "manual" ? T.adminHeader : T.border}`, background: noticeTab === "manual" ? T.adminHeader : T.bg, color: noticeTab === "manual" ? "#fff" : T.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            📢 작성 공지 {manualNotices.length > 0 && `(${manualNotices.length})`}
+          </button>
+          <button onClick={() => { setNoticeTab("auto"); setExpanded(null); }}
+            style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `2px solid ${noticeTab === "auto" ? "#6b7280" : T.border}`, background: noticeTab === "auto" ? "#6b7280" : T.bg, color: noticeTab === "auto" ? "#fff" : T.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            🤖 자동 알림 {autoNotices.length > 0 && `(${autoNotices.length})`}
+          </button>
+        </div>
+      )}
 
       {showWrite && (
         <div style={{ background: T.card, borderRadius: 14, padding: 16, marginBottom: 16, border: `1px solid ${T.border}` }}>
@@ -6266,9 +6285,9 @@ function NoticeScreen({ user, users, notices, reads }) {
         </div>
       )}
 
-      {visibleNotices.length === 0
-        ? <div style={{ textAlign: "center", color: T.muted, padding: 40 }}>공지사항이 없어요</div>
-        : visibleNotices.map(n => {
+      {displayNotices.length === 0
+        ? <div style={{ textAlign: "center", color: T.muted, padding: 40 }}>{isAdmin && noticeTab === "auto" ? "자동 알림이 없어요" : "공지사항이 없어요"}</div>
+        : displayNotices.map(n => {
           // 확인 현황 계산
           const targetMembers = n.recipient === "all"
             ? members
@@ -6323,7 +6342,7 @@ function NoticeScreen({ user, users, notices, reads }) {
                         await addDoc(collection(db, COL_NOTICES), {
                           title: `✅ ${user.name}님 공지 확인 완료`,
                           content: `"${n.title}" 공지를 확인하였습니다.`,
-                          recipient: "admin", author: user.name, createdAt: new Date().toISOString(),
+                          recipient: "admin", author: user.name, auto: true, createdAt: new Date().toISOString(),
                         });
                         await sendPush({ title: `✅ ${user.name}님 공지 확인`, message: `"${n.title}" 공지를 확인하였습니다.`, targetUserId: "admin" });
                       }}
@@ -6363,8 +6382,8 @@ function NoticeScreen({ user, users, notices, reads }) {
 
                 {isAdmin && (
                   <div>
-                    {/* 독촉 알림 버튼 — 모든 공지 */}
-                    {!editTarget && (
+                    {/* 독촉 알림 버튼 — 작성 공지에만 */}
+                    {!editTarget && !n.auto && (
                       <button onClick={async () => {
                         const targets = n.recipient === "all" ? members : members.filter(m => m.id === n.recipient);
                         if (targets.length === 0) { alert("수신 대상이 없습니다."); return; }
@@ -6429,7 +6448,7 @@ function BoardScreen({ user, board, reads }) {
     if (!title.trim() || !content.trim()) return;
     await addDoc(collection(db, COL_BOARD), {
       title: title.trim(), content: content.trim(),
-      author: user.name, userId: user.id, createdAt: new Date().toISOString()
+      author: user.name, auto: true, userId: user.id, createdAt: new Date().toISOString()
     });
     await sendPush({ title: `💬 게시판: ${title.trim()}`, message: `${user.name}: ${content.trim()}` });
     setTitle(""); setContent(""); setShowWrite(false);
