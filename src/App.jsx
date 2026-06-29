@@ -1695,6 +1695,20 @@ function AdminAccountModal({ users, onUpdateUsers, onClose }) {
   const [curPin, setCurPin] = useState(""), [newPin, setNewPin] = useState(""), [newPin2, setNewPin2] = useState("");
   const [masterCode, setMasterCode] = useState("");
   const [err, setErr] = useState(""), [ok, setOk] = useState("");
+  const [pensionBase, setPensionBase] = useState("");
+  const [insuranceBase, setInsuranceBase] = useState("");
+
+  // 관리자 기초데이터 불러오기
+  useEffect(() => {
+    if (!admin.id) return;
+    getDoc(doc(db, COL_MEMBER_INFO, admin.id)).then(snap => {
+      if (snap.exists()) {
+        const d = snap.data();
+        if (d.pensionBase) setPensionBase(String(d.pensionBase));
+        if (d.insuranceBase) setInsuranceBase(String(d.insuranceBase));
+      }
+    });
+  }, [admin.id]);
 
   const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 15, fontWeight: 600, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 12, outline: "none" };
 
@@ -1732,7 +1746,7 @@ function AdminAccountModal({ users, onUpdateUsers, onClose }) {
       <div style={{ background: T.card, borderRadius: 20, padding: 22, width: "100%", maxWidth: 320, boxShadow: "0 20px 60px #00000020" }}>
         <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 16 }}>관리자 계정</div>
         <div style={{ display: "flex", background: T.bg, borderRadius: 12, padding: 3, marginBottom: 20, border: `1px solid ${T.border}` }}>
-          {tabBtn("info", "이름변경")}{tabBtn("pin", "PIN변경")}{tabBtn("lost", "PIN분실")}
+          {tabBtn("info", "이름변경")}{tabBtn("pin", "PIN변경")}{tabBtn("lost", "PIN분실")}{tabBtn("insurance", "보험기준")}
         </div>
         {tab === "info" && <>
           <div style={{ fontSize: 13, color: T.sub, marginBottom: 6, fontWeight: 600 }}>관리자 이름</div>
@@ -1773,6 +1787,35 @@ function AdminAccountModal({ users, onUpdateUsers, onClose }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <Btn variant="ghost" onClick={onClose}>닫기</Btn>
             <Btn variant="red" onClick={resetByMaster}>초기화</Btn>
+          </div>
+        </>}
+        {tab === "insurance" && <>
+          <div style={{ fontSize: 12, color: T.muted, marginBottom: 14, lineHeight: 1.6 }}>
+            4대보험 계산기에서 자동으로 불러옵니다.
+          </div>
+          {[
+            ["국민연금 기준소득월액", pensionBase, setPensionBase, "× 4.75% = 국민연금"],
+            ["건강/고용보험 보수월액", insuranceBase, setInsuranceBase, "건강 ×3.595% / 고용 ×0.9%"],
+          ].map(([label, val, setter, sub]) => (
+            <div key={label} style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, color: T.sub, marginBottom: 4, fontWeight: 600 }}>{label}</div>
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>{sub}</div>
+              <input value={val} onChange={e => setter(e.target.value.replace(/[^0-9]/g, ""))}
+                placeholder="0" style={{ ...iStyle, textAlign: "right", marginBottom: 0 }} />
+            </div>
+          ))}
+          {err && <div style={{ color: T.red, fontSize: 13, marginBottom: 8, fontWeight: 600 }}>{err}</div>}
+          {ok && <div style={{ color: T.green, fontSize: 13, marginBottom: 8, fontWeight: 600 }}>{ok}</div>}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
+            <Btn variant="ghost" onClick={onClose}>닫기</Btn>
+            <Btn variant="admin" onClick={async () => {
+              if (!admin.id) return;
+              await setDoc(doc(db, COL_MEMBER_INFO, admin.id), {
+                pensionBase: Number(pensionBase) || 0,
+                insuranceBase: Number(insuranceBase) || 0,
+              }, { merge: true });
+              setErr(""); setOk("저장됐어요 ✓"); setTimeout(() => setOk(""), 2000);
+            }}>저장</Btn>
           </div>
         </>}
       </div>
@@ -5804,6 +5847,7 @@ function InsuranceSection({ users, memberInfo, onBack }) {
     };
   }
 
+  const admin = users.find(u => u.role === "admin");
   const [전자통보, set전자통보] = useState(true);
   const [산재율, set산재율] = useState("8.6");
   const [임채율, set임채율] = useState("0.9");
@@ -5818,8 +5862,23 @@ function InsuranceSection({ users, memberInfo, onBack }) {
     })
   );
   const [results, setResults] = useState(null);
+  const [autoCalced, setAutoCalced] = useState(false);
 
-  const num = (v) => Number(v) || 0;
+  // 관리자 기초데이터 불러오기 + 자동 계산
+  useEffect(() => {
+    if (!admin?.id || autoCalced) return;
+    getDoc(doc(db, COL_MEMBER_INFO, admin.id)).then(snap => {
+      const d = snap.exists() ? snap.data() : {};
+      const p = String(Number(d.pensionBase) || 0);
+      const h = String(Number(d.insuranceBase) || 0);
+      setOwnerPension(p);
+      setOwnerHealth(h);
+      setAutoCalced(true);
+    });
+  }, [admin?.id]);
+
+  // 관리자 데이터 로드 완료 후 자동 계산 — calculate 아래에서 처리
+  const autoCalcRef = useRef(false);
   const fmt = (n) => n === 0 ? "-" : n.toLocaleString() + "원";
   const iStyle = { width: "100%", padding: "9px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, color: T.text, textAlign: "right", boxSizing: "border-box", fontFamily: "inherit", background: "#fff" };
 
@@ -5852,6 +5911,13 @@ function InsuranceSection({ users, memberInfo, onBack }) {
     total.전체보험료 = total.직원합계_근로자 + total.직원합계_사업주 + total.관리자_근로자 + total.관리자_사업주 - 전자통보감액 + 산재임채합계;
     setResults({ all, total });
   };
+
+  // 관리자 데이터 로드 후 자동 계산
+  useEffect(() => {
+    if (!autoCalced || autoCalcRef.current) return;
+    autoCalcRef.current = true;
+    calculate();
+  }, [autoCalced, ownerPension, ownerHealth]);
 
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 40 }}>
