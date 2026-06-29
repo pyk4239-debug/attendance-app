@@ -5878,13 +5878,13 @@ function InsuranceSection({ users, memberInfo, onBack }) {
         </div>
         <div style={{ background: "#ffffff18", borderRadius: 10, padding: "10px 12px" }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#ffffff90", marginBottom: 8 }}>🏭 산재·임채 (‰, 팀원 합산보수 기준)</div>
-          <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {[["산재보험", 산재율, set산재율], ["임금채권부담금", 임채율, set임채율]].map(([label, val, setter]) => (
-              <div key={label} style={{ flex: 1 }}>
-                <div style={{ fontSize: 10, color: "#ffffff70", marginBottom: 4 }}>{label} (‰)</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 12, color: "#ffffff90", fontWeight: 600 }}>{label}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <input value={val} onChange={e => setter(e.target.value.replace(/[^0-9.]/g, ""))}
-                    style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: "none", background: "#ffffff25", color: "#fff", fontSize: 14, fontWeight: 800, textAlign: "right", fontFamily: "inherit" }} />
+                    style={{ width: 80, padding: "7px 10px", borderRadius: 8, border: "none", background: "#ffffff25", color: "#fff", fontSize: 14, fontWeight: 800, textAlign: "right", fontFamily: "inherit" }} />
                   <span style={{ fontSize: 11, color: "#ffffff70" }}>‰</span>
                 </div>
               </div>
