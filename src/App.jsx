@@ -5862,23 +5862,19 @@ function InsuranceSection({ users, memberInfo, onBack }) {
     })
   );
   const [results, setResults] = useState(null);
-  const [autoCalced, setAutoCalced] = useState(false);
 
-  // 관리자 기초데이터 불러오기 + 자동 계산
+  // 관리자 기초데이터 불러오기
   useEffect(() => {
-    if (!admin?.id || autoCalced) return;
+    if (!admin?.id) return;
     getDoc(doc(db, COL_MEMBER_INFO, admin.id)).then(snap => {
-      const d = snap.exists() ? snap.data() : {};
-      const p = String(Number(d.pensionBase) || 0);
-      const h = String(Number(d.insuranceBase) || 0);
-      setOwnerPension(p);
-      setOwnerHealth(h);
-      setAutoCalced(true);
+      if (snap.exists()) {
+        const d = snap.data();
+        setOwnerPension(String(Number(d.pensionBase) || 0));
+        setOwnerHealth(String(Number(d.insuranceBase) || 0));
+      }
     });
   }, [admin?.id]);
 
-  // 관리자 데이터 로드 완료 후 자동 계산 — calculate 아래에서 처리
-  const autoCalcRef = useRef(false);
   const fmt = (n) => n === 0 ? "-" : n.toLocaleString() + "원";
   const iStyle = { width: "100%", padding: "9px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, color: T.text, textAlign: "right", boxSizing: "border-box", fontFamily: "inherit", background: "#fff" };
 
@@ -5911,13 +5907,6 @@ function InsuranceSection({ users, memberInfo, onBack }) {
     total.전체보험료 = total.직원합계_근로자 + total.직원합계_사업주 + total.관리자_근로자 + total.관리자_사업주 - 전자통보감액 + 산재임채합계;
     setResults({ all, total });
   };
-
-  // 관리자 데이터 로드 후 자동 계산
-  useEffect(() => {
-    if (!autoCalced || autoCalcRef.current) return;
-    autoCalcRef.current = true;
-    calculate();
-  }, [autoCalced, ownerPension, ownerHealth]);
 
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 40 }}>
