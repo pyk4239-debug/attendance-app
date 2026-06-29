@@ -5876,6 +5876,7 @@ function InsuranceSection({ users, memberInfo, onBack }) {
   }, [admin?.id]);
 
   const fmt = (n) => n === 0 ? "-" : n.toLocaleString() + "원";
+  const num = (v) => Number(v) || 0;
   const iStyle = { width: "100%", padding: "9px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, color: T.text, textAlign: "right", boxSizing: "border-box", fontFamily: "inherit", background: "#fff" };
 
   const calculate = () => {
