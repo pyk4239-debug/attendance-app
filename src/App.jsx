@@ -5780,15 +5780,6 @@ function InsuranceSection({ users, memberInfo, onBack }) {
   const 장기요양요율 = 0.1314;
   const activeMembers = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
 
-  function calcMonthlyPay(info) {
-    if (!info) return 0;
-    if (info.monthlyWage) return Number(info.monthlyWage) || 0;
-    const hourly = Number(info.hourlyWage) || 0;
-    const weekly = Number(info.weeklyHours) || 0;
-    if (!hourly || !weekly) return 0;
-    return Math.round((weekly / 5) * hourly * 209);
-  }
-
   function calcOne(pension, health, isOwner = false) {
     const 국민연금_근로자 = Math.floor(pension * 0.0475 / 10) * 10;
     const 국민연금_사업주 = Math.floor(pension * 0.0475 / 10) * 10;
@@ -5821,8 +5812,9 @@ function InsuranceSection({ users, memberInfo, onBack }) {
   const [memberInputs, setMemberInputs] = useState(() =>
     activeMembers.map(m => {
       const info = memberInfo[m.id] || {};
-      const pay = calcMonthlyPay(info);
-      return { id: m.id, name: m.name, pension: pay ? String(pay) : "", health: pay ? String(pay) : "" };
+      const pension = Number(info.pensionBase) || 0;
+      const health = Number(info.insuranceBase) || 0;
+      return { id: m.id, name: m.name, pension: pension ? String(pension) : "", health: health ? String(health) : "" };
     })
   );
   const [results, setResults] = useState(null);
@@ -5913,7 +5905,7 @@ function InsuranceSection({ users, memberInfo, onBack }) {
         {/* 팀원 */}
         <div style={{ background: T.card, borderRadius: 14, padding: 14, marginBottom: 16, border: `1px solid ${T.border}` }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 4 }}>👤 팀원</div>
-          <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 10 }}>※ 기초데이터 자동 입력 · 수정 가능</div>
+          <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 10 }}>※ 기초데이터 보험 과세표준 자동 입력 · 수정 가능</div>
           {memberInputs.map((m, i) => (
             <div key={m.id} style={{ background: T.bg, borderRadius: 12, padding: 12, marginBottom: 10, border: `1px solid ${T.border}` }}>
               <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 10 }}>{m.name}</div>
