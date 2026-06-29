@@ -9,8 +9,6 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
 // 기존 서비스워커 완전 제거
-
-
 // ── 테마 (화이트모드) ──────────────────────────────────────────
 const T = {
   bg: "#f5f6fa", card: "#ffffff", border: "#e8eaf0",
@@ -115,8 +113,6 @@ async function sendPush({ title, message, targetUserId = null }) {
     });
   } catch(e) { console.error("Push 발송 실패:", e); }
 }
-
-
 // ── 플로팅 뒤로가기 버튼 ─────────────────────────────────────────
 function FloatBack({ onClick }) {
   return (
@@ -591,8 +587,6 @@ function AppLoader() {
     return () => unsubs.forEach(u => u());
   }, []);
 
-
-
   if (!ready) return (
     <div style={{ minHeight: "100vh", background: T.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Noto Sans KR',sans-serif" }}>
       <div style={{ textAlign: "center" }}>
@@ -943,8 +937,6 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout,
     </div>
   );
 }
-
-
 // ── 팀원 개인 일정 캘린더 ──────────────────────────────────────────
 function MemberScheduleCalendar({ settings = {}, scheduleEvents = [], userId }) {
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
@@ -2419,6 +2411,7 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
     { key: "settings",   icon: "⚙",  label: "설정",   desc: "근무시간 · GPS · 공휴일", color: "#6b7280" },
     { key: "schedule",   icon: "🗓", label: "일정",    desc: "캘린더 · 리마인더",     color: "#7c3aed" },
     { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#b45309" },
+    { key: "insurance",  icon: "🏦", label: "4대보험", desc: "보험료 계산 · 납부 요약", color: "#16a34a" },
   ];
 
   return (
@@ -5122,8 +5115,6 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
     </div>
   );
 }
-
-
 // ── 근로계약서 (팀원 조회 + 서명) ──────────────────────────────
 function ContractViewScreen({ user, contracts }) {
   const [docTypeTab, setDocTypeTab] = useState("contract");
@@ -5784,6 +5775,263 @@ function ContractViewScreen({ user, contracts }) {
     </div>
   );
 }
+// ── 4대보험료 계산기 ────────────────────────────────────────────
+function InsuranceSection({ users, memberInfo, onBack }) {
+  const 장기요양요율 = 0.1314;
+  const activeMembers = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
+
+  function calcMonthlyPay(info) {
+    if (!info) return 0;
+    if (info.monthlyWage) return Number(info.monthlyWage) || 0;
+    const hourly = Number(info.hourlyWage) || 0;
+    const weekly = Number(info.weeklyHours) || 0;
+    if (!hourly || !weekly) return 0;
+    return Math.round((weekly / 5) * hourly * 209);
+  }
+
+  function calcOne(pension, health, isOwner = false) {
+    const 국민연금_근로자 = Math.floor(pension * 0.0475 / 10) * 10;
+    const 국민연금_사업주 = Math.floor(pension * 0.0475 / 10) * 10;
+    const 건강보험_근로자 = Math.floor(health * 0.03595 / 10) * 10;
+    const 건강보험_사업주 = Math.floor(health * 0.03595 / 10) * 10;
+    const 장기요양_근로자 = Math.floor(건강보험_근로자 * 장기요양요율 / 10) * 10;
+    const 장기요양_사업주 = Math.floor(건강보험_사업주 * 장기요양요율 / 10) * 10;
+    const 실업급여_근로자 = isOwner ? 0 : Math.floor(health * 0.009 / 10) * 10;
+    const 실업급여_사업주 = isOwner ? 0 : Math.floor(health * 0.009 / 10) * 10;
+    const 고안_사업주     = isOwner ? 0 : Math.floor(health * 0.0025 / 10) * 10;
+    const 합계_근로자 = 국민연금_근로자 + 건강보험_근로자 + 장기요양_근로자 + 실업급여_근로자;
+    const 합계_사업주 = 국민연금_사업주 + 건강보험_사업주 + 장기요양_사업주 + 실업급여_사업주 + 고안_사업주;
+    return {
+      rows: [
+        { 항목: "국민연금",            요율: "각 4.75%",                             근로자: 국민연금_근로자, 사업주: 국민연금_사업주 },
+        { 항목: "건강보험",            요율: "각 3.595%",                            근로자: 건강보험_근로자, 사업주: 건강보험_사업주 },
+        { 항목: "장기요양",            요율: "건강료×13.14%",                        근로자: 장기요양_근로자, 사업주: 장기요양_사업주 },
+        { 항목: "고용보험(실업급여)",  요율: isOwner ? "적용제외" : "각 0.9%",      근로자: 실업급여_근로자, 사업주: 실업급여_사업주 },
+        { 항목: "고용보험(고안·직능)", 요율: isOwner ? "적용제외" : "사업주 0.25%", 근로자: 0,               사업주: 고안_사업주 },
+      ],
+      합계_근로자, 합계_사업주,
+    };
+  }
+
+  const [전자통보, set전자통보] = useState(true);
+  const [산재율, set산재율] = useState("8.6");
+  const [임채율, set임채율] = useState("0.9");
+  const [ownerPension, setOwnerPension] = useState("");
+  const [ownerHealth, setOwnerHealth] = useState("");
+  const [memberInputs, setMemberInputs] = useState(() =>
+    activeMembers.map(m => {
+      const info = memberInfo[m.id] || {};
+      const pay = calcMonthlyPay(info);
+      return { id: m.id, name: m.name, pension: pay ? String(pay) : "", health: pay ? String(pay) : "" };
+    })
+  );
+  const [results, setResults] = useState(null);
+
+  const num = (v) => Number(v) || 0;
+  const fmt = (n) => n === 0 ? "-" : n.toLocaleString() + "원";
+  const iStyle = { width: "100%", padding: "9px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, color: T.text, textAlign: "right", boxSizing: "border-box", fontFamily: "inherit", background: "#fff" };
+
+  const calculate = () => {
+    const ownerResult = { name: "관리자(사업주)", isOwner: true, pension: num(ownerPension), health: num(ownerHealth), ...calcOne(num(ownerPension), num(ownerHealth), true) };
+    const memberResults = memberInputs.filter(m => m.pension || m.health).map(m => ({
+      name: m.name, isOwner: false, pension: num(m.pension), health: num(m.health),
+      ...calcOne(num(m.pension), num(m.health), false),
+    }));
+    const all = [ownerResult, ...memberResults];
+    const 팀원합산보수 = memberResults.reduce((s, r) => s + r.health, 0);
+    const 산재보험료 = Math.floor(팀원합산보수 * (parseFloat(산재율) || 0) / 1000 / 10) * 10;
+    const 임금채권료 = Math.floor(팀원합산보수 * (parseFloat(임채율) || 0) / 1000 / 10) * 10;
+    const 산재임채합계 = 산재보험료 + 임금채권료;
+    const 전자통보감액 = 전자통보 ? 200 : 0;
+    const 보험항목 = ["국민연금", "건강보험", "장기요양", "고용보험(실업급여)", "고용보험(고안·직능)"];
+    const 보험별합계 = 보험항목.map(항목 => {
+      const 근로자합계 = all.reduce((s, r) => s + (r.rows.find(row => row.항목 === 항목)?.근로자 || 0), 0);
+      const 사업주합계 = all.reduce((s, r) => s + (r.rows.find(row => row.항목 === 항목)?.사업주 || 0), 0);
+      return { 항목, 근로자합계, 사업주합계, 합계: 근로자합계 + 사업주합계 };
+    });
+    const total = {
+      직원합계_근로자: memberResults.reduce((s, r) => s + r.합계_근로자, 0),
+      직원합계_사업주: memberResults.reduce((s, r) => s + r.합계_사업주, 0),
+      관리자_근로자: ownerResult.합계_근로자,
+      관리자_사업주: ownerResult.합계_사업주,
+      산재보험료, 임금채권료, 산재임채합계, 팀원합산보수, 전자통보감액, 보험별합계,
+    };
+    total.회사총부담 = total.직원합계_사업주 + total.관리자_사업주 + total.관리자_근로자 - 전자통보감액 + 산재임채합계;
+    total.전체보험료 = total.직원합계_근로자 + total.직원합계_사업주 + total.관리자_근로자 + total.관리자_사업주 - 전자통보감액 + 산재임채합계;
+    setResults({ all, total });
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 40 }}>
+      <div style={{ background: "#16a34a", paddingTop: "calc(16px + env(safe-area-inset-top))", paddingBottom: "14px", paddingLeft: "16px", paddingRight: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+          <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
+          <div>
+            <div style={{ fontSize: 11, color: "#ffffff60", letterSpacing: 3 }}>2026년 기준</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>💰 4대보험료 계산기</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#ffffff18", borderRadius: 10, cursor: "pointer", marginBottom: 8 }}
+          onClick={() => set전자통보(p => !p)}>
+          <input type="checkbox" checked={전자통보} onChange={() => {}} style={{ width: 16, height: 16, cursor: "pointer" }} />
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>국민연금 전자통보 감액 (-200원)</span>
+        </div>
+        <div style={{ background: "#ffffff18", borderRadius: 10, padding: "10px 12px" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#ffffff90", marginBottom: 8 }}>🏭 산재·임채 (‰, 팀원 합산보수 기준)</div>
+          <div style={{ display: "flex", gap: 10 }}>
+            {[["산재보험", 산재율, set산재율], ["임금채권부담금", 임채율, set임채율]].map(([label, val, setter]) => (
+              <div key={label} style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, color: "#ffffff70", marginBottom: 4 }}>{label} (‰)</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <input value={val} onChange={e => setter(e.target.value.replace(/[^0-9.]/g, ""))}
+                    style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: "none", background: "#ffffff25", color: "#fff", fontSize: 14, fontWeight: 800, textAlign: "right", fontFamily: "inherit" }} />
+                  <span style={{ fontSize: 11, color: "#ffffff70" }}>‰</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: 16 }}>
+        {/* 관리자 */}
+        <div style={{ background: "#faf5ff", borderRadius: 14, padding: 14, marginBottom: 12, border: "2px solid #c4b5fd" }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#7c3aed", marginBottom: 4 }}>👑 관리자 (사업주)</div>
+          <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 10 }}>※ 산재·임채·고용보험 적용 제외</div>
+          {[["국민연금 기준소득월액", ownerPension, setOwnerPension], ["건강보험·고용보험 보수월액", ownerHealth, setOwnerHealth]].map(([label, val, setter]) => (
+            <div key={label} style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#7c3aed", marginBottom: 4 }}>{label}</div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input value={val} onChange={e => setter(e.target.value.replace(/[^0-9]/g, ""))} placeholder="0"
+                  style={{ ...iStyle, border: "1px solid #c4b5fd", background: "#faf5ff" }} />
+                <span style={{ fontSize: 12, color: T.muted }}>원</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 팀원 */}
+        <div style={{ background: T.card, borderRadius: 14, padding: 14, marginBottom: 16, border: `1px solid ${T.border}` }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 4 }}>👤 팀원</div>
+          <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 10 }}>※ 기초데이터 자동 입력 · 수정 가능</div>
+          {memberInputs.map((m, i) => (
+            <div key={m.id} style={{ background: T.bg, borderRadius: 12, padding: 12, marginBottom: 10, border: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 10 }}>{m.name}</div>
+              {[["국민연금 기준소득월액", "pension"], ["건강보험·고용보험 보수월액", "health"]].map(([label, field]) => (
+                <div key={field} style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>{label}</div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <input value={m[field]} onChange={e => setMemberInputs(p => p.map((x, j) => j === i ? { ...x, [field]: e.target.value.replace(/[^0-9]/g, "") } : x))}
+                      placeholder="0" style={iStyle} />
+                    <span style={{ fontSize: 12, color: T.muted }}>원</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        <button onClick={calculate}
+          style={{ width: "100%", padding: "14px 0", borderRadius: 14, border: "none", background: "#16a34a", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", marginBottom: 20 }}>
+          💰 계산하기
+        </button>
+
+        {results && (<>
+          <div style={{ fontSize: 14, fontWeight: 800, color: T.text, marginBottom: 10 }}>📊 개인별 내역</div>
+          {results.all.map((r, ri) => (
+            <div key={ri} style={{ background: T.card, borderRadius: 14, padding: 14, marginBottom: 12, border: r.isOwner ? "2px solid #c4b5fd" : `1px solid ${T.border}` }}>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>
+                  {r.isOwner && <span style={{ fontSize: 10, background: "#7c3aed", color: "#fff", borderRadius: 4, padding: "1px 6px", marginRight: 6 }}>사업주</span>}
+                  {r.name}
+                </div>
+                <div style={{ fontSize: 10, color: T.muted, marginTop: 2 }}>
+                  국민연금: {r.pension.toLocaleString()}원 · 건강/고용: {r.health.toLocaleString()}원
+                </div>
+              </div>
+              <div style={{ borderRadius: 10, overflow: "hidden", border: `1px solid ${T.border}` }}>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", background: "#f1f5f9", padding: "7px 10px", fontSize: 10, fontWeight: 700, color: "#475569" }}>
+                  <span>항목</span><span style={{ textAlign: "right" }}>근로자</span><span style={{ textAlign: "right" }}>사업주</span>
+                </div>
+                {r.rows.map((row, i) => (
+                  <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", padding: "8px 10px", borderTop: `1px solid ${T.border}`, background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: T.text }}>{row.항목}</div>
+                      <div style={{ fontSize: 10, color: T.muted }}>{row.요율}</div>
+                    </div>
+                    <div style={{ textAlign: "right", fontSize: 11, fontWeight: 700, color: row.근로자 === 0 ? T.muted : "#dc2626" }}>{fmt(row.근로자)}</div>
+                    <div style={{ textAlign: "right", fontSize: 11, fontWeight: 700, color: row.사업주 === 0 ? T.muted : "#d97706" }}>{fmt(row.사업주)}</div>
+                  </div>
+                ))}
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", padding: "10px", borderTop: `2px solid ${T.border}`, background: "#f8fafc" }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: T.text }}>합계</div>
+                  <div style={{ textAlign: "right", fontSize: 12, fontWeight: 800, color: "#dc2626" }}>{r.합계_근로자.toLocaleString()}원</div>
+                  <div style={{ textAlign: "right", fontSize: 12, fontWeight: 800, color: "#d97706" }}>{r.합계_사업주.toLocaleString()}원</div>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* 보험별 합계 */}
+          <div style={{ background: T.card, borderRadius: 14, padding: 14, marginBottom: 12, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: T.text, marginBottom: 12 }}>📋 보험별 합계 (전원)</div>
+            <div style={{ borderRadius: 10, overflow: "hidden", border: `1px solid ${T.border}` }}>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", background: "#f1f5f9", padding: "7px 10px", fontSize: 10, fontWeight: 700, color: "#475569" }}>
+                <span>보험</span><span style={{ textAlign: "right" }}>근로자</span><span style={{ textAlign: "right" }}>사업주</span><span style={{ textAlign: "right" }}>합계</span>
+              </div>
+              {results.total.보험별합계.map((row, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", padding: "8px 10px", borderTop: `1px solid ${T.border}`, background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: T.text }}>{row.항목}</div>
+                  <div style={{ textAlign: "right", fontSize: 11, color: row.근로자합계 === 0 ? T.muted : "#dc2626", fontWeight: 600 }}>{row.근로자합계 === 0 ? "-" : row.근로자합계.toLocaleString()}</div>
+                  <div style={{ textAlign: "right", fontSize: 11, color: "#d97706", fontWeight: 600 }}>{row.사업주합계.toLocaleString()}</div>
+                  <div style={{ textAlign: "right", fontSize: 11, fontWeight: 800, color: T.text }}>{row.합계.toLocaleString()}</div>
+                </div>
+              ))}
+              <div style={{ padding: "8px 10px", borderTop: `1px solid ${T.border}`, background: "#fafafa" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 6 }}>
+                  🏭 산재·임채 (팀원합산 {results.total.팀원합산보수.toLocaleString()}원)
+                </div>
+                {[["산재보험", 산재율, results.total.산재보험료], ["임금채권", 임채율, results.total.임금채권료]].map(([label, rate, amt]) => (
+                  <div key={label} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", fontSize: 11, marginBottom: 4 }}>
+                    <span style={{ color: T.text, fontWeight: 600 }}>{label} ({rate}‰)</span>
+                    <span style={{ textAlign: "right", color: T.muted }}>-</span>
+                    <span style={{ textAlign: "right", color: "#d97706", fontWeight: 700 }}>{amt.toLocaleString()}</span>
+                    <span style={{ textAlign: "right", fontWeight: 800 }}>{amt.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", padding: "10px", borderTop: `2px solid ${T.border}`, background: "#f8fafc" }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: T.text }}>합계</div>
+                <div style={{ textAlign: "right", fontSize: 12, fontWeight: 800, color: "#dc2626" }}>{results.total.보험별합계.reduce((s, r) => s + r.근로자합계, 0).toLocaleString()}</div>
+                <div style={{ textAlign: "right", fontSize: 12, fontWeight: 800, color: "#d97706" }}>{(results.total.보험별합계.reduce((s, r) => s + r.사업주합계, 0) + results.total.산재임채합계).toLocaleString()}</div>
+                <div style={{ textAlign: "right", fontSize: 13, fontWeight: 800, color: "#7c3aed" }}>{results.total.전체보험료.toLocaleString()}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* 납부 요약 */}
+          <div style={{ background: T.adminHeader, borderRadius: 16, padding: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", marginBottom: 14 }}>💡 납부 요약</div>
+            {[
+              { label: "급여 공제 합계", sub: "직원 근로자 부담분", value: results.total.직원합계_근로자, color: "#fca5a5" },
+              { label: "회사 납부 보험료", sub: `직원 사업주분 + 관리자${results.total.전자통보감액 ? " (전자통보 -200원)" : ""}`, value: results.total.회사총부담, color: "#fcd34d" },
+              { label: "산재 + 임채", sub: `팀원 합산 ${results.total.팀원합산보수.toLocaleString()}원 기준`, value: results.total.산재임채합계, color: "#f9a8d4" },
+              { label: "전체 보험료 합계", sub: "산재·임채 포함", value: results.total.전체보험료, color: "#a5f3fc", big: true },
+            ].map((s, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: s.big ? "12px 14px" : "10px 0", background: s.big ? "#ffffff20" : "none", borderRadius: s.big ? 10 : 0, borderTop: i > 0 && !s.big ? "1px solid #ffffff20" : "none" }}>
+                <div>
+                  <div style={{ fontSize: s.big ? 13 : 12, fontWeight: 700, color: "#e2e8f0" }}>{s.label}</div>
+                  <div style={{ fontSize: 10, color: "#94a3b8" }}>{s.sub}</div>
+                </div>
+                <span style={{ fontSize: s.big ? 16 : 14, fontWeight: 800, color: s.color }}>{s.value.toLocaleString()}원</span>
+              </div>
+            ))}
+          </div>
+        </>)}
+      </div>
+    </div>
+  );
+}
 function VaultSection({ onBack }) {
   const [vault, setVaultLocal] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -6096,8 +6344,6 @@ function VaultSection({ onBack }) {
 // ── 관리자 화면 (라우터) ───────────────────────────────────────
 function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
   const [section, setSection] = useState(null);
-
-
   const back = () => { setSection(null); window.scrollTo(0,0); };
   if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={s => { setSection(s); window.scrollTo(0,0); }} leaveRequests={leaveRequests} board={board} reads={reads} contracts={contracts} />;
   if (section === "attendance") return <><AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={back} /><FloatBack onClick={back} /></>;
@@ -6111,6 +6357,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "schedule") return <AdminSectionWrap title="🗓 일정" color="#7c3aed" onBack={back}><AdminSchedule reminders={reminders} users={users} settings={settings} scheduleEvents={scheduleEvents} /></AdminSectionWrap>;
   if (section === "contract") return <><DocSection users={users} memberInfo={memberInfo} settings={settings} contracts={contracts} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "vault") return <><VaultSection onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "insurance") return <><InsuranceSection users={users} memberInfo={memberInfo} onBack={back} /><FloatBack onClick={back} /></>;
   return null;
 }
 
@@ -7011,8 +7258,6 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
   const [selectedYear, setSelectedYear] = useState(thisYear);
   const years = [...new Set(leaveRequests.map(r => r.date?.slice(0,4)).filter(Boolean))].sort((a,b) => b-a);
   if (!years.includes(thisYear)) years.unshift(thisYear);
-
-
 
   const saveAnnual = async (uid) => {
     await setDoc(doc(db, COL_ANNUAL, uid), { total, used });
