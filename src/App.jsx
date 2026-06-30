@@ -6118,7 +6118,7 @@ function MemberEducationTab({ user, reads }) {
       () => setEducations([])
     );
     // 1분마다 now 갱신 (6시간 카운트다운 표시용)
-    const timer = setInterval(() => setNow(new Date()), 60000);
+    const timer = setInterval(() => setNow(new Date()), 10000);
     return () => { unsub(); clearInterval(timer); };
   }, []);
 
@@ -6133,11 +6133,10 @@ function MemberEducationTab({ user, reads }) {
     if (!edu.fileUrl) return { canComplete: true, msg: null }; // 파일 없으면 바로 가능
     const dlTime = downloadTimes[edu.id];
     if (!dlTime) return { canComplete: false, msg: "자료를 먼저 다운로드해주세요" };
-    const elapsed = (now - new Date(dlTime)) / 3600000; // 시간 단위
-    if (elapsed < 6) {
-      const remain = 6 - elapsed;
-      const h = Math.floor(remain), m = Math.round((remain - h) * 60);
-      return { canComplete: false, msg: `다운로드 후 ${h > 0 ? h + "시간 " : ""}${m}분 후 가능` };
+    const elapsed = (now - new Date(dlTime)) / 60000; // 분 단위
+    if (elapsed < 30) {
+      const remain = Math.ceil(30 - elapsed);
+      return { canComplete: false, msg: `다운로드 후 ${remain}분 후 가능` };
     }
     return { canComplete: true, msg: null };
   };
@@ -6177,8 +6176,8 @@ function MemberEducationTab({ user, reads }) {
                       📎 {edu.fileName || "자료 열람 / 다운로드"}
                       {dlTime && <span style={{ fontSize: 10, marginLeft: 4 }}>✓ {new Date(dlTime).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</span>}
                     </button>
-                    {dlTime && !myDone && (
-                      <div style={{ fontSize: 11, color: T.muted, textAlign: "center", marginTop: 4 }}>
+                    {!myDone && (
+                      <div style={{ fontSize: 11, textAlign: "center", marginTop: 6, color: canComplete ? "#16a34a" : T.muted, fontWeight: 600 }}>
                         {canComplete ? "✅ 완료 보고 가능" : `⏱ ${msg}`}
                       </div>
                     )}
