@@ -5,7 +5,7 @@ import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import {
   doc, onSnapshot, setDoc, getDoc, collection,
-  getDocs, writeBatch, addDoc, deleteDoc, query, orderBy
+  getDocs, writeBatch, addDoc, deleteDoc, query, orderBy, where
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
@@ -6108,7 +6108,7 @@ function EducationSection({ users, reads, onBack }) {
 // ── 교육 (팀원) ─────────────────────────────────────────────────
 function MemberEducationTab({ user, reads }) {
   const [educations, setEducations] = useState([]);
-  const [downloadTimes, setDownloadTimes] = useState({}); // eduId → ISO시각
+  const [downloadTimes, setDownloadTimes] = useState({}); // eduId → ISO시각 (Firestore)
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -6117,20 +6117,34 @@ function MemberEducationTab({ user, reads }) {
       snap => setEducations(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
       () => setEducations([])
     );
-    // 1분마다 now 갱신 (6시간 카운트다운 표시용)
+    // 다운로드 기록 불러오기 (COL_READS에서 type="edu_dl" 조회)
+    const unsubDl = onSnapshot(
+      query(collection(db, COL_READS), where("userId", "==", user.id), where("type", "==", "edu_dl")),
+      snap => {
+        const times = {};
+        snap.docs.forEach(d => { times[d.data().docId] = d.data().downloadedAt; });
+        setDownloadTimes(times);
+      },
+      () => {}
+    );
     const timer = setInterval(() => setNow(new Date()), 10000);
-    return () => { unsub(); clearInterval(timer); };
+    return () => { unsub(); unsubDl(); clearInterval(timer); };
   }, []);
 
-  const handleDownload = (edu) => {
-    if (!downloadTimes[edu.id]) {
-      setDownloadTimes(p => ({ ...p, [edu.id]: new Date().toISOString() }));
-    }
+  const handleDownload = async (edu) => {
     window.open(edu.fileUrl, "_blank");
+    // 최초 다운로드 시각만 기록
+    if (!downloadTimes[edu.id]) {
+      const key = `${user.id}_edu_dl_${edu.id}`;
+      await setDoc(doc(db, COL_READS, key), {
+        userId: user.id, type: "edu_dl", docId: edu.id,
+        downloadedAt: new Date().toISOString(), userName: user.name,
+      });
+    }
   };
 
   const getCompleteStatus = (edu) => {
-    if (!edu.fileUrl) return { canComplete: true, msg: null }; // 파일 없으면 바로 가능
+    if (!edu.fileUrl) return { canComplete: true, msg: null };
     const dlTime = downloadTimes[edu.id];
     if (!dlTime) return { canComplete: false, msg: "자료를 먼저 다운로드해주세요" };
     const elapsed = (now - new Date(dlTime)) / 60000; // 분 단위
