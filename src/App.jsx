@@ -6206,7 +6206,7 @@ function MemberEducationTab({ user, reads }) {
                       alert("교육 완료 보고 완료!");
                     }}
                     style={{ width: "100%", padding: "13px 0", borderRadius: 12, border: "none", background: canComplete ? "#7c3aed" : "#e5e7eb", color: canComplete ? "#fff" : "#9ca3af", fontSize: 14, fontWeight: 800, cursor: canComplete ? "pointer" : "default" }}>
-                    {canComplete ? "✅ 교육 완료 보고" : `⏱ ${msg || "자료를 먼저 다운로드해주세요"}`}
+                    ✅ 교육 완료 보고
                   </button>
                 )}
               </div>
