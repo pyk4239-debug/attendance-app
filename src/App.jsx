@@ -5829,8 +5829,8 @@ function ContractViewScreen({ user, contracts }) {
 const EDU_TEMPLATES = [
   {
     key: "safety",
-    label: "안전보건교육",
-    title: "안전보건교육",
+    label: "정기 안전보건교육",
+    getTitle: (year, quarter, seq) => `정기 안전보건교육 ${year}년 ${quarter}분기 ${seq}차`,
     content: `■ 교육 종류: 정기 안전보건교육 (근로자)
 ■ 교육 시간: 매 분기 6시간 이상 (사무직 3시간 이상)
 ■ 교육 내용:
@@ -5857,6 +5857,11 @@ function EducationSection({ users, reads, onBack }) {
   const [expanded, setExpanded] = useState({});
   const [recipients, setRecipients] = useState([]);
 
+  // 분기/차수 자동계산
+  const now = new Date();
+  const curYear = now.getFullYear();
+  const curQuarter = Math.ceil((now.getMonth() + 1) / 3);
+
   useEffect(() => {
     const unsub = onSnapshot(
       query(collection(db, "education"), orderBy("createdAt", "desc")),
@@ -5870,7 +5875,13 @@ function EducationSection({ users, reads, onBack }) {
     const tpl = EDU_TEMPLATES.find(t => t.key === key);
     if (!tpl) return;
     setTemplate(key);
-    setTitle(tpl.title);
+    // 이번 분기 차수 계산 (같은 분기 같은 종류 교육 수 + 1)
+    const sameQuarter = educations.filter(e =>
+      e.templateKey === key &&
+      e.createdAt && new Date(e.createdAt).getFullYear() === curYear &&
+      Math.ceil((new Date(e.createdAt).getMonth() + 1) / 3) === curQuarter
+    ).length + 1;
+    setTitle(tpl.getTitle(curYear, curQuarter, sameQuarter));
     setContent(tpl.content);
   };
 
@@ -5884,25 +5895,25 @@ function EducationSection({ users, reads, onBack }) {
     setTemplate(""); setRecipients([]); setShowForm(false);
   };
 
-  const toggleRecipient = (id) => {
+  const toggleRecipient = (id) =>
     setRecipients(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-  };
 
   const submit = async () => {
     if (!title.trim()) { alert("교육명을 입력하세요."); return; }
     if (recipients.length === 0) { alert("수신인을 선택하세요."); return; }
     setUploading(true);
     try {
-      let fileUrl = null, fileName = null;
+      let fileUrl = null, fileName = null, fileType = null;
       if (file) {
         const sRef = ref(storage, `education/${Date.now()}_${file.name}`);
         await uploadBytes(sRef, file);
         fileUrl = await getDownloadURL(sRef);
         fileName = file.name;
+        fileType = file.type;
       }
       await addDoc(collection(db, "education"), {
         title: title.trim(), content: content.trim(), eduDate,
-        fileUrl, fileName, recipients,
+        fileUrl, fileName, fileType, recipients, templateKey: template,
         createdAt: new Date().toISOString(),
       });
       for (const id of recipients) {
@@ -5916,6 +5927,13 @@ function EducationSection({ users, reads, onBack }) {
       reset();
     } catch(e) { alert("오류: " + e.message); }
     setUploading(false);
+  };
+
+  const fmtDuration = (startIso, endIso) => {
+    if (!startIso || !endIso) return "";
+    const diff = Math.floor((new Date(endIso) - new Date(startIso)) / 60000);
+    const h = Math.floor(diff / 60), m = diff % 60;
+    return h > 0 ? `${h}시간 ${m}분` : `${m}분`;
   };
 
   return (
@@ -5937,9 +5955,9 @@ function EducationSection({ users, reads, onBack }) {
           <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 16, border: `1px solid ${T.border}` }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: T.text, marginBottom: 12 }}>🎓 교육 개설</div>
 
-            {/* 템플릿 선택 */}
+            {/* 템플릿 */}
             <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 6 }}>📋 템플릿 선택</div>
+              <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 6 }}>📋 템플릿</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {EDU_TEMPLATES.map(tpl => (
                   <button key={tpl.key} onClick={() => applyTemplate(tpl.key)}
@@ -5954,14 +5972,12 @@ function EducationSection({ users, reads, onBack }) {
               </div>
             </div>
 
-            {/* 수신인 선택 */}
+            {/* 수신인 */}
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 6 }}>
                 👤 수신인
-                <button onClick={() => setRecipients(members.map(m => m.id))}
-                  style={{ marginLeft: 8, fontSize: 11, color: "#7c3aed", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>전체</button>
-                <button onClick={() => setRecipients([])}
-                  style={{ marginLeft: 4, fontSize: 11, color: T.muted, background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>초기화</button>
+                <button onClick={() => setRecipients(members.map(m => m.id))} style={{ marginLeft: 8, fontSize: 11, color: "#7c3aed", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>전체</button>
+                <button onClick={() => setRecipients([])} style={{ marginLeft: 4, fontSize: 11, color: T.muted, background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>초기화</button>
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {members.map(m => (
@@ -5980,10 +5996,10 @@ function EducationSection({ users, reads, onBack }) {
                 style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, boxSizing: "border-box", fontFamily: "inherit" }} />
             </div>
 
-            {/* 교육일 */}
+            {/* 교육일 — 달력 */}
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 4 }}>교육일</div>
-              <input value={eduDate} onChange={e => setEduDate(e.target.value)} placeholder="예: 2026-07-15"
+              <input type="date" value={eduDate} onChange={e => setEduDate(e.target.value)}
                 style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, boxSizing: "border-box", fontFamily: "inherit" }} />
             </div>
 
@@ -5994,12 +6010,12 @@ function EducationSection({ users, reads, onBack }) {
                 style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, boxSizing: "border-box", fontFamily: "inherit", resize: "vertical" }} />
             </div>
 
-            {/* 자료 첨부 */}
+            {/* 자료 첨부 — 동영상 포함 */}
             <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 4 }}>자료 첨부 (선택)</div>
+              <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 4 }}>자료 첨부 (선택) <span style={{ fontWeight: 400 }}>— 문서·이미지·동영상</span></div>
               <label style={{ display: "block", padding: "10px 0", borderRadius: 10, border: `1px dashed ${T.border}`, background: T.bg, color: file ? "#16a34a" : T.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "center" }}>
                 {file ? `📎 ${file.name}` : "📁 파일 선택"}
-                <input type="file" accept=".pdf,.ppt,.pptx,.doc,.docx,image/*" style={{ display: "none" }} onChange={e => setFile(e.target.files?.[0])} />
+                <input type="file" accept=".pdf,.ppt,.pptx,.doc,.docx,image/*,video/*" style={{ display: "none" }} onChange={e => setFile(e.target.files?.[0])} />
               </label>
               {file && <button onClick={() => setFile(null)} style={{ marginTop: 4, fontSize: 11, color: "#b91c1c", background: "none", border: "none", cursor: "pointer" }}>✕ 제거</button>}
             </div>
@@ -6016,9 +6032,7 @@ function EducationSection({ users, reads, onBack }) {
         )}
         {educations.map(edu => {
           const isOpen = expanded[edu.id];
-          const eduMembers = edu.recipients
-            ? members.filter(m => edu.recipients.includes(m.id))
-            : members;
+          const eduMembers = edu.recipients ? members.filter(m => edu.recipients.includes(m.id)) : members;
           const done = eduMembers.filter(m => reads[`${m.id}_edu_${edu.id}`]);
           const notDone = eduMembers.filter(m => !reads[`${m.id}_edu_${edu.id}`]);
           return (
@@ -6045,17 +6059,23 @@ function EducationSection({ users, reads, onBack }) {
                       📎 {edu.fileName || "자료 다운로드"}
                     </a>
                   )}
+                  {/* 완료 현황 — 교육시간 포함 */}
                   <div style={{ background: T.bg, borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 8 }}>완료 현황</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {eduMembers.map(m => (
-                        <span key={m.id} style={{ fontSize: 12, padding: "4px 10px", borderRadius: 20, fontWeight: 600,
-                          background: reads[`${m.id}_edu_${edu.id}`] ? "#dcfce7" : "#fee2e2",
-                          color: reads[`${m.id}_edu_${edu.id}`] ? "#16a34a" : "#b91c1c" }}>
-                          {reads[`${m.id}_edu_${edu.id}`] ? "✅" : "⏳"} {m.name}
-                        </span>
-                      ))}
-                    </div>
+                    {eduMembers.map(m => {
+                      const r = reads[`${m.id}_edu_${edu.id}`];
+                      const dur = r ? fmtDuration(edu.createdAt, r.readAt) : null;
+                      return (
+                        <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: r ? "#16a34a" : "#b91c1c" }}>
+                            {r ? "✅" : "⏳"} {m.name}
+                          </span>
+                          <span style={{ fontSize: 11, color: T.muted }}>
+                            {r ? `${new Date(r.readAt).toLocaleDateString("ko-KR")} · ${dur}` : "미완료"}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                   {notDone.length > 0 && (
                     <button onClick={async () => {
@@ -6085,10 +6105,11 @@ function EducationSection({ users, reads, onBack }) {
   );
 }
 
-
 // ── 교육 (팀원) ─────────────────────────────────────────────────
 function MemberEducationTab({ user, reads }) {
   const [educations, setEducations] = useState([]);
+  const [downloadTimes, setDownloadTimes] = useState({}); // eduId → ISO시각
+  const [now, setNow] = useState(new Date());
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -6096,8 +6117,30 @@ function MemberEducationTab({ user, reads }) {
       snap => setEducations(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
       () => setEducations([])
     );
-    return () => unsub();
+    // 1분마다 now 갱신 (6시간 카운트다운 표시용)
+    const timer = setInterval(() => setNow(new Date()), 60000);
+    return () => { unsub(); clearInterval(timer); };
   }, []);
+
+  const handleDownload = (edu) => {
+    if (!downloadTimes[edu.id]) {
+      setDownloadTimes(p => ({ ...p, [edu.id]: new Date().toISOString() }));
+    }
+    window.open(edu.fileUrl, "_blank");
+  };
+
+  const getCompleteStatus = (edu) => {
+    if (!edu.fileUrl) return { canComplete: true, msg: null }; // 파일 없으면 바로 가능
+    const dlTime = downloadTimes[edu.id];
+    if (!dlTime) return { canComplete: false, msg: "자료를 먼저 다운로드해주세요" };
+    const elapsed = (now - new Date(dlTime)) / 3600000; // 시간 단위
+    if (elapsed < 6) {
+      const remain = 6 - elapsed;
+      const h = Math.floor(remain), m = Math.round((remain - h) * 60);
+      return { canComplete: false, msg: `다운로드 후 ${h > 0 ? h + "시간 " : ""}${m}분 후 가능` };
+    }
+    return { canComplete: true, msg: null };
+  };
 
   return (
     <div style={{ paddingBottom: 80 }}>
@@ -6111,6 +6154,8 @@ function MemberEducationTab({ user, reads }) {
         )}
         {educations.filter(edu => !edu.recipients || edu.recipients.includes(user.id)).map(edu => {
           const myDone = reads[`${user.id}_edu_${edu.id}`];
+          const { canComplete, msg } = getCompleteStatus(edu);
+          const dlTime = downloadTimes[edu.id];
           return (
             <div key={edu.id} style={{ background: T.card, borderRadius: 16, marginBottom: 12, border: `1px solid ${T.border}`, overflow: "hidden" }}>
               <div style={{ padding: "14px 16px" }}>
@@ -6123,12 +6168,24 @@ function MemberEducationTab({ user, reads }) {
                 </div>
                 {edu.eduDate && <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>📅 교육일: {edu.eduDate}</div>}
                 {edu.content && <div style={{ fontSize: 13, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 12 }}>{edu.content}</div>}
+
+                {/* 자료 다운로드 */}
                 {edu.fileUrl && (
-                  <a href={edu.fileUrl} target="_blank" rel="noreferrer"
-                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", background: "#eff6ff", borderRadius: 10, color: "#2563eb", fontSize: 13, fontWeight: 700, textDecoration: "none", marginBottom: 12 }}>
-                    📎 {edu.fileName || "자료 열람 / 다운로드"}
-                  </a>
+                  <div style={{ marginBottom: 12 }}>
+                    <button onClick={() => handleDownload(edu)}
+                      style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", background: dlTime ? "#f0fdf4" : "#eff6ff", borderRadius: 10, border: "none", color: dlTime ? "#16a34a" : "#2563eb", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                      📎 {edu.fileName || "자료 열람 / 다운로드"}
+                      {dlTime && <span style={{ fontSize: 10, marginLeft: 4 }}>✓ {new Date(dlTime).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</span>}
+                    </button>
+                    {dlTime && !myDone && (
+                      <div style={{ fontSize: 11, color: T.muted, textAlign: "center", marginTop: 4 }}>
+                        {canComplete ? "✅ 완료 보고 가능" : `⏱ ${msg}`}
+                      </div>
+                    )}
+                  </div>
                 )}
+
+                {/* 완료 버튼 */}
                 {myDone ? (
                   <div style={{ padding: "12px", background: "#f0fdf4", borderRadius: 10, textAlign: "center" }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#16a34a" }}>
@@ -6136,17 +6193,20 @@ function MemberEducationTab({ user, reads }) {
                     </div>
                   </div>
                 ) : (
-                  <button onClick={async () => {
-                    if (!window.confirm(`"${edu.title}" 교육 완료를 보고할까요?`)) return;
-                    await setDoc(doc(db, COL_READS, `${user.id}_edu_${edu.id}`), {
-                      userId: user.id, type: "edu", docId: edu.id,
-                      readAt: new Date().toISOString(), userName: user.name,
-                    });
-                    await sendPush({ title: "✅ 교육 완료 보고", message: `${user.name}님이 "${edu.title}" 교육을 완료하였습니다.`, targetUserId: "admin" });
-                    alert("교육 완료 보고 완료!");
-                  }}
-                    style={{ width: "100%", padding: "13px 0", borderRadius: 12, border: "none", background: "#7c3aed", color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
-                    ✅ 교육 완료 보고
+                  <button
+                    disabled={!canComplete}
+                    onClick={async () => {
+                      if (!window.confirm(`"${edu.title}" 교육 완료를 보고할까요?`)) return;
+                      await setDoc(doc(db, COL_READS, `${user.id}_edu_${edu.id}`), {
+                        userId: user.id, type: "edu", docId: edu.id,
+                        readAt: new Date().toISOString(), userName: user.name,
+                        downloadedAt: dlTime || null,
+                      });
+                      await sendPush({ title: "✅ 교육 완료 보고", message: `${user.name}님이 "${edu.title}" 교육을 완료하였습니다.`, targetUserId: "admin" });
+                      alert("교육 완료 보고 완료!");
+                    }}
+                    style={{ width: "100%", padding: "13px 0", borderRadius: 12, border: "none", background: canComplete ? "#7c3aed" : "#e5e7eb", color: canComplete ? "#fff" : "#9ca3af", fontSize: 14, fontWeight: 800, cursor: canComplete ? "pointer" : "default" }}>
+                    {canComplete ? "✅ 교육 완료 보고" : `⏱ ${msg || "자료를 먼저 다운로드해주세요"}`}
                   </button>
                 )}
               </div>
