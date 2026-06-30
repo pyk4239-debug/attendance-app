@@ -4891,7 +4891,6 @@ function DocSection({ users, memberInfo, settings, contracts, educations, reads 
   const filteredContracts = (userId) => contracts.filter(c => c.userId === userId && (c.docType || "contract") === docTypeFilter);
   const isContractTab = docTypeFilter === "contract";
   const isEducationTab = docTypeFilter === "education";
-  const activeMembers = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
 
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 30 }}>
@@ -4941,7 +4940,7 @@ function DocSection({ users, memberInfo, settings, contracts, educations, reads 
       <div style={{ padding: 16 }}>
 
         {/* 🎓 교육 탭 */}
-        {isEducationTab && <EducationAdminSection educations={educations} members={activeMembers} reads={reads} />}
+        {isEducationTab && <EducationAdminSection educations={educations} members={members} reads={reads} />}
 
         {!isEducationTab && members.map(u => {
           const myDocs = filteredContracts(u.id);
