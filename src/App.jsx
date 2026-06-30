@@ -5331,7 +5331,7 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
     </div>
   );
 }
-function ContractViewScreen({ user, contracts, educations = [], reads = {} }) {
+function ContractViewScreen({ user, contracts }) {
   const [docTypeTab, setDocTypeTab] = useState("contract");
   const myDocs = contracts.filter(c => c.userId === user.id && (c.docType || "contract") === docTypeTab && (c.status === "sent" || c.status === "signed"));
   const contract = myDocs[0]; // 근로계약서용 최신 1건
@@ -5417,7 +5417,7 @@ function ContractViewScreen({ user, contracts, educations = [], reads = {} }) {
     setSigning(false);
   };
 
-  if (!contract && (docTypeTab === "contract" || myDocs.length === 0) && docTypeTab !== "education") return (
+  if (!contract && (docTypeTab === "contract" || myDocs.length === 0)) return (
     <div style={{ padding: 32, textAlign: "center" }}>
       <div style={{ fontSize: 48, marginBottom: 12 }}>📄</div>
       <div style={{ fontSize: 15, color: T.muted, fontWeight: 600 }}>등록된 {DOC_TYPES.find(d=>d.key===docTypeTab)?.label||"문서"}가 없습니다</div>
@@ -5453,61 +5453,6 @@ function ContractViewScreen({ user, contracts, educations = [], reads = {} }) {
       </div>
 
       {/* 동의서/확인서/기타 탭 — 그룹핑해서 전부 표시 */}
-      {/* 팀원: 교육 탭 */}
-      {docTypeTab === "education" && (
-        <div style={{ padding: "12px 16px 0" }}>
-          {educations.length === 0 && (
-            <div style={{ textAlign: "center", padding: 40, color: T.muted, fontSize: 14 }}>등록된 교육이 없습니다</div>
-          )}
-          {educations.map(edu => {
-            const myCompleted = reads[`${user.id}_edu_${edu.id}`];
-            return (
-              <div key={edu.id} style={{ background: T.card, borderRadius: 16, marginBottom: 12, border: `1px solid ${T.border}`, overflow: "hidden" }}>
-                <div style={{ padding: "14px 16px" }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: T.text, marginBottom: 4 }}>🎓 {edu.title}</div>
-                  {edu.eduDate && <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>교육일: {edu.eduDate}</div>}
-                  {edu.content && <div style={{ fontSize: 13, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 12 }}>{edu.content}</div>}
-                  {edu.fileUrl && (
-                    <a href={edu.fileUrl} target="_blank" rel="noreferrer"
-                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 16px", background: "#eff6ff", borderRadius: 10, color: "#2563eb", fontSize: 13, fontWeight: 700, textDecoration: "none", marginBottom: 12, width: "100%", boxSizing: "border-box" }}>
-                      📎 교육 자료 열람/다운로드
-                    </a>
-                  )}
-                  {myCompleted ? (
-                    <div style={{ padding: "12px 14px", background: "#dcfce7", borderRadius: 10, textAlign: "center" }}>
-                      <div style={{ fontSize: 22, marginBottom: 4 }}>✅</div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#16a34a" }}>교육 완료 보고 완료</div>
-                      <div style={{ fontSize: 11, color: "#16a34a", marginTop: 2 }}>
-                        {new Date(myCompleted.readAt).toLocaleString("ko-KR")}
-                      </div>
-                    </div>
-                  ) : (
-                    <button onClick={async () => {
-                      if (!window.confirm(`"${edu.title}" 교육 완료를 보고할까요?`)) return;
-                      const key = `${user.id}_edu_${edu.id}`;
-                      await setDoc(doc(db, COL_READS, key), {
-                        userId: user.id, type: "edu", docId: edu.id,
-                        readAt: new Date().toISOString(), userName: user.name,
-                      });
-                      await addDoc(collection(db, COL_NOTICES), {
-                        title: `✅ ${user.name}님 교육 완료 보고`,
-                        content: `"${edu.title}" 교육을 완료하였습니다.`,
-                        recipient: "admin", author: user.name, auto: true, createdAt: new Date().toISOString(),
-                      });
-                      await sendPush({ title: `✅ 교육 완료`, message: `${user.name}님이 "${edu.title}" 교육을 완료하였습니다.`, targetUserId: "admin" });
-                      alert("교육 완료 보고가 완료되었습니다!");
-                    }}
-                      style={{ width: "100%", padding: "13px 0", borderRadius: 12, border: "none", background: T.adminHeader, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
-                      ✅ 교육 완료 보고
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
       {docTypeTab !== "contract" && docTypeTab !== "education" && myDocs.length > 0 && (() => {
         const groups = [];
         const seen = {};
@@ -7963,7 +7908,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
             <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📄 근로계약서</div>
           </div>
-          <ContractViewScreen user={user} contracts={contracts} educations={educations} reads={reads} />
+          <ContractViewScreen user={user} contracts={contracts} />
         </>
       )}
       {tab === "schedule" && (
