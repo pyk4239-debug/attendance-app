@@ -6009,7 +6009,6 @@ function InsuranceSection({ users, memberInfo, onBack }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
           <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
           <div>
-            <div style={{ fontSize: 11, color: "#ffffff60", letterSpacing: 3 }}>2026년 기준</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>💰 4대보험료 계산기</div>
           </div>
         </div>
