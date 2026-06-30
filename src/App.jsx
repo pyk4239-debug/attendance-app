@@ -48,7 +48,6 @@ const DOC_TYPES = [
   { key: "agreement",  label: "동의서",     icon: "✍️" },
   { key: "confirm",    label: "확인서",     icon: "✅" },
   { key: "other",      label: "기타 문서",  icon: "📄" },
-  { key: "education",  label: "교육",       icon: "🎓" },
 ];
 
 // 동의서 템플릿
@@ -473,7 +472,6 @@ function AppLoader() {
   const [scheduleEvents, setScheduleEvents] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [vault, setVault] = useState([]);
-  const [educations, setEducations] = useState([]);
 
   useEffect(() => {
     let unsubs = [];
@@ -586,11 +584,6 @@ function AppLoader() {
     unsubs.push(onSnapshot(query(collection(db, COL_VAULT), orderBy("createdAt", "desc")), snap => {
       setVault(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }));
-    // 교육 구독
-    unsubs.push(onSnapshot(query(collection(db, "education"), orderBy("createdAt", "desc")),
-      snap => { setEducations(snap.docs.map(d => ({ id: d.id, ...d.data() }))); },
-      () => { setEducations([]); }
-    ));
     return () => unsubs.forEach(u => u());
   }, []);
 
@@ -4234,14 +4227,7 @@ function ContractField({ label, fkey, type = "text", placeholder = "", form, set
 }
 
 // ── 근로계약서 (관리자) ─────────────────────────────────────────
-function EducationAdminTab({ educations, members, reads }) {
-  return (
-    <div style={{ textAlign: "center", padding: 40, color: T.muted, fontSize: 14 }}>
-      🎓 교육 탭 (개발 중)
-    </div>
-  );
-}
-function DocSection({ users, memberInfo, settings, contracts, educations, reads, onBack }) {
+function DocSection({ users, memberInfo, settings, contracts, onBack }) {
   const members = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
   const [docTypeFilter, setDocTypeFilter] = useState("contract"); // 상단 탭
   const [selUser, setSelUser] = useState(null);
@@ -4735,7 +4721,6 @@ function DocSection({ users, memberInfo, settings, contracts, educations, reads,
   // 목록 화면
   const filteredContracts = (userId) => contracts.filter(c => c.userId === userId && (c.docType || "contract") === docTypeFilter);
   const isContractTab = docTypeFilter === "contract";
-  const isEducationTab = docTypeFilter === "education";
 
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 30 }}>
@@ -4784,11 +4769,7 @@ function DocSection({ users, memberInfo, settings, contracts, educations, reads,
 
       <div style={{ padding: 16 }}>
 
-        {isEducationTab && (
-          <EducationAdminTab educations={educations} members={members} reads={reads} />
-        )}
-
-        {!isEducationTab && members.map(u => {
+        {members.map(u => {
           const myDocs = filteredContracts(u.id);
           const showHistory = expandedHistory[`hist_${docTypeFilter}_${u.id}`];
 
@@ -6500,7 +6481,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "board") return <AdminSectionWrap title="💬 게시판" color="#0891b2" onBack={back}><BoardScreen user={user} board={board} reads={reads} /></AdminSectionWrap>;
   if (section === "settings") return <><SettingsModal settings={settings} onSave={async s => { await onSaveSettings(s); back(); }} onClose={back} /></>;
   if (section === "schedule") return <AdminSectionWrap title="🗓 일정" color="#7c3aed" onBack={back}><AdminSchedule reminders={reminders} users={users} settings={settings} scheduleEvents={scheduleEvents} /></AdminSectionWrap>;
-  if (section === "contract") return <><DocSection users={users} memberInfo={memberInfo} settings={settings} contracts={contracts} educations={educations} reads={reads} onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "contract") return <><DocSection users={users} memberInfo={memberInfo} settings={settings} contracts={contracts} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "vault") return <><VaultSection onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "insurance") return <><InsuranceSection users={users} memberInfo={memberInfo} onBack={back} /><FloatBack onClick={back} /></>;
   return null;
