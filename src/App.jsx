@@ -4722,6 +4722,7 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
   // 목록 화면
   const filteredContracts = (userId) => contracts.filter(c => c.userId === userId && (c.docType || "contract") === docTypeFilter);
   const isContractTab = docTypeFilter === "contract";
+  const isEducationTab = docTypeFilter === "education";
 
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 30 }}>
@@ -4770,7 +4771,13 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
 
       <div style={{ padding: 16 }}>
 
-        {members.map(u => {
+        {isEducationTab && (
+          <div style={{ textAlign: "center", padding: 40, color: T.muted, fontSize: 14 }}>
+            🎓 교육 탭 준비 중
+          </div>
+        )}
+
+        {!isEducationTab && members.map(u => {
           const myDocs = filteredContracts(u.id);
           const showHistory = expandedHistory[`hist_${docTypeFilter}_${u.id}`];
 
