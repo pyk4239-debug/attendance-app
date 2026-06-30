@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import * as XLSX from "xlsx";
 import { db, storage } from "./firebase";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
@@ -5909,6 +5910,95 @@ function InsuranceSection({ users, memberInfo, onBack }) {
     setResults({ all, total });
   };
 
+  const downloadExcel = () => {
+    if (!results) return;
+    const { all, total } = results;
+    const wb = XLSX.utils.book_new();
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}년 ${now.getMonth()+1}월`;
+
+    // ── 시트1: 개인별 내역 ──
+    const rows1 = [];
+    rows1.push([`${dateStr} 4대보험료 개인별 내역`]);
+    rows1.push([]);
+    rows1.push(["구분", "이름", "항목", "요율", "근로자 부담", "사업주 부담"]);
+    all.forEach(r => {
+      r.rows.forEach((row, i) => {
+        rows1.push([
+          i === 0 ? (r.isOwner ? "사업주" : "직원") : "",
+          i === 0 ? r.name : "",
+          row.항목,
+          row.요율,
+          row.근로자 === 0 ? "-" : row.근로자,
+          row.사업주 === null ? "업종별" : row.사업주 === 0 ? "-" : row.사업주,
+        ]);
+      });
+      rows1.push([
+        "", r.name + " 합계", "", "",
+        r.합계_근로자,
+        r.합계_사업주,
+      ]);
+      rows1.push([]);
+    });
+    const ws1 = XLSX.utils.aoa_to_sheet(rows1);
+    ws1["!cols"] = [{ wch: 8 }, { wch: 12 }, { wch: 20 }, { wch: 16 }, { wch: 14 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, ws1, "개인별 내역");
+
+    // ── 시트2: 보험별 합계 ──
+    const rows2 = [];
+    rows2.push([`${dateStr} 보험별 합계`]);
+    rows2.push([]);
+    rows2.push(["보험 항목", "근로자 합계", "사업주 합계", "합계"]);
+    total.보험별합계.forEach(row => {
+      rows2.push([row.항목, row.근로자합계 || 0, row.사업주합계 || 0, row.합계]);
+    });
+    rows2.push([
+      `산재보험 (${산재율}‰)`,
+      "-",
+      total.산재보험료,
+      total.산재보험료,
+    ]);
+    rows2.push([
+      `임금채권부담금 (${임채율}‰)`,
+      "-",
+      total.임금채권료,
+      total.임금채권료,
+    ]);
+    rows2.push([]);
+    rows2.push([
+      "합계",
+      total.보험별합계.reduce((s, r) => s + r.근로자합계, 0),
+      total.보험별합계.reduce((s, r) => s + r.사업주합계, 0) + total.산재임채합계,
+      total.전체보험료,
+    ]);
+    ws1["!cols"] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+    const ws2 = XLSX.utils.aoa_to_sheet(rows2);
+    ws2["!cols"] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, ws2, "보험별 합계");
+
+    // ── 시트3: 납부 요약 ──
+    const rows3 = [];
+    rows3.push([`${dateStr} 납부 요약`]);
+    rows3.push([]);
+    rows3.push(["항목", "금액", "비고"]);
+    rows3.push(["급여 공제 합계", total.직원합계_근로자, "직원 근로자 부담분 → 급여에서 차감"]);
+    rows3.push(["회사 납부 보험료", total.회사총부담, `직원 사업주분 + 관리자 전체${total.전자통보감액 ? " (전자통보 -200원)" : ""}`]);
+    rows3.push(["산재보험료", total.산재보험료, `${산재율}‰ · 팀원 합산 ${total.팀원합산보수.toLocaleString()}원 기준`]);
+    rows3.push(["임금채권부담금", total.임금채권료, `${임채율}‰ · 팀원 합산 ${total.팀원합산보수.toLocaleString()}원 기준`]);
+    rows3.push([]);
+    rows3.push(["전체 보험료 합계", total.전체보험료, "산재·임채 포함"]);
+    rows3.push([]);
+    rows3.push(["※ 산재보험 요율", `${산재율}‰`]);
+    rows3.push(["※ 임금채권부담금 요율", `${임채율}‰`]);
+    rows3.push(["※ 국민연금 전자통보 감액", total.전자통보감액 ? "-200원 적용" : "미적용"]);
+    rows3.push(["※ 기준", "2026년"]);
+    const ws3 = XLSX.utils.aoa_to_sheet(rows3);
+    ws3["!cols"] = [{ wch: 22 }, { wch: 16 }, { wch: 36 }];
+    XLSX.utils.book_append_sheet(wb, ws3, "납부 요약");
+
+    XLSX.writeFile(wb, `4대보험료_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}.xlsx`);
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 40 }}>
       <div style={{ background: "#16a34a", paddingTop: "calc(16px + env(safe-area-inset-top))", paddingBottom: "14px", paddingLeft: "16px", paddingRight: "16px" }}>
@@ -5979,10 +6069,18 @@ function InsuranceSection({ users, memberInfo, onBack }) {
           ))}
         </div>
 
-        <button onClick={calculate}
-          style={{ width: "100%", padding: "14px 0", borderRadius: 14, border: "none", background: "#16a34a", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", marginBottom: 20 }}>
-          💰 계산하기
-        </button>
+        <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+          <button onClick={calculate}
+            style={{ flex: 2, padding: "14px 0", borderRadius: 14, border: "none", background: "#16a34a", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>
+            💰 계산하기
+          </button>
+          {results && (
+            <button onClick={downloadExcel}
+              style={{ flex: 1, padding: "14px 0", borderRadius: 14, border: "none", background: "#0369a1", color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
+              📥 엑셀
+            </button>
+          )}
+        </div>
 
         {results && (<>
           <div style={{ fontSize: 14, fontWeight: 800, color: T.text, marginBottom: 10 }}>📊 개인별 내역</div>
