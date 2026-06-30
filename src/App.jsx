@@ -6046,6 +6046,7 @@ function MemberEducationTab({ user, reads }) {
                       userId: user.id, type: "edu", docId: edu.id,
                       readAt: new Date().toISOString(), userName: user.name,
                     });
+                    await sendPush({ title: "✅ 교육 완료 보고", message: `${user.name}님이 "${edu.title}" 교육을 완료하였습니다.`, targetUserId: "admin" });
                     alert("교육 완료 보고 완료!");
                   }}
                     style={{ width: "100%", padding: "13px 0", borderRadius: 12, border: "none", background: "#7c3aed", color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
