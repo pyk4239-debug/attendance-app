@@ -5881,33 +5881,37 @@ function InsuranceSection({ users, memberInfo, onBack }) {
   const iStyle = { width: "100%", padding: "9px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, color: T.text, textAlign: "right", boxSizing: "border-box", fontFamily: "inherit", background: "#fff" };
 
   const calculate = () => {
-    const ownerResult = { name: "관리자(사업주)", isOwner: true, pension: num(ownerPension), health: num(ownerHealth), ...calcOne(num(ownerPension), num(ownerHealth), true) };
-    const memberResults = memberInputs.filter(m => m.pension || m.health).map(m => ({
-      name: m.name, isOwner: false, pension: num(m.pension), health: num(m.health),
-      ...calcOne(num(m.pension), num(m.health), false),
-    }));
-    const all = [ownerResult, ...memberResults];
-    const 팀원합산보수 = memberResults.reduce((s, r) => s + r.health, 0);
-    const 산재보험료 = Math.floor(팀원합산보수 * (parseFloat(산재율) || 0) / 1000 / 10) * 10;
-    const 임금채권료 = Math.floor(팀원합산보수 * (parseFloat(임채율) || 0) / 1000 / 10) * 10;
-    const 산재임채합계 = 산재보험료 + 임금채권료;
-    const 전자통보감액 = 전자통보 ? 200 : 0;
-    const 보험항목 = ["국민연금", "건강보험", "장기요양", "고용보험(실업급여)", "고용보험(고안·직능)"];
-    const 보험별합계 = 보험항목.map(항목 => {
-      const 근로자합계 = all.reduce((s, r) => s + (r.rows.find(row => row.항목 === 항목)?.근로자 || 0), 0);
-      const 사업주합계 = all.reduce((s, r) => s + (r.rows.find(row => row.항목 === 항목)?.사업주 || 0), 0);
-      return { 항목, 근로자합계, 사업주합계, 합계: 근로자합계 + 사업주합계 };
-    });
-    const total = {
-      직원합계_근로자: memberResults.reduce((s, r) => s + r.합계_근로자, 0),
-      직원합계_사업주: memberResults.reduce((s, r) => s + r.합계_사업주, 0),
-      관리자_근로자: ownerResult.합계_근로자,
-      관리자_사업주: ownerResult.합계_사업주,
-      산재보험료, 임금채권료, 산재임채합계, 팀원합산보수, 전자통보감액, 보험별합계,
-    };
-    total.회사총부담 = total.직원합계_사업주 + total.관리자_사업주 + total.관리자_근로자 - 전자통보감액 + 산재임채합계;
-    total.전체보험료 = total.직원합계_근로자 + total.직원합계_사업주 + total.관리자_근로자 + total.관리자_사업주 - 전자통보감액 + 산재임채합계;
-    setResults({ all, total });
+    try {
+      const ownerResult = { name: "관리자(사업주)", isOwner: true, pension: num(ownerPension), health: num(ownerHealth), ...calcOne(num(ownerPension), num(ownerHealth), true) };
+      const memberResults = memberInputs.filter(m => m.pension || m.health).map(m => ({
+        name: m.name, isOwner: false, pension: num(m.pension), health: num(m.health),
+        ...calcOne(num(m.pension), num(m.health), false),
+      }));
+      const all = [ownerResult, ...memberResults];
+      const 팀원합산보수 = memberResults.reduce((s, r) => s + r.health, 0);
+      const 산재보험료 = Math.floor(팀원합산보수 * (parseFloat(산재율) || 0) / 1000 / 10) * 10;
+      const 임금채권료 = Math.floor(팀원합산보수 * (parseFloat(임채율) || 0) / 1000 / 10) * 10;
+      const 산재임채합계 = 산재보험료 + 임금채권료;
+      const 전자통보감액 = 전자통보 ? 200 : 0;
+      const 보험항목 = ["국민연금", "건강보험", "장기요양", "고용보험(실업급여)", "고용보험(고안·직능)"];
+      const 보험별합계 = 보험항목.map(항목 => {
+        const 근로자합계 = all.reduce((s, r) => s + (r.rows.find(row => row.항목 === 항목)?.근로자 || 0), 0);
+        const 사업주합계 = all.reduce((s, r) => s + (r.rows.find(row => row.항목 === 항목)?.사업주 || 0), 0);
+        return { 항목, 근로자합계, 사업주합계, 합계: 근로자합계 + 사업주합계 };
+      });
+      const total = {
+        직원합계_근로자: memberResults.reduce((s, r) => s + r.합계_근로자, 0),
+        직원합계_사업주: memberResults.reduce((s, r) => s + r.합계_사업주, 0),
+        관리자_근로자: ownerResult.합계_근로자,
+        관리자_사업주: ownerResult.합계_사업주,
+        산재보험료, 임금채권료, 산재임채합계, 팀원합산보수, 전자통보감액, 보험별합계,
+      };
+      total.회사총부담 = total.직원합계_사업주 + total.관리자_사업주 + total.관리자_근로자 - 전자통보감액 + 산재임채합계;
+      total.전체보험료 = total.직원합계_근로자 + total.직원합계_사업주 + total.관리자_근로자 + total.관리자_사업주 - 전자통보감액 + 산재임채합계;
+      setResults({ all, total });
+    } catch(e) {
+      alert("계산 오류: " + e.message);
+    }
   };
 
   const downloadExcel = () => {
@@ -6071,15 +6075,13 @@ function InsuranceSection({ users, memberInfo, onBack }) {
 
         <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
           <button onClick={calculate}
-            style={{ flex: 2, padding: "14px 0", borderRadius: 14, border: "none", background: "#16a34a", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>
+            style={{ flex: 1, padding: "14px 0", borderRadius: 14, border: "none", background: "#16a34a", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>
             💰 계산하기
           </button>
-          {results && (
-            <button onClick={downloadExcel}
-              style={{ flex: 1, padding: "14px 0", borderRadius: 14, border: "none", background: "#0369a1", color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
-              📥 엑셀
-            </button>
-          )}
+          <button onClick={downloadExcel} disabled={!results}
+            style={{ flex: 1, padding: "14px 0", borderRadius: 14, border: "none", background: results ? "#0369a1" : "#e5e7eb", color: results ? "#fff" : "#9ca3af", fontSize: 14, fontWeight: 800, cursor: results ? "pointer" : "default" }}>
+            📥 엑셀 다운로드
+          </button>
         </div>
 
         {results && (<>
@@ -6154,12 +6156,6 @@ function InsuranceSection({ users, memberInfo, onBack }) {
               </div>
             </div>
           </div>
-
-          {/* 엑셀 버튼 — 납부 요약 위 */}
-          <button onClick={downloadExcel}
-            style={{ width: "100%", marginBottom: 12, padding: "14px 0", borderRadius: 14, border: "none", background: "#0369a1", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>
-            📥 엑셀 다운로드
-          </button>
 
           {/* 납부 요약 */}
           <div style={{ background: T.adminHeader, borderRadius: 16, padding: 20 }}>
