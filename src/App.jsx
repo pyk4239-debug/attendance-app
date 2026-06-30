@@ -48,6 +48,7 @@ const DOC_TYPES = [
   { key: "agreement",  label: "동의서",     icon: "✍️" },
   { key: "confirm",    label: "확인서",     icon: "✅" },
   { key: "other",      label: "기타 문서",  icon: "📄" },
+  { key: "education",  label: "교육",       icon: "🎓" },
 ];
 
 // 동의서 템플릿
@@ -4733,10 +4734,10 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📄 문서함</div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 6, marginTop: 12, overflowX: "auto", paddingBottom: 2 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 12 }}>
           {DOC_TYPES.map(dt => (
             <button key={dt.key} onClick={() => setDocTypeFilter(dt.key)}
-              style={{ flexShrink: 0, padding: "6px 14px", borderRadius: 20, border: "none", background: docTypeFilter === dt.key ? "#fff" : "#ffffff25", color: docTypeFilter === dt.key ? T.adminHeader : "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              style={{ padding: "7px 0", borderRadius: 10, border: "none", background: docTypeFilter === dt.key ? "#fff" : "#ffffff25", color: docTypeFilter === dt.key ? T.adminHeader : "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
               {dt.icon} {dt.label}
             </button>
           ))}
@@ -5267,13 +5268,13 @@ function ContractViewScreen({ user, contracts }) {
 
   return (
     <div style={{ padding: "0 0 30px" }}>
-      {/* 문서 종류 탭 */}
-      <div style={{ display: "flex", gap: 6, padding: "12px 16px 0", overflowX: "auto" }}>
+      {/* 문서 종류 탭 — 두 줄 */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, padding: "12px 16px 0" }}>
         {DOC_TYPES.map(dt => {
           const hasPending = contracts.some(c => c.userId === user.id && (c.docType || "contract") === dt.key && c.status === "sent");
           return (
             <button key={dt.key} onClick={() => { setDocTypeTab(dt.key); setConfirmed(false); setSignAddr(""); setSignPhone(""); }}
-              style={{ flexShrink: 0, padding: "7px 14px", borderRadius: 20, border: `2px solid ${docTypeTab === dt.key ? T.adminHeader : T.border}`, background: docTypeTab === dt.key ? T.adminHeader : T.bg, color: docTypeTab === dt.key ? "#fff" : T.text, fontSize: 12, fontWeight: 700, cursor: "pointer", position: "relative" }}>
+              style={{ padding: "8px 0", borderRadius: 10, border: `2px solid ${docTypeTab === dt.key ? T.adminHeader : T.border}`, background: docTypeTab === dt.key ? T.adminHeader : T.bg, color: docTypeTab === dt.key ? "#fff" : T.text, fontSize: 11, fontWeight: 700, cursor: "pointer", position: "relative" }}>
               {dt.icon} {dt.label}
               {hasPending && <span style={{ position: "absolute", top: -4, right: -4, width: 8, height: 8, borderRadius: "50%", background: "#ef4444" }} />}
             </button>
