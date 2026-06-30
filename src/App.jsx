@@ -6073,16 +6073,14 @@ function InsuranceSection({ users, memberInfo, onBack }) {
           ))}
         </div>
 
-        <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-          <button onClick={calculate}
-            style={{ flex: 1, padding: "14px 0", borderRadius: 14, border: "none", background: "#16a34a", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>
-            💰 계산하기
-          </button>
-          <button onClick={downloadExcel} disabled={!results}
-            style={{ flex: 1, padding: "14px 0", borderRadius: 14, border: "none", background: results ? "#0369a1" : "#e5e7eb", color: results ? "#fff" : "#9ca3af", fontSize: 14, fontWeight: 800, cursor: results ? "pointer" : "default" }}>
-            📥 엑셀 다운로드
-          </button>
-        </div>
+        <button onClick={calculate}
+          style={{ display: "block", width: "100%", padding: "14px 0", borderRadius: 14, border: "none", background: "#16a34a", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", marginBottom: 10 }}>
+          💰 계산하기
+        </button>
+        <button onClick={downloadExcel} disabled={!results}
+          style={{ display: "block", width: "100%", padding: "14px 0", borderRadius: 14, border: "none", background: results ? "#0369a1" : "#e5e7eb", color: results ? "#fff" : "#9ca3af", fontSize: 14, fontWeight: 800, cursor: results ? "pointer" : "default", marginBottom: 20 }}>
+          📥 엑셀 다운로드
+        </button>
 
         {results && (<>
           <div style={{ fontSize: 14, fontWeight: 800, color: T.text, marginBottom: 10 }}>📊 개인별 내역</div>
