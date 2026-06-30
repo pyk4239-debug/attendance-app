@@ -586,14 +586,6 @@ function AppLoader() {
     unsubs.push(onSnapshot(query(collection(db, COL_VAULT), orderBy("createdAt", "desc")), snap => {
       setVault(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }));
-    try {
-      unsubs.push(onSnapshot(
-        query(collection(db, COL_EDUCATION), orderBy("createdAt", "desc")),
-        snap => { setEducations(snap.docs.map(d => ({ id: d.id, ...d.data() }))); },
-        err => { console.error("education 구독 에러:", err); setEducations([]); }
-      ));
-    } catch(e) { console.error("education 구독 실패:", e); setEducations([]); }
-
     return () => unsubs.forEach(u => u());
   }, []);
 
