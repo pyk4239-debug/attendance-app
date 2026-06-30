@@ -587,9 +587,11 @@ function AppLoader() {
     unsubs.push(onSnapshot(query(collection(db, COL_VAULT), orderBy("createdAt", "desc")), snap => {
       setVault(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }));
-    unsubs.push(onSnapshot(query(collection(db, COL_EDUCATION), orderBy("createdAt", "desc")), snap => {
-      setEducations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }));
+    try {
+      unsubs.push(onSnapshot(query(collection(db, COL_EDUCATION), orderBy("createdAt", "desc")), snap => {
+        setEducations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }));
+    } catch(e) { console.error("education 구독 실패:", e); }
 
     return () => unsubs.forEach(u => u());
   }, []);
@@ -4940,7 +4942,13 @@ function DocSection({ users, memberInfo, settings, contracts, educations, reads 
       <div style={{ padding: 16 }}>
 
         {/* 🎓 교육 탭 */}
-        {isEducationTab && <EducationAdminSection educations={educations} members={members} reads={reads} />}
+        {isEducationTab && (
+          <EducationAdminSection
+            educations={educations || []}
+            members={members || []}
+            reads={reads || {}}
+          />
+        )}
 
         {!isEducationTab && members.map(u => {
           const myDocs = filteredContracts(u.id);
