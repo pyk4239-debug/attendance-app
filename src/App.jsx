@@ -5920,86 +5920,62 @@ function InsuranceSection({ users, memberInfo, onBack }) {
     const wb = XLSX.utils.book_new();
     const now = new Date();
     const dateStr = `${now.getFullYear()}년 ${now.getMonth()+1}월`;
+    const rows = [];
 
-    // ── 시트1: 개인별 내역 ──
-    const rows1 = [];
-    rows1.push([`${dateStr} 4대보험료 개인별 내역`]);
-    rows1.push([]);
-    rows1.push(["구분", "이름", "항목", "요율", "근로자 부담", "사업주 부담"]);
+    // ── 제목 ──
+    rows.push([`${dateStr} 4대보험료 계산 내역`]);
+    rows.push([`산재 ${산재율}‰ / 임채 ${임채율}‰ / 전자통보 감액 ${total.전자통보감액 ? "적용" : "미적용"} / 2026년 기준`]);
+    rows.push([]);
+
+    // ── 1. 개인별 내역 ──
+    rows.push(["【 개인별 내역 】"]);
+    rows.push(["구분", "이름", "항목", "요율", "근로자 부담", "사업주 부담"]);
     all.forEach(r => {
       r.rows.forEach((row, i) => {
-        rows1.push([
+        rows.push([
           i === 0 ? (r.isOwner ? "사업주" : "직원") : "",
           i === 0 ? r.name : "",
-          row.항목,
-          row.요율,
+          row.항목, row.요율,
           row.근로자 === 0 ? "-" : row.근로자,
           row.사업주 === null ? "업종별" : row.사업주 === 0 ? "-" : row.사업주,
         ]);
       });
-      rows1.push([
-        "", r.name + " 합계", "", "",
-        r.합계_근로자,
-        r.합계_사업주,
-      ]);
-      rows1.push([]);
+      rows.push(["", r.name + " 합계", "", "", r.합계_근로자, r.합계_사업주]);
+      rows.push([]);
     });
-    const ws1 = XLSX.utils.aoa_to_sheet(rows1);
-    ws1["!cols"] = [{ wch: 8 }, { wch: 12 }, { wch: 20 }, { wch: 16 }, { wch: 14 }, { wch: 14 }];
-    XLSX.utils.book_append_sheet(wb, ws1, "개인별 내역");
 
-    // ── 시트2: 보험별 합계 ──
-    const rows2 = [];
-    rows2.push([`${dateStr} 보험별 합계`]);
-    rows2.push([]);
-    rows2.push(["보험 항목", "근로자 합계", "사업주 합계", "합계"]);
+    // ── 2. 보험별 합계 ──
+    rows.push(["【 보험별 합계 (전원) 】"]);
+    rows.push(["보험 항목", "근로자 합계", "사업주 합계", "합계"]);
     total.보험별합계.forEach(row => {
-      rows2.push([row.항목, row.근로자합계 || 0, row.사업주합계 || 0, row.합계]);
+      rows.push([row.항목, row.근로자합계 || 0, row.사업주합계 || 0, row.합계]);
     });
-    rows2.push([
-      `산재보험 (${산재율}‰)`,
-      "-",
-      total.산재보험료,
-      total.산재보험료,
-    ]);
-    rows2.push([
-      `임금채권부담금 (${임채율}‰)`,
-      "-",
-      total.임금채권료,
-      total.임금채권료,
-    ]);
-    rows2.push([]);
-    rows2.push([
+    rows.push([`산재보험 (${산재율}‰)`, "-", total.산재보험료, total.산재보험료]);
+    rows.push([`임금채권부담금 (${임채율}‰)`, "-", total.임금채권료, total.임금채권료]);
+    rows.push([
       "합계",
       total.보험별합계.reduce((s, r) => s + r.근로자합계, 0),
       total.보험별합계.reduce((s, r) => s + r.사업주합계, 0) + total.산재임채합계,
       total.전체보험료,
     ]);
-    ws1["!cols"] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
-    const ws2 = XLSX.utils.aoa_to_sheet(rows2);
-    ws2["!cols"] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
-    XLSX.utils.book_append_sheet(wb, ws2, "보험별 합계");
+    rows.push([]);
 
-    // ── 시트3: 납부 요약 ──
-    const rows3 = [];
-    rows3.push([`${dateStr} 납부 요약`]);
-    rows3.push([]);
-    rows3.push(["항목", "금액", "비고"]);
-    rows3.push(["급여 공제 합계", total.직원합계_근로자, "직원 근로자 부담분 → 급여에서 차감"]);
-    rows3.push(["회사 납부 보험료", total.회사총부담, `직원 사업주분 + 관리자 전체${total.전자통보감액 ? " (전자통보 -200원)" : ""}`]);
-    rows3.push(["산재보험료", total.산재보험료, `${산재율}‰ · 팀원 합산 ${total.팀원합산보수.toLocaleString()}원 기준`]);
-    rows3.push(["임금채권부담금", total.임금채권료, `${임채율}‰ · 팀원 합산 ${total.팀원합산보수.toLocaleString()}원 기준`]);
-    rows3.push([]);
-    rows3.push(["전체 보험료 합계", total.전체보험료, "산재·임채 포함"]);
-    rows3.push([]);
-    rows3.push(["※ 산재보험 요율", `${산재율}‰`]);
-    rows3.push(["※ 임금채권부담금 요율", `${임채율}‰`]);
-    rows3.push(["※ 국민연금 전자통보 감액", total.전자통보감액 ? "-200원 적용" : "미적용"]);
-    rows3.push(["※ 기준", "2026년"]);
-    const ws3 = XLSX.utils.aoa_to_sheet(rows3);
-    ws3["!cols"] = [{ wch: 22 }, { wch: 16 }, { wch: 36 }];
-    XLSX.utils.book_append_sheet(wb, ws3, "납부 요약");
+    // ── 3. 납부 요약 ──
+    rows.push(["【 납부 요약 】"]);
+    rows.push(["항목", "금액", "비고"]);
+    rows.push(["급여 공제 합계", total.직원합계_근로자, "직원 근로자 부담분 → 급여에서 차감"]);
+    rows.push(["회사 납부 보험료", total.회사총부담, `직원 사업주분 + 관리자${total.전자통보감액 ? " (전자통보 -200원)" : ""}`]);
+    rows.push(["산재 + 임채", total.산재임채합계, `팀원 합산 ${total.팀원합산보수.toLocaleString()}원 기준 · 별도 납부`]);
+    rows.push([]);
+    rows.push(["전체 보험료 합계", total.전체보험료, "산재·임채 포함"]);
 
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [{ wch: 24 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+
+    // 행 높이 - 제목/섹션 헤더 강조
+    ws["!rows"] = Array(rows.length).fill({ hpt: 16 });
+
+    XLSX.utils.book_append_sheet(wb, ws, `${now.getFullYear()}년 ${now.getMonth()+1}월 보험료`);
     XLSX.writeFile(wb, `4대보험료_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}.xlsx`);
   };
 
