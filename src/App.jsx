@@ -6173,6 +6173,11 @@ function InsuranceSection({ users, memberInfo, onBack }) {
               </div>
             ))}
           </div>
+          {/* 하단 엑셀 버튼 */}
+          <button onClick={downloadExcel}
+            style={{ width: "100%", marginTop: 16, padding: "14px 0", borderRadius: 14, border: "none", background: "#0369a1", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>
+            📥 엑셀 다운로드
+          </button>
         </>)}
       </div>
     </div>
