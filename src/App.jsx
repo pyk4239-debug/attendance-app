@@ -588,10 +588,12 @@ function AppLoader() {
       setVault(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }));
     try {
-      unsubs.push(onSnapshot(query(collection(db, COL_EDUCATION), orderBy("createdAt", "desc")), snap => {
-        setEducations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      }));
-    } catch(e) { console.error("education 구독 실패:", e); }
+      unsubs.push(onSnapshot(
+        query(collection(db, COL_EDUCATION), orderBy("createdAt", "desc")),
+        snap => { setEducations(snap.docs.map(d => ({ id: d.id, ...d.data() }))); },
+        err => { console.error("education 구독 에러:", err); setEducations([]); }
+      ));
+    } catch(e) { console.error("education 구독 실패:", e); setEducations([]); }
 
     return () => unsubs.forEach(u => u());
   }, []);
@@ -4224,167 +4226,12 @@ function AdminSectionWrap({ title, color, onBack, children }) {
 
 // ── 교육 관리 (관리자) ─────────────────────────────────────────
 function EducationAdminSection({ educations, members, reads }) {
-  const [showForm, setShowForm] = useState(false);
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [eduDate, setEduDate] = useState("");
-  const [file, setFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [expanded, setExpanded] = useState({});
-
-  const resetForm = () => { setTitle(""); setContent(""); setEduDate(""); setFile(null); setShowForm(false); };
-
-  const submit = async () => {
-    if (!title.trim()) { alert("교육명을 입력해주세요."); return; }
-    setUploading(true);
-    try {
-      let fileUrl = null, fileName = null;
-      if (file) {
-        const sRef = ref(storage, `education/${Date.now()}_${file.name}`);
-        await uploadBytes(sRef, file);
-        fileUrl = await getDownloadURL(sRef);
-        fileName = file.name;
-      }
-      await addDoc(collection(db, COL_EDUCATION), {
-        title: title.trim(), content: content.trim(),
-        eduDate, fileUrl, fileName,
-        createdAt: new Date().toISOString(),
-        status: "active",
-      });
-      for (const m of members) {
-        await addDoc(collection(db, COL_NOTICES), {
-          title: `🎓 교육 안내: ${title.trim()}`,
-          content: `교육일: ${eduDate || "미정"}\n\n${content.trim()}\n\n문서함 > 교육 탭에서 자료를 확인하고 교육 완료 보고를 해주세요.`,
-          recipient: m.id, author: "관리자", auto: true, createdAt: new Date().toISOString(),
-        });
-        await sendPush({ title: `🎓 교육 안내`, message: `${title.trim()} - 문서함 교육 탭에서 확인해주세요.`, targetUserId: m.id });
-      }
-      resetForm();
-    } catch(e) { alert("등록 실패: " + e.message); }
-    setUploading(false);
-  };
-
-  const deleteEdu = async (edu) => {
-    if (!window.confirm(`"${edu.title}" 교육을 삭제할까요?`)) return;
-    await deleteDoc(doc(db, COL_EDUCATION, edu.id));
-  };
-
   return (
-    <div>
-      {!showForm && (
-        <button onClick={() => setShowForm(true)}
-          style={{ width: "100%", padding: "12px 0", borderRadius: 12, border: `2px dashed ${T.border}`, background: "none", color: T.adminHeader, fontSize: 14, fontWeight: 700, cursor: "pointer", marginBottom: 16 }}>
-          🎓 + 교육 개설
-        </button>
-      )}
-      {showForm && (
-        <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 16, border: `1px solid ${T.border}` }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: T.text, marginBottom: 12 }}>🎓 교육 개설</div>
-          {[["교육명", title, setTitle, "예: 안전보건교육 2026-3분기"], ["교육일", eduDate, setEduDate, "예: 2026-07-15"]].map(([label, val, setter, ph]) => (
-            <div key={label} style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 4 }}>{label}</div>
-              <input value={val} onChange={e => setter(e.target.value)} placeholder={ph}
-                style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, boxSizing: "border-box", fontFamily: "inherit" }} />
-            </div>
-          ))}
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 4 }}>교육 내용</div>
-            <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="교육 내용을 입력하세요" rows={4}
-              style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, boxSizing: "border-box", fontFamily: "inherit", resize: "vertical" }} />
-          </div>
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 4 }}>교육 자료 첨부 (선택)</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <label style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px dashed ${T.border}`, background: T.bg, color: T.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "center" }}>
-                📷 사진
-                <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => setFile(e.target.files?.[0])} />
-              </label>
-              <label style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px dashed ${T.border}`, background: T.bg, color: T.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "center" }}>
-                📁 파일
-                <input type="file" accept=".pdf,.ppt,.pptx,.doc,.docx,image/*" style={{ display: "none" }} onChange={e => setFile(e.target.files?.[0])} />
-              </label>
-            </div>
-            {file && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, padding: "8px 12px", background: "#f0fdf4", borderRadius: 8 }}>
-                <span style={{ fontSize: 12, flex: 1, color: "#16a34a", fontWeight: 600 }}>{file.name}</span>
-                <button onClick={() => setFile(null)} style={{ background: "none", border: "none", color: "#b91c1c", cursor: "pointer" }}>✕</button>
-              </div>
-            )}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Btn variant="ghost" onClick={resetForm}>취소</Btn>
-            <Btn variant="admin" onClick={submit} disabled={uploading}>{uploading ? "등록 중..." : "📢 개설 + 공지"}</Btn>
-          </div>
-        </div>
-      )}
-      {educations.length === 0 && !showForm && (
-        <div style={{ textAlign: "center", padding: 40, color: T.muted, fontSize: 14 }}>등록된 교육이 없습니다</div>
-      )}
-      {educations.map(edu => {
-        const isOpen = expanded[edu.id];
-        const completedIds = members.filter(m => reads[`${m.id}_edu_${edu.id}`]).map(m => m.id);
-        const uncompletedMembers = members.filter(m => !reads[`${m.id}_edu_${edu.id}`]);
-        return (
-          <div key={edu.id} style={{ background: T.card, borderRadius: 16, marginBottom: 12, border: `1px solid ${T.border}`, overflow: "hidden" }}>
-            <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}
-              onClick={() => setExpanded(p => ({ ...p, [edu.id]: !p[edu.id] }))}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>🎓 {edu.title}</div>
-                <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
-                  {edu.eduDate && `교육일: ${edu.eduDate} · `}
-                  <span style={{ color: completedIds.length === members.length ? "#16a34a" : "#d97706", fontWeight: 700 }}>
-                    완료 {completedIds.length}/{members.length}명
-                  </span>
-                </div>
-              </div>
-              <span style={{ color: T.muted, fontSize: 14 }}>{isOpen ? "▲" : "▼"}</span>
-            </div>
-            {isOpen && (
-              <div style={{ borderTop: `1px solid ${T.border}`, padding: "14px 16px" }}>
-                {edu.content && <div style={{ fontSize: 13, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 12 }}>{edu.content}</div>}
-                {edu.fileUrl && (
-                  <a href={edu.fileUrl} target="_blank" rel="noreferrer"
-                    style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "#eff6ff", borderRadius: 10, color: "#2563eb", fontSize: 13, fontWeight: 700, textDecoration: "none", marginBottom: 12 }}>
-                    📎 {edu.fileName || "교육 자료 다운로드"}
-                  </a>
-                )}
-                <div style={{ background: T.bg, borderRadius: 10, padding: "10px 12px", marginBottom: 12 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 8 }}>📋 완료 현황</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {members.map(m => (
-                      <span key={m.id} style={{ fontSize: 12, padding: "4px 10px", borderRadius: 20, fontWeight: 600,
-                        background: reads[`${m.id}_edu_${edu.id}`] ? "#dcfce7" : "#fee2e2",
-                        color: reads[`${m.id}_edu_${edu.id}`] ? "#16a34a" : "#b91c1c" }}>
-                        {reads[`${m.id}_edu_${edu.id}`] ? "✅" : "⏳"} {m.name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                {uncompletedMembers.length > 0 && (
-                  <button onClick={async () => {
-                    for (const m of uncompletedMembers) {
-                      await sendPush({ title: "📣 교육 완료 독촉", message: `"${edu.title}" 교육 완료 보고를 아직 하지 않으셨습니다.`, targetUserId: m.id });
-                    }
-                    alert(`${uncompletedMembers.map(m => m.name).join(", ")}님께 독촉 알림을 보냈습니다.`);
-                  }}
-                    style={{ width: "100%", padding: "9px 0", borderRadius: 10, border: "none", background: "#fff7ed", color: "#d97706", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
-                    📣 미완료자 독촉 ({uncompletedMembers.length}명)
-                  </button>
-                )}
-                <button onClick={() => deleteEdu(edu)}
-                  style={{ width: "100%", padding: "9px 0", borderRadius: 10, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                  🗑 교육 삭제
-                </button>
-              </div>
-            )}
-          </div>
-        );
-      })}
+    <div style={{ padding: 20, textAlign: "center", color: T.muted, fontSize: 14 }}>
+      🎓 교육 기능 준비 중
     </div>
   );
 }
-
-// ── 근로계약서 공통 스타일 (컴포넌트 외부 정의 — 키보드 안 내려가게)
 const CONTRACT_ISTYLE = { width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 600, color: T.text, background: "#fff", boxSizing: "border-box", fontFamily: "inherit" };
 function ContractLabel({ children }) { return <div style={{ fontSize: 12, color: T.sub, fontWeight: 600, marginBottom: 4 }}>{children}</div>; }
 function ContractField({ label, fkey, type = "text", placeholder = "", form, setForm }) {
