@@ -472,6 +472,7 @@ function AppLoader() {
   const [scheduleEvents, setScheduleEvents] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [vault, setVault] = useState([]);
+  const [educations, setEducations] = useState([]);
 
   useEffect(() => {
     let unsubs = [];
@@ -584,6 +585,11 @@ function AppLoader() {
     unsubs.push(onSnapshot(query(collection(db, COL_VAULT), orderBy("createdAt", "desc")), snap => {
       setVault(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }));
+    // 교육 구독
+    unsubs.push(onSnapshot(query(collection(db, "education"), orderBy("createdAt", "desc")),
+      snap => { setEducations(snap.docs.map(d => ({ id: d.id, ...d.data() }))); },
+      () => { setEducations([]); }
+    ));
     return () => unsubs.forEach(u => u());
   }, []);
 
@@ -2455,6 +2461,7 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
     { key: "schedule",   icon: "🗓", label: "일정",    desc: "캘린더 · 리마인더",     color: "#7c3aed" },
     { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#b45309" },
     { key: "insurance",  icon: "🏦", label: "4대보험", desc: "보험료 계산 · 납부 요약", color: "#16a34a" },
+    { key: "education",  icon: "🎓", label: "교육",    desc: "교육 개설 · 완료 현황",   color: "#7c3aed" },
   ];
 
   return (
@@ -5818,6 +5825,242 @@ function ContractViewScreen({ user, contracts }) {
     </div>
   );
 }
+// ── 교육 (독립 섹션) ────────────────────────────────────────────
+function EducationSection({ users, reads, onBack }) {
+  const members = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
+  const [educations, setEducations] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [eduDate, setEduDate] = useState("");
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [expanded, setExpanded] = useState({});
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      query(collection(db, "education"), orderBy("createdAt", "desc")),
+      snap => setEducations(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      () => setEducations([])
+    );
+    return () => unsub();
+  }, []);
+
+  const reset = () => { setTitle(""); setContent(""); setEduDate(""); setFile(null); setShowForm(false); };
+
+  const submit = async () => {
+    if (!title.trim()) { alert("교육명을 입력하세요."); return; }
+    setUploading(true);
+    try {
+      let fileUrl = null, fileName = null;
+      if (file) {
+        const sRef = ref(storage, `education/${Date.now()}_${file.name}`);
+        await uploadBytes(sRef, file);
+        fileUrl = await getDownloadURL(sRef);
+        fileName = file.name;
+      }
+      await addDoc(collection(db, "education"), {
+        title: title.trim(), content: content.trim(), eduDate,
+        fileUrl, fileName, createdAt: new Date().toISOString(),
+      });
+      for (const m of members) {
+        await addDoc(collection(db, COL_NOTICES), {
+          title: `🎓 교육 안내: ${title.trim()}`,
+          content: `교육일: ${eduDate || "미정"}\n\n${content.trim()}\n\n교육 탭에서 자료 확인 후 완료 보고해주세요.`,
+          recipient: m.id, author: "관리자", auto: true, createdAt: new Date().toISOString(),
+        });
+      }
+      reset();
+    } catch(e) { alert("오류: " + e.message); }
+    setUploading(false);
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 40 }}>
+      <div style={{ background: "#7c3aed", paddingTop: "calc(16px + env(safe-area-inset-top))", paddingBottom: 14, paddingLeft: 16, paddingRight: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ background: "#ffffff18", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: "8px 14px", borderRadius: 12, fontWeight: 700 }}>‹</button>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>🎓 교육 관리</div>
+        </div>
+      </div>
+      <div style={{ padding: 16 }}>
+        {!showForm && (
+          <button onClick={() => setShowForm(true)}
+            style={{ width: "100%", padding: "12px 0", borderRadius: 12, border: "2px dashed #c4b5fd", background: "none", color: "#7c3aed", fontSize: 14, fontWeight: 700, cursor: "pointer", marginBottom: 16 }}>
+            🎓 + 교육 개설
+          </button>
+        )}
+        {showForm && (
+          <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 16, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: T.text, marginBottom: 12 }}>🎓 교육 개설</div>
+            {[["교육명", title, setTitle, "예: 안전보건교육"], ["교육일", eduDate, setEduDate, "예: 2026-07-15"]].map(([label, val, setter, ph]) => (
+              <div key={label} style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 4 }}>{label}</div>
+                <input value={val} onChange={e => setter(e.target.value)} placeholder={ph}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, boxSizing: "border-box", fontFamily: "inherit" }} />
+              </div>
+            ))}
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 4 }}>교육 내용</div>
+              <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="내용 입력" rows={4}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, boxSizing: "border-box", fontFamily: "inherit", resize: "vertical" }} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 4 }}>자료 첨부 (선택)</div>
+              <label style={{ display: "block", padding: "10px 0", borderRadius: 10, border: `1px dashed ${T.border}`, background: T.bg, color: file ? "#16a34a" : T.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "center" }}>
+                {file ? `📎 ${file.name}` : "📁 파일 선택"}
+                <input type="file" accept=".pdf,.ppt,.pptx,.doc,.docx,image/*" style={{ display: "none" }} onChange={e => setFile(e.target.files?.[0])} />
+              </label>
+              {file && <button onClick={() => setFile(null)} style={{ marginTop: 4, fontSize: 11, color: "#b91c1c", background: "none", border: "none", cursor: "pointer" }}>✕ 제거</button>}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <Btn variant="ghost" onClick={reset}>취소</Btn>
+              <Btn variant="admin" onClick={submit} disabled={uploading}>{uploading ? "등록 중..." : "📢 개설 + 공지"}</Btn>
+            </div>
+          </div>
+        )}
+        {educations.length === 0 && !showForm && (
+          <div style={{ textAlign: "center", padding: 40, color: T.muted, fontSize: 14 }}>등록된 교육이 없습니다</div>
+        )}
+        {educations.map(edu => {
+          const isOpen = expanded[edu.id];
+          const done = members.filter(m => reads[`${m.id}_edu_${edu.id}`]);
+          const notDone = members.filter(m => !reads[`${m.id}_edu_${edu.id}`]);
+          return (
+            <div key={edu.id} style={{ background: T.card, borderRadius: 16, marginBottom: 12, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+              <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+                onClick={() => setExpanded(p => ({ ...p, [edu.id]: !p[edu.id] }))}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>🎓 {edu.title}</div>
+                  <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
+                    {edu.eduDate && `${edu.eduDate} · `}
+                    <span style={{ color: done.length === members.length && members.length > 0 ? "#16a34a" : "#d97706", fontWeight: 700 }}>
+                      완료 {done.length}/{members.length}명
+                    </span>
+                  </div>
+                </div>
+                <span style={{ color: T.muted }}>{isOpen ? "▲" : "▼"}</span>
+              </div>
+              {isOpen && (
+                <div style={{ borderTop: `1px solid ${T.border}`, padding: "14px 16px" }}>
+                  {edu.content && <div style={{ fontSize: 13, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 12 }}>{edu.content}</div>}
+                  {edu.fileUrl && (
+                    <a href={edu.fileUrl} target="_blank" rel="noreferrer"
+                      style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", background: "#eff6ff", borderRadius: 10, color: "#2563eb", fontSize: 13, fontWeight: 700, textDecoration: "none", marginBottom: 12 }}>
+                      📎 {edu.fileName || "자료 다운로드"}
+                    </a>
+                  )}
+                  <div style={{ background: T.bg, borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 8 }}>완료 현황</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {members.map(m => (
+                        <span key={m.id} style={{ fontSize: 12, padding: "4px 10px", borderRadius: 20, fontWeight: 600,
+                          background: reads[`${m.id}_edu_${edu.id}`] ? "#dcfce7" : "#fee2e2",
+                          color: reads[`${m.id}_edu_${edu.id}`] ? "#16a34a" : "#b91c1c" }}>
+                          {reads[`${m.id}_edu_${edu.id}`] ? "✅" : "⏳"} {m.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  {notDone.length > 0 && (
+                    <button onClick={async () => {
+                      for (const m of notDone) {
+                        await sendPush({ title: "📣 교육 완료 독촉", message: `"${edu.title}" 교육 완료 보고를 해주세요.`, targetUserId: m.id });
+                      }
+                      alert(`${notDone.map(m => m.name).join(", ")}님께 독촉했습니다.`);
+                    }}
+                      style={{ width: "100%", padding: "9px 0", borderRadius: 10, border: "none", background: "#fff7ed", color: "#d97706", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
+                      📣 미완료 독촉 ({notDone.length}명)
+                    </button>
+                  )}
+                  <button onClick={async () => {
+                    if (!window.confirm(`"${edu.title}" 교육을 삭제할까요?`)) return;
+                    await deleteDoc(doc(db, "education", edu.id));
+                  }}
+                    style={{ width: "100%", padding: "9px 0", borderRadius: 10, border: "none", background: "#fee2e2", color: "#b91c1c", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                    🗑 삭제
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── 교육 (팀원) ─────────────────────────────────────────────────
+function MemberEducationTab({ user, reads }) {
+  const [educations, setEducations] = useState([]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      query(collection(db, "education"), orderBy("createdAt", "desc")),
+      snap => setEducations(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      () => setEducations([])
+    );
+    return () => unsub();
+  }, []);
+
+  return (
+    <div style={{ paddingBottom: 80 }}>
+      <div style={{ background: "#7c3aed", paddingTop: "calc(18px + env(safe-area-inset-top))", paddingBottom: 14, paddingLeft: 16, paddingRight: 16 }}>
+        <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>🎓 교육</div>
+      </div>
+      <div style={{ padding: 16 }}>
+        {educations.length === 0 && (
+          <div style={{ textAlign: "center", padding: 40, color: T.muted, fontSize: 14 }}>등록된 교육이 없습니다</div>
+        )}
+        {educations.map(edu => {
+          const myDone = reads[`${user.id}_edu_${edu.id}`];
+          return (
+            <div key={edu.id} style={{ background: T.card, borderRadius: 16, marginBottom: 12, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+              <div style={{ padding: "14px 16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>🎓 {edu.title}</div>
+                  {myDone
+                    ? <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 20, background: "#dcfce7", color: "#16a34a", fontWeight: 700 }}>✅ 완료</span>
+                    : <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 20, background: "#fef3c7", color: "#d97706", fontWeight: 700 }}>⏳ 미완료</span>
+                  }
+                </div>
+                {edu.eduDate && <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>📅 교육일: {edu.eduDate}</div>}
+                {edu.content && <div style={{ fontSize: 13, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 12 }}>{edu.content}</div>}
+                {edu.fileUrl && (
+                  <a href={edu.fileUrl} target="_blank" rel="noreferrer"
+                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", background: "#eff6ff", borderRadius: 10, color: "#2563eb", fontSize: 13, fontWeight: 700, textDecoration: "none", marginBottom: 12 }}>
+                    📎 {edu.fileName || "자료 열람 / 다운로드"}
+                  </a>
+                )}
+                {myDone ? (
+                  <div style={{ padding: "12px", background: "#f0fdf4", borderRadius: 10, textAlign: "center" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#16a34a" }}>
+                      ✅ {new Date(myDone.readAt).toLocaleString("ko-KR")} 완료 보고
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={async () => {
+                    if (!window.confirm(`"${edu.title}" 교육 완료를 보고할까요?`)) return;
+                    await setDoc(doc(db, COL_READS, `${user.id}_edu_${edu.id}`), {
+                      userId: user.id, type: "edu", docId: edu.id,
+                      readAt: new Date().toISOString(), userName: user.name,
+                    });
+                    alert("교육 완료 보고 완료!");
+                  }}
+                    style={{ width: "100%", padding: "13px 0", borderRadius: 12, border: "none", background: "#7c3aed", color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
+                    ✅ 교육 완료 보고
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── 4대보험료 계산기 ────────────────────────────────────────────
 function InsuranceSection({ users, memberInfo, onBack }) {
   const 장기요양요율 = 0.1314;
@@ -6484,6 +6727,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "contract") return <><DocSection users={users} memberInfo={memberInfo} settings={settings} contracts={contracts} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "vault") return <><VaultSection onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "insurance") return <><InsuranceSection users={users} memberInfo={memberInfo} onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "education") return <><EducationSection users={users} reads={reads} onBack={back} /><FloatBack onClick={back} /></>;
   return null;
 }
 
@@ -7634,6 +7878,7 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips,
     ["payslip",  "💰", "명세서", unreadPayslip],
     ["contract", "📄", "문서함", contractBadge],
     ["schedule", "🗓", "일정",   0],
+    ["education","🎓", "교육",   0],
   ];
 
   return (
@@ -7749,6 +7994,9 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
             <MemberScheduleCalendar settings={settings} scheduleEvents={scheduleEvents} userId={user?.id} />
           </div>
         </>
+      )}
+      {tab === "education" && (
+        <MemberEducationTab user={user} reads={reads} />
       )}
       <TabBar tab={tab} setTab={t => { setTab(t); window.scrollTo(0, 0); }} isAdmin={isAdmin} leaveRequests={leaveRequests} notices={notices} board={board} payslips={payslips} user={user} reads={reads} contracts={contracts} />
     </div>
