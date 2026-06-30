@@ -6073,13 +6073,15 @@ function InsuranceSection({ users, memberInfo, onBack }) {
           ))}
         </div>
 
+        {results && (
+          <button onClick={downloadExcel}
+            style={{ display: "block", width: "100%", padding: "14px 0", borderRadius: 14, border: "none", background: "#0369a1", color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer", marginBottom: 10 }}>
+            📥 엑셀 다운로드
+          </button>
+        )}
         <button onClick={calculate}
-          style={{ display: "block", width: "100%", padding: "14px 0", borderRadius: 14, border: "none", background: "#16a34a", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", marginBottom: 10 }}>
+          style={{ display: "block", width: "100%", padding: "14px 0", borderRadius: 14, border: "none", background: "#16a34a", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", marginBottom: 20 }}>
           💰 계산하기
-        </button>
-        <button onClick={downloadExcel} disabled={!results}
-          style={{ display: "block", width: "100%", padding: "14px 0", borderRadius: 14, border: "none", background: results ? "#0369a1" : "#e5e7eb", color: results ? "#fff" : "#9ca3af", fontSize: 14, fontWeight: 800, cursor: results ? "pointer" : "default", marginBottom: 20 }}>
-          📥 엑셀 다운로드
         </button>
 
         {results && (<>
