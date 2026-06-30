@@ -6155,6 +6155,12 @@ function InsuranceSection({ users, memberInfo, onBack }) {
             </div>
           </div>
 
+          {/* 엑셀 버튼 — 납부 요약 위 */}
+          <button onClick={downloadExcel}
+            style={{ width: "100%", marginBottom: 12, padding: "14px 0", borderRadius: 14, border: "none", background: "#0369a1", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>
+            📥 엑셀 다운로드
+          </button>
+
           {/* 납부 요약 */}
           <div style={{ background: T.adminHeader, borderRadius: 16, padding: 20 }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", marginBottom: 14 }}>💡 납부 요약</div>
@@ -6173,11 +6179,6 @@ function InsuranceSection({ users, memberInfo, onBack }) {
               </div>
             ))}
           </div>
-          {/* 하단 엑셀 버튼 */}
-          <button onClick={downloadExcel}
-            style={{ width: "100%", marginTop: 16, marginBottom: 80, padding: "14px 0", borderRadius: 14, border: "none", background: "#0369a1", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>
-            📥 엑셀 다운로드
-          </button>
         </>)}
       </div>
     </div>
