@@ -5826,16 +5826,36 @@ function ContractViewScreen({ user, contracts }) {
   );
 }
 // ── 교육 (독립 섹션) ────────────────────────────────────────────
+const EDU_TEMPLATES = [
+  {
+    key: "safety",
+    label: "안전보건교육",
+    title: "안전보건교육",
+    content: `■ 교육 종류: 정기 안전보건교육 (근로자)
+■ 교육 시간: 매 분기 6시간 이상 (사무직 3시간 이상)
+■ 교육 내용:
+  1. 산업안전 및 사고 예방에 관한 사항
+  2. 산업보건 및 직업병 예방에 관한 사항
+  3. 위험성 평가에 관한 사항
+  4. 건강증진 및 질병 예방에 관한 사항
+  5. 유해·위험 작업환경 관리에 관한 사항
+  6. 산업안전보건법 및 일반관리에 관한 사항
+■ 근거: 산업안전보건법 제29조`,
+  },
+];
+
 function EducationSection({ users, reads, onBack }) {
   const members = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
   const [educations, setEducations] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [template, setTemplate] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [eduDate, setEduDate] = useState("");
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [expanded, setExpanded] = useState({});
+  const [recipients, setRecipients] = useState([]);
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -5846,10 +5866,31 @@ function EducationSection({ users, reads, onBack }) {
     return () => unsub();
   }, []);
 
-  const reset = () => { setTitle(""); setContent(""); setEduDate(""); setFile(null); setShowForm(false); };
+  const applyTemplate = (key) => {
+    const tpl = EDU_TEMPLATES.find(t => t.key === key);
+    if (!tpl) return;
+    setTemplate(key);
+    setTitle(tpl.title);
+    setContent(tpl.content);
+  };
+
+  const openForm = () => {
+    setRecipients(members.map(m => m.id));
+    setShowForm(true);
+  };
+
+  const reset = () => {
+    setTitle(""); setContent(""); setEduDate(""); setFile(null);
+    setTemplate(""); setRecipients([]); setShowForm(false);
+  };
+
+  const toggleRecipient = (id) => {
+    setRecipients(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  };
 
   const submit = async () => {
     if (!title.trim()) { alert("교육명을 입력하세요."); return; }
+    if (recipients.length === 0) { alert("수신인을 선택하세요."); return; }
     setUploading(true);
     try {
       let fileUrl = null, fileName = null;
@@ -5861,14 +5902,16 @@ function EducationSection({ users, reads, onBack }) {
       }
       await addDoc(collection(db, "education"), {
         title: title.trim(), content: content.trim(), eduDate,
-        fileUrl, fileName, createdAt: new Date().toISOString(),
+        fileUrl, fileName, recipients,
+        createdAt: new Date().toISOString(),
       });
-      for (const m of members) {
+      for (const id of recipients) {
         await addDoc(collection(db, COL_NOTICES), {
           title: `🎓 교육 안내: ${title.trim()}`,
           content: `교육일: ${eduDate || "미정"}\n\n${content.trim()}\n\n교육 탭에서 자료 확인 후 완료 보고해주세요.`,
-          recipient: m.id, author: "관리자", auto: true, createdAt: new Date().toISOString(),
+          recipient: id, author: "관리자", auto: true, createdAt: new Date().toISOString(),
         });
+        await sendPush({ title: "🎓 교육 안내", message: `${title.trim()} - 교육 탭에서 확인해주세요.`, targetUserId: id });
       }
       reset();
     } catch(e) { alert("오류: " + e.message); }
@@ -5885,7 +5928,7 @@ function EducationSection({ users, reads, onBack }) {
       </div>
       <div style={{ padding: 16 }}>
         {!showForm && (
-          <button onClick={() => setShowForm(true)}
+          <button onClick={openForm}
             style={{ width: "100%", padding: "12px 0", borderRadius: 12, border: "2px dashed #c4b5fd", background: "none", color: "#7c3aed", fontSize: 14, fontWeight: 700, cursor: "pointer", marginBottom: 16 }}>
             🎓 + 교육 개설
           </button>
@@ -5893,18 +5936,65 @@ function EducationSection({ users, reads, onBack }) {
         {showForm && (
           <div style={{ background: T.card, borderRadius: 16, padding: 16, marginBottom: 16, border: `1px solid ${T.border}` }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: T.text, marginBottom: 12 }}>🎓 교육 개설</div>
-            {[["교육명", title, setTitle, "예: 안전보건교육"], ["교육일", eduDate, setEduDate, "예: 2026-07-15"]].map(([label, val, setter, ph]) => (
-              <div key={label} style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 4 }}>{label}</div>
-                <input value={val} onChange={e => setter(e.target.value)} placeholder={ph}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, boxSizing: "border-box", fontFamily: "inherit" }} />
+
+            {/* 템플릿 선택 */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 6 }}>📋 템플릿 선택</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {EDU_TEMPLATES.map(tpl => (
+                  <button key={tpl.key} onClick={() => applyTemplate(tpl.key)}
+                    style={{ padding: "7px 14px", borderRadius: 20, border: `2px solid ${template === tpl.key ? "#7c3aed" : T.border}`, background: template === tpl.key ? "#7c3aed" : T.bg, color: template === tpl.key ? "#fff" : T.text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                    {tpl.label}
+                  </button>
+                ))}
+                <button onClick={() => { setTemplate("custom"); setTitle(""); setContent(""); }}
+                  style={{ padding: "7px 14px", borderRadius: 20, border: `2px solid ${template === "custom" ? "#7c3aed" : T.border}`, background: template === "custom" ? "#7c3aed" : T.bg, color: template === "custom" ? "#fff" : T.text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  직접 입력
+                </button>
               </div>
-            ))}
+            </div>
+
+            {/* 수신인 선택 */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 6 }}>
+                👤 수신인
+                <button onClick={() => setRecipients(members.map(m => m.id))}
+                  style={{ marginLeft: 8, fontSize: 11, color: "#7c3aed", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>전체</button>
+                <button onClick={() => setRecipients([])}
+                  style={{ marginLeft: 4, fontSize: 11, color: T.muted, background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>초기화</button>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {members.map(m => (
+                  <button key={m.id} onClick={() => toggleRecipient(m.id)}
+                    style={{ padding: "6px 12px", borderRadius: 20, border: `2px solid ${recipients.includes(m.id) ? "#7c3aed" : T.border}`, background: recipients.includes(m.id) ? "#ede9fe" : T.bg, color: recipients.includes(m.id) ? "#7c3aed" : T.muted, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                    {recipients.includes(m.id) ? "✓ " : ""}{m.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 교육명 */}
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 4 }}>교육명</div>
+              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="교육명 입력"
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, boxSizing: "border-box", fontFamily: "inherit" }} />
+            </div>
+
+            {/* 교육일 */}
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 4 }}>교육일</div>
+              <input value={eduDate} onChange={e => setEduDate(e.target.value)} placeholder="예: 2026-07-15"
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, boxSizing: "border-box", fontFamily: "inherit" }} />
+            </div>
+
+            {/* 내용 */}
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 4 }}>교육 내용</div>
-              <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="내용 입력" rows={4}
+              <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="내용 입력" rows={6}
                 style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, boxSizing: "border-box", fontFamily: "inherit", resize: "vertical" }} />
             </div>
+
+            {/* 자료 첨부 */}
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 4 }}>자료 첨부 (선택)</div>
               <label style={{ display: "block", padding: "10px 0", borderRadius: 10, border: `1px dashed ${T.border}`, background: T.bg, color: file ? "#16a34a" : T.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "center" }}>
@@ -5913,19 +6003,24 @@ function EducationSection({ users, reads, onBack }) {
               </label>
               {file && <button onClick={() => setFile(null)} style={{ marginTop: 4, fontSize: 11, color: "#b91c1c", background: "none", border: "none", cursor: "pointer" }}>✕ 제거</button>}
             </div>
+
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <Btn variant="ghost" onClick={reset}>취소</Btn>
-              <Btn variant="admin" onClick={submit} disabled={uploading}>{uploading ? "등록 중..." : "📢 개설 + 공지"}</Btn>
+              <Btn variant="admin" onClick={submit} disabled={uploading}>{uploading ? "등록 중..." : `📢 개설 (${recipients.length}명)`}</Btn>
             </div>
           </div>
         )}
+
         {educations.length === 0 && !showForm && (
           <div style={{ textAlign: "center", padding: 40, color: T.muted, fontSize: 14 }}>등록된 교육이 없습니다</div>
         )}
         {educations.map(edu => {
           const isOpen = expanded[edu.id];
-          const done = members.filter(m => reads[`${m.id}_edu_${edu.id}`]);
-          const notDone = members.filter(m => !reads[`${m.id}_edu_${edu.id}`]);
+          const eduMembers = edu.recipients
+            ? members.filter(m => edu.recipients.includes(m.id))
+            : members;
+          const done = eduMembers.filter(m => reads[`${m.id}_edu_${edu.id}`]);
+          const notDone = eduMembers.filter(m => !reads[`${m.id}_edu_${edu.id}`]);
           return (
             <div key={edu.id} style={{ background: T.card, borderRadius: 16, marginBottom: 12, border: `1px solid ${T.border}`, overflow: "hidden" }}>
               <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
@@ -5934,8 +6029,8 @@ function EducationSection({ users, reads, onBack }) {
                   <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>🎓 {edu.title}</div>
                   <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
                     {edu.eduDate && `${edu.eduDate} · `}
-                    <span style={{ color: done.length === members.length && members.length > 0 ? "#16a34a" : "#d97706", fontWeight: 700 }}>
-                      완료 {done.length}/{members.length}명
+                    <span style={{ color: done.length === eduMembers.length && eduMembers.length > 0 ? "#16a34a" : "#d97706", fontWeight: 700 }}>
+                      완료 {done.length}/{eduMembers.length}명
                     </span>
                   </div>
                 </div>
@@ -5953,7 +6048,7 @@ function EducationSection({ users, reads, onBack }) {
                   <div style={{ background: T.bg, borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 8 }}>완료 현황</div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {members.map(m => (
+                      {eduMembers.map(m => (
                         <span key={m.id} style={{ fontSize: 12, padding: "4px 10px", borderRadius: 20, fontWeight: 600,
                           background: reads[`${m.id}_edu_${edu.id}`] ? "#dcfce7" : "#fee2e2",
                           color: reads[`${m.id}_edu_${edu.id}`] ? "#16a34a" : "#b91c1c" }}>
@@ -5990,6 +6085,7 @@ function EducationSection({ users, reads, onBack }) {
   );
 }
 
+
 // ── 교육 (팀원) ─────────────────────────────────────────────────
 function MemberEducationTab({ user, reads }) {
   const [educations, setEducations] = useState([]);
@@ -6013,7 +6109,7 @@ function MemberEducationTab({ user, reads }) {
         {educations.length === 0 && (
           <div style={{ textAlign: "center", padding: 40, color: T.muted, fontSize: 14 }}>등록된 교육이 없습니다</div>
         )}
-        {educations.map(edu => {
+        {educations.filter(edu => !edu.recipients || edu.recipients.includes(user.id)).map(edu => {
           const myDone = reads[`${user.id}_edu_${edu.id}`];
           return (
             <div key={edu.id} style={{ background: T.card, borderRadius: 16, marginBottom: 12, border: `1px solid ${T.border}`, overflow: "hidden" }}>
