@@ -49,7 +49,6 @@ const DOC_TYPES = [
   { key: "agreement",  label: "동의서",     icon: "✍️" },
   { key: "confirm",    label: "확인서",     icon: "✅" },
   { key: "other",      label: "기타 문서",  icon: "📄" },
-  { key: "education",  label: "교육",       icon: "🎓" },
 ];
 
 // 동의서 템플릿
