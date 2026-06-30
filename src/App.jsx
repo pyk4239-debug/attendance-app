@@ -4396,7 +4396,7 @@ function ContractField({ label, fkey, type = "text", placeholder = "", form, set
 }
 
 // ── 근로계약서 (관리자) ─────────────────────────────────────────
-function DocSection({ users, memberInfo, settings, contracts, educations, onBack }) {
+function DocSection({ users, memberInfo, settings, contracts, educations, reads = {}, onBack }) {
   const members = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
   const [docTypeFilter, setDocTypeFilter] = useState("contract"); // 상단 탭
   const [selUser, setSelUser] = useState(null);
@@ -6710,7 +6710,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "board") return <AdminSectionWrap title="💬 게시판" color="#0891b2" onBack={back}><BoardScreen user={user} board={board} reads={reads} /></AdminSectionWrap>;
   if (section === "settings") return <><SettingsModal settings={settings} onSave={async s => { await onSaveSettings(s); back(); }} onClose={back} /></>;
   if (section === "schedule") return <AdminSectionWrap title="🗓 일정" color="#7c3aed" onBack={back}><AdminSchedule reminders={reminders} users={users} settings={settings} scheduleEvents={scheduleEvents} /></AdminSectionWrap>;
-  if (section === "contract") return <><DocSection users={users} memberInfo={memberInfo} settings={settings} contracts={contracts} educations={educations} onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "contract") return <><DocSection users={users} memberInfo={memberInfo} settings={settings} contracts={contracts} educations={educations} reads={reads} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "vault") return <><VaultSection onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "insurance") return <><InsuranceSection users={users} memberInfo={memberInfo} onBack={back} /><FloatBack onClick={back} /></>;
   return null;
