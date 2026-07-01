@@ -8025,6 +8025,28 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
   );
 }
 
+// ── 더보기 메뉴 화면 ────────────────────────────────────────────
+function MoreMenuScreen({ setTab, items }) {
+  return (
+    <div style={{ padding: 16 }}>
+      {items.map(({ key, icon, label, badge }) => (
+        <button key={key} onClick={() => setTab(key)}
+          style={{ width: "100%", display: "flex", alignItems: "center", gap: 12,
+            padding: "16px", marginBottom: 8, background: T.card, border: `1px solid ${T.border}`,
+            borderRadius: 12, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+          <span style={{ fontSize: 22 }}>{icon}</span>
+          <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: T.text }}>{label}</span>
+          {badge > 0 && (
+            <span style={{ background: T.red, color: "#fff", borderRadius: 10, minWidth: 20, height: 20,
+              fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 6px" }}>{badge}</span>
+          )}
+          <span style={{ color: T.muted }}>›</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── 하단 탭바 ────────────────────────────────────────────────────
 function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips, user, reads, contracts = [] }) {
   const pendingCount = leaveRequests.filter(r => r.status === "대기").length;
@@ -8037,33 +8059,35 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips,
     ).length;
   };
 
-  const unreadNotice = unreadCount(notices, "notice") + unreadCount(board, "board");
+  const unreadNotice = unreadCount(notices, "notice");
+  const unreadBoard = unreadCount(board, "board");
   const unreadPayslip = unreadCount(payslips.filter(p => p.userId === user?.id), "payslip");
   const contractBadge = contracts.filter(c => c.userId === user?.id && c.status === "sent").length;
+  const moreBadge = unreadBoard + unreadPayslip + contractBadge;
+  const moreKeys = ["board", "payslip", "contract", "schedule", "education", "more"];
 
   const tabs = [
-    ["att",      "🏠", "출퇴근", 0],
-    ["notice",   "📢", "공지",   unreadNotice],
-    ["annual",   "📅", "연차",   isAdmin ? pendingCount : 0],
-    ["payslip",  "💰", "명세서", unreadPayslip],
-    ["contract", "📄", "문서함", contractBadge],
-    ["schedule", "🗓", "일정",   0],
-    ["education","🎓", "교육",   0],
+    ["att",    "🏠", "출퇴근", 0],
+    ["notice", "📢", "공지",   unreadNotice],
+    ["annual", "📅", "연차",   isAdmin ? pendingCount : 0],
+    ["more",   "☰",  "더보기", moreBadge],
   ];
 
   return (
     <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: T.card, borderTop: `1px solid ${T.border}`, display: "flex", zIndex: 50, paddingBottom: "env(safe-area-inset-bottom)" }}>
-      {tabs.map(([key, icon, label, badge]) => (
+      {tabs.map(([key, icon, label, badge]) => {
+        const active = key === "more" ? moreKeys.includes(tab) : tab === key;
+        return (
         <button key={key} onClick={() => setTab(key)}
           style={{ flex: 1, padding: "10px 0 8px", border: "none", background: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, position: "relative" }}>
           <span style={{ fontSize: 20 }}>{icon}</span>
-          <span style={{ fontSize: 10, fontWeight: tab===key?800:500, color: tab===key?T.adminHeader:T.muted }}>{label}</span>
+          <span style={{ fontSize: 10, fontWeight: active?800:500, color: active?T.adminHeader:T.muted }}>{label}</span>
           {badge > 0 && (
             <div style={{ position: "absolute", top: 6, right: "calc(50% - 16px)", background: T.red, color: "#fff", borderRadius: "50%", width: 16, height: 16, fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{badge}</div>
           )}
-          {tab === key && <div style={{ position: "absolute", bottom: 0, left: "20%", right: "20%", height: 2, background: T.adminHeader, borderRadius: 2 }} />}
+          {active && <div style={{ position: "absolute", bottom: 0, left: "20%", right: "20%", height: 2, background: T.adminHeader, borderRadius: 2 }} />}
         </button>
-      ))}
+      );})}
     </div>
   );
 }
@@ -8099,6 +8123,12 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
 
   const isAdmin = user.role === "admin";
 
+  const moreUnread = {
+    board: isAdmin ? 0 : board.filter(item => !reads?.[`${user.id}_board_${item.id}`] && item.userId !== user.id).length,
+    payslip: isAdmin ? 0 : payslips.filter(p => p.userId === user.id && !reads?.[`${user.id}_payslip_${p.id}`]).length,
+    contract: contracts.filter(c => c.userId === user.id && c.status === "sent").length,
+  };
+
   // 관리자는 대문+섹션 구조 (탭바 없음)
   if (isAdmin) return (
     <AdminScreen user={user} users={users} settings={settings} records={records} leaves={leaves}
@@ -8124,7 +8154,31 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
             <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>공지</div>
           </div>
-          <NoticeBoardScreen user={user} users={users} notices={notices} board={board} reads={reads} />
+          <NoticeScreen user={user} users={users} notices={notices} reads={reads} />
+        </>
+      )}
+      {tab === "board" && (
+        <>
+          <div style={{ background: T.headerBg, paddingTop: "calc(18px + env(safe-area-inset-top))", paddingBottom: "14px", paddingLeft: "16px", paddingRight: "16px" }}>
+            <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>💬 게시판</div>
+          </div>
+          <BoardScreen user={user} board={board} reads={reads} />
+        </>
+      )}
+      {tab === "more" && (
+        <>
+          <div style={{ background: T.headerBg, paddingTop: "calc(18px + env(safe-area-inset-top))", paddingBottom: "14px", paddingLeft: "16px", paddingRight: "16px" }}>
+            <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>더보기</div>
+          </div>
+          <MoreMenuScreen setTab={setTab} items={[
+            { key: "board",     icon: "💬", label: "게시판",     badge: moreUnread.board },
+            { key: "payslip",   icon: "💰", label: "급여명세서", badge: moreUnread.payslip },
+            { key: "contract",  icon: "📄", label: "문서함",     badge: moreUnread.contract },
+            { key: "schedule",  icon: "🗓", label: "일정",       badge: 0 },
+            { key: "education", icon: "🎓", label: "교육",       badge: 0 },
+          ]} />
         </>
       )}
       {tab === "annual" && (
