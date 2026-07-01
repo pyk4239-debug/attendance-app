@@ -6064,14 +6064,13 @@ function EducationSection({ users, reads, onBack }) {
                     <div style={{ fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 8 }}>완료 현황</div>
                     {eduMembers.map(m => {
                       const r = reads[`${m.id}_edu_${edu.id}`];
-                      const dur = r ? fmtDuration(edu.createdAt, r.readAt) : null;
                       return (
                         <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>
                           <span style={{ fontSize: 13, fontWeight: 600, color: r ? "#16a34a" : "#b91c1c" }}>
                             {r ? "✅" : "⏳"} {m.name}
                           </span>
                           <span style={{ fontSize: 11, color: T.muted }}>
-                            {r ? `${new Date(r.readAt).toLocaleDateString("ko-KR")} · ${dur}` : "미완료"}
+                            {r ? new Date(r.readAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "미완료"}
                           </span>
                         </div>
                       );
