@@ -5826,13 +5826,25 @@ function ContractViewScreen({ user, contracts }) {
   );
 }
 // ── 교육 (독립 섹션) ────────────────────────────────────────────
+const fmtEduDateTime = (baseDate) => {
+  const raw = new Date(baseDate);
+  const start = new Date(raw);
+  start.setMinutes(0, 0, 0);
+  if (raw.getMinutes() > 0 || raw.getSeconds() > 0) start.setHours(start.getHours() + 1);
+  const end = new Date(start.getTime() + 60 * 60 * 1000);
+  const pad = n => String(n).padStart(2, "0");
+  const dateStr = `${start.getFullYear()}년 ${start.getMonth() + 1}월 ${start.getDate()}일`;
+  return `${dateStr} ${pad(start.getHours())}:00~${pad(end.getHours())}:00`;
+};
+
 const EDU_TEMPLATES = [
   {
     key: "safety",
     label: "정기 안전보건교육",
     getTitle: (year, quarter, seq) => `정기 안전보건교육 ${year}년 ${quarter}분기 ${seq}차`,
     content: `■ 교육 종류: 정기 안전보건교육 (근로자)
-■ 교육 시간: 매 분기 6시간 이상 (사무직 3시간 이상)
+■ 교육 일시: {{DATETIME}}
+■ 교육 시간: 1시간
 ■ 교육 내용:
   1. 산업안전 및 사고 예방에 관한 사항
   2. 산업보건 및 직업병 예방에 관한 사항
@@ -5882,7 +5894,7 @@ function EducationSection({ users, reads, onBack }) {
       Math.ceil((new Date(e.createdAt).getMonth() + 1) / 3) === curQuarter
     ).length + 1;
     setTitle(tpl.getTitle(curYear, curQuarter, sameQuarter));
-    setContent(tpl.content);
+    setContent(tpl.content.replace("{{DATETIME}}", fmtEduDateTime(new Date())));
   };
 
   const openForm = () => {
