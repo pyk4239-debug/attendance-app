@@ -6248,28 +6248,34 @@ function MemberEducationTab({ user, reads }) {
 
 // ── 4대보험료 계산기 ────────────────────────────────────────────
 function InsuranceSection({ users, memberInfo, onBack }) {
-  const 장기요양요율 = 0.1314;
   const activeMembers = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
 
-  function calcOne(pension, health, isOwner = false) {
-    const 국민연금_근로자 = Math.floor(pension * 0.0475 / 10) * 10;
-    const 국민연금_사업주 = Math.floor(pension * 0.0475 / 10) * 10;
-    const 건강보험_근로자 = Math.floor(health * 0.03595 / 10) * 10;
-    const 건강보험_사업주 = Math.floor(health * 0.03595 / 10) * 10;
-    const 장기요양_근로자 = Math.floor(건강보험_근로자 * 장기요양요율 / 10) * 10;
-    const 장기요양_사업주 = Math.floor(건강보험_사업주 * 장기요양요율 / 10) * 10;
-    const 실업급여_근로자 = isOwner ? 0 : Math.floor(health * 0.009 / 10) * 10;
-    const 실업급여_사업주 = isOwner ? 0 : Math.floor(health * 0.009 / 10) * 10;
-    const 고안_사업주     = isOwner ? 0 : Math.floor(health * 0.0025 / 10) * 10;
+  const [연금율, set연금율] = useState("4.75");
+  const [건강율, set건강율] = useState("3.595");
+  const [장기요양율, set장기요양율] = useState("13.14");
+  const [실업율, set실업율] = useState("0.9");
+  const [고안율, set고안율] = useState("0.25");
+
+  function calcOne(pension, health, isOwner = false, ratesOverride = null) {
+    const r = ratesOverride || { pension: parseFloat(연금율) || 0, health: parseFloat(건강율) || 0, ltc: parseFloat(장기요양율) || 0, unemployment: parseFloat(실업율) || 0, gian: parseFloat(고안율) || 0 };
+    const 국민연금_근로자 = Math.floor(pension * (r.pension / 100) / 10) * 10;
+    const 국민연금_사업주 = Math.floor(pension * (r.pension / 100) / 10) * 10;
+    const 건강보험_근로자 = Math.floor(health * (r.health / 100) / 10) * 10;
+    const 건강보험_사업주 = Math.floor(health * (r.health / 100) / 10) * 10;
+    const 장기요양_근로자 = Math.floor(건강보험_근로자 * (r.ltc / 100) / 10) * 10;
+    const 장기요양_사업주 = Math.floor(건강보험_사업주 * (r.ltc / 100) / 10) * 10;
+    const 실업급여_근로자 = isOwner ? 0 : Math.floor(health * (r.unemployment / 100) / 10) * 10;
+    const 실업급여_사업주 = isOwner ? 0 : Math.floor(health * (r.unemployment / 100) / 10) * 10;
+    const 고안_사업주     = isOwner ? 0 : Math.floor(health * (r.gian / 100) / 10) * 10;
     const 합계_근로자 = 국민연금_근로자 + 건강보험_근로자 + 장기요양_근로자 + 실업급여_근로자;
     const 합계_사업주 = 국민연금_사업주 + 건강보험_사업주 + 장기요양_사업주 + 실업급여_사업주 + 고안_사업주;
     return {
       rows: [
-        { 항목: "국민연금",            요율: "각 4.75%",                             근로자: 국민연금_근로자, 사업주: 국민연금_사업주 },
-        { 항목: "건강보험",            요율: "각 3.595%",                            근로자: 건강보험_근로자, 사업주: 건강보험_사업주 },
-        { 항목: "장기요양",            요율: "건강료×13.14%",                        근로자: 장기요양_근로자, 사업주: 장기요양_사업주 },
-        { 항목: "고용보험(실업급여)",  요율: isOwner ? "적용제외" : "각 0.9%",      근로자: 실업급여_근로자, 사업주: 실업급여_사업주 },
-        { 항목: "고용보험(고안·직능)", 요율: isOwner ? "적용제외" : "사업주 0.25%", 근로자: 0,               사업주: 고안_사업주 },
+        { 항목: "국민연금",            요율: `각 ${r.pension}%`,                          근로자: 국민연금_근로자, 사업주: 국민연금_사업주 },
+        { 항목: "건강보험",            요율: `각 ${r.health}%`,                           근로자: 건강보험_근로자, 사업주: 건강보험_사업주 },
+        { 항목: "장기요양",            요율: `건강료×${r.ltc}%`,                          근로자: 장기요양_근로자, 사업주: 장기요양_사업주 },
+        { 항목: "고용보험(실업급여)",  요율: isOwner ? "적용제외" : `각 ${r.unemployment}%`,      근로자: 실업급여_근로자, 사업주: 실업급여_사업주 },
+        { 항목: "고용보험(고안·직능)", 요율: isOwner ? "적용제외" : `사업주 ${r.gian}%`, 근로자: 0,               사업주: 고안_사업주 },
       ],
       합계_근로자, 합계_사업주,
     };
@@ -6292,6 +6298,15 @@ function InsuranceSection({ users, memberInfo, onBack }) {
   const [results, setResults] = useState(null);
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showRates, setShowRates] = useState(false);
+  const [showSettle, setShowSettle] = useState(false);
+  const [settleType, setSettleType] = useState("rate"); // "rate" | "base"
+  const [settleStart, setSettleStart] = useState("");
+  const [settleEnd, setSettleEnd] = useState("");
+  const [newRates, setNewRates] = useState({ pension: "", health: "", ltc: "", unemployment: "", gian: "", 산재: "", 임채: "" });
+  const [settleMemberId, setSettleMemberId] = useState("");
+  const [newBase, setNewBase] = useState({ pension: "", health: "" });
+  const [settleResult, setSettleResult] = useState(null);
   const [viewingMonth, setViewingMonth] = useState(null); // null = 현재 입력값 기준
   const [savedThisMonth, setSavedThisMonth] = useState(false);
 
@@ -6312,6 +6327,14 @@ function InsuranceSection({ users, memberInfo, onBack }) {
           if (d.inputs.산재율) set산재율(d.inputs.산재율);
           if (d.inputs.임채율) set임채율(d.inputs.임채율);
           if (typeof d.inputs.전자통보 === "boolean") set전자통보(d.inputs.전자통보);
+          if (d.inputs.rates) {
+            const rt = d.inputs.rates;
+            if (rt.pension) set연금율(rt.pension);
+            if (rt.health) set건강율(rt.health);
+            if (rt.ltc) set장기요양율(rt.ltc);
+            if (rt.unemployment) set실업율(rt.unemployment);
+            if (rt.gian) set고안율(rt.gian);
+          }
         }
       }
     }).catch(() => {});
@@ -6338,6 +6361,87 @@ function InsuranceSection({ users, memberInfo, onBack }) {
     getDoc(doc(db, COL_INSURANCE, monthKey)).then(snap => {
       setResults(snap.exists() ? snap.data().results : null);
     }).catch(() => setResults(null));
+  };
+
+  const openSettle = () => {
+    setNewRates({ pension: 연금율, health: 건강율, ltc: 장기요양율, unemployment: 실업율, gian: 고안율, 산재: 산재율, 임채: 임채율 });
+    setSettleResult(null);
+    setShowSettle(true);
+  };
+
+  const runSettlement = () => {
+    if (!settleStart || !settleEnd) { alert("정산 기간을 선택하세요."); return; }
+    const months = history.map(h => h.id).filter(m => m >= settleStart && m <= settleEnd).sort();
+    if (months.length === 0) { alert("해당 기간에 저장된 계산 기록이 없습니다."); return; }
+
+    const perPerson = {};
+    let totalDiff = 0;
+    const addDiff = (name, amt) => { perPerson[name] = (perPerson[name] || 0) + amt; totalDiff += amt; };
+
+    if (settleType === "rate") {
+      const rr = {
+        pension: parseFloat(newRates.pension) || 0, health: parseFloat(newRates.health) || 0,
+        ltc: parseFloat(newRates.ltc) || 0, unemployment: parseFloat(newRates.unemployment) || 0, gian: parseFloat(newRates.gian) || 0,
+      };
+      const new산재율 = parseFloat(newRates.산재) || 0, new임채율 = parseFloat(newRates.임채) || 0;
+      months.forEach(mk => {
+        const snap = history.find(h => h.id === mk);
+        const oi = snap?.inputs, or_ = snap?.results;
+        if (!oi || !or_) return;
+        const ownerOrig = or_.all.find(a => a.isOwner);
+        const ownerNew = calcOne(Number(oi.ownerPension) || 0, Number(oi.ownerHealth) || 0, true, rr);
+        addDiff("관리자(사업주)", (ownerNew.합계_근로자 + ownerNew.합계_사업주) - ((ownerOrig?.합계_근로자 || 0) + (ownerOrig?.합계_사업주 || 0)));
+        (oi.memberInputs || []).forEach(mi => {
+          if (!mi.pension && !mi.health) return;
+          const origRow = or_.all.find(a => a.name === mi.name);
+          const newC = calcOne(Number(mi.pension) || 0, Number(mi.health) || 0, false, rr);
+          addDiff(mi.name, (newC.합계_근로자 + newC.합계_사업주) - ((origRow?.합계_근로자 || 0) + (origRow?.합계_사업주 || 0)));
+        });
+        const 팀원합산 = (oi.memberInputs || []).reduce((s, m) => s + (Number(m.health) || 0), 0);
+        const new산재액 = Math.floor(팀원합산 * new산재율 / 1000 / 10) * 10;
+        const new임채액 = Math.floor(팀원합산 * new임채율 / 1000 / 10) * 10;
+        addDiff("산재+임채(사업주 부담)", (new산재액 + new임채액) - (or_.total?.산재임채합계 || 0));
+      });
+    } else {
+      if (!settleMemberId) { alert("정산할 팀원을 선택하세요."); return; }
+      months.forEach(mk => {
+        const snap = history.find(h => h.id === mk);
+        const oi = snap?.inputs, or_ = snap?.results;
+        if (!oi || !or_) return;
+        const mi = (oi.memberInputs || []).find(m => m.id === settleMemberId);
+        if (!mi) return;
+        const origRates = oi.rates || { pension: 연금율, health: 건강율, ltc: 장기요양율, unemployment: 실업율, gian: 고안율 };
+        const rr = {
+          pension: parseFloat(origRates.pension) || 0, health: parseFloat(origRates.health) || 0,
+          ltc: parseFloat(origRates.ltc) || 0, unemployment: parseFloat(origRates.unemployment) || 0, gian: parseFloat(origRates.gian) || 0,
+        };
+        const pensionBase = newBase.pension ? Number(newBase.pension) : Number(mi.pension) || 0;
+        const healthBase = newBase.health ? Number(newBase.health) : Number(mi.health) || 0;
+        const origRow = or_.all.find(a => a.name === mi.name);
+        const newC = calcOne(pensionBase, healthBase, false, rr);
+        addDiff(mi.name, (newC.합계_근로자 + newC.합계_사업주) - ((origRow?.합계_근로자 || 0) + (origRow?.합계_사업주 || 0)));
+      });
+    }
+
+    setSettleResult({ months, perPerson, totalDiff });
+  };
+
+  const downloadSettleExcel = () => {
+    if (!settleResult) return;
+    const wb = XLSX.utils.book_new();
+    const rows = [
+      [`정산 내역 (${settleResult.months[0]} ~ ${settleResult.months[settleResult.months.length - 1]})`],
+      [settleType === "rate" ? "구분: 요율 변경 정산" : `구분: 보수월액 정산 (${activeMembers.find(m => m.id === settleMemberId)?.name || ""})`],
+      [],
+      ["대상", "정산액(원)", "구분"],
+      ...Object.entries(settleResult.perPerson).map(([name, amt]) => [name, amt, amt >= 0 ? "추가징수" : "환급"]),
+      [],
+      ["합계", settleResult.totalDiff, settleResult.totalDiff >= 0 ? "추가징수" : "환급"],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [{ wch: 22 }, { wch: 14 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, ws, "정산내역");
+    XLSX.writeFile(wb, `4대보험료_정산_${settleResult.months[0]}~${settleResult.months[settleResult.months.length - 1]}.xlsx`);
   };
 
   // 관리자 기초데이터 불러오기
@@ -6393,7 +6497,10 @@ function InsuranceSection({ users, memberInfo, onBack }) {
       // 이번 달 스냅샷 저장 (재접속 시 재계산 불필요 + 히스토리)
       setDoc(doc(db, COL_INSURANCE, monthKey), {
         results: newResults,
-        inputs: { ownerPension, ownerHealth, memberInputs, 산재율, 임채율, 전자통보 },
+        inputs: {
+          ownerPension, ownerHealth, memberInputs, 산재율, 임채율, 전자통보,
+          rates: { pension: 연금율, health: 건강율, ltc: 장기요양율, unemployment: 실업율, gian: 고안율 },
+        },
         savedAt: new Date().toISOString(),
       }).then(() => setSavedThisMonth(true)).catch(() => {});
     } catch(e) {
@@ -6491,6 +6598,27 @@ function InsuranceSection({ users, memberInfo, onBack }) {
           <input type="checkbox" checked={전자통보} onChange={() => {}} style={{ width: 16, height: 16, cursor: "pointer" }} />
           <span style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>국민연금 전자통보 감액 (-200원)</span>
         </div>
+        <button onClick={() => setShowRates(p => !p)}
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "8px 12px", background: "#ffffff18", borderRadius: 10, border: "none", cursor: "pointer", marginBottom: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>⚙️ 기준 요율 (연초 개정 시 수정)</span>
+          <span style={{ fontSize: 11, color: "#ffffff90" }}>{showRates ? "▲" : "▼"}</span>
+        </button>
+        {showRates && (
+          <div style={{ background: "#ffffff18", borderRadius: 10, padding: "10px 12px", marginBottom: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[["국민연금", 연금율, set연금율], ["건강보험", 건강율, set건강율], ["장기요양(건강료 대비)", 장기요양율, set장기요양율], ["고용보험(실업급여)", 실업율, set실업율], ["고용보험(고안·직능)", 고안율, set고안율]].map(([label, val, setter]) => (
+                <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 12, color: "#ffffff90", fontWeight: 600 }}>{label}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input value={val} onChange={e => setter(e.target.value.replace(/[^0-9.]/g, ""))}
+                      style={{ width: 70, padding: "7px 10px", borderRadius: 8, border: "none", background: "#ffffff25", color: "#fff", fontSize: 14, fontWeight: 800, textAlign: "right", fontFamily: "inherit" }} />
+                    <span style={{ fontSize: 11, color: "#ffffff70" }}>%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div style={{ background: "#ffffff18", borderRadius: 10, padding: "10px 12px" }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#ffffff90", marginBottom: 8 }}>🏭 산재·임채 (‰, 팀원 합산보수 기준)</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -6578,6 +6706,97 @@ function InsuranceSection({ users, memberInfo, onBack }) {
                 <span style={{ fontSize: 12, color: "#16a34a", fontWeight: 700 }}>{h.results?.total?.전체보험료?.toLocaleString() || 0}원</span>
               </button>
             ))}
+          </div>
+        )}
+
+        <button onClick={() => (showSettle ? setShowSettle(false) : openSettle())}
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", padding: "11px 0", borderRadius: 12, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 10 }}>
+          📐 요율/보수월액 정산 {showSettle ? "▲" : "▼"}
+        </button>
+        {showSettle && (
+          <div style={{ background: T.card, borderRadius: 14, border: `1px solid ${T.border}`, marginBottom: 16, padding: 14 }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              {[["rate", "요율 변경 정산"], ["base", "보수월액 정산(개인)"]].map(([key, label]) => (
+                <button key={key} onClick={() => { setSettleType(key); setSettleResult(null); }}
+                  style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `2px solid ${settleType === key ? "#16a34a" : T.border}`, background: settleType === key ? "#f0fdf4" : T.bg, color: settleType === key ? "#16a34a" : T.muted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 6 }}>정산 대상 기간</div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <select value={settleStart} onChange={e => setSettleStart(e.target.value)} style={{ flex: 1, padding: "9px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontFamily: "inherit" }}>
+                <option value="">시작월</option>
+                {[...history].map(h => h.id).sort().map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <select value={settleEnd} onChange={e => setSettleEnd(e.target.value)} style={{ flex: 1, padding: "9px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontFamily: "inherit" }}>
+                <option value="">종료월</option>
+                {[...history].map(h => h.id).sort().map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+
+            {settleType === "rate" ? (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 6 }}>새 요율 (해당 기간에 적용할 값)</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {[["국민연금(%)", "pension"], ["건강보험(%)", "health"], ["장기요양(%)", "ltc"], ["고용-실업급여(%)", "unemployment"], ["고용-고안직능(%)", "gian"], ["산재보험(‰)", "산재"], ["임금채권(‰)", "임채"]].map(([label, key]) => (
+                    <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>{label}</span>
+                      <input value={newRates[key]} onChange={e => setNewRates(p => ({ ...p, [key]: e.target.value.replace(/[^0-9.]/g, "") }))}
+                        style={{ width: 80, padding: "7px 10px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700, textAlign: "right", fontFamily: "inherit" }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 6 }}>대상 팀원</div>
+                <select value={settleMemberId} onChange={e => setSettleMemberId(e.target.value)} style={{ width: "100%", padding: "9px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, fontFamily: "inherit", marginBottom: 10 }}>
+                  <option value="">팀원 선택</option>
+                  {activeMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+                <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 6 }}>새 보수월액 (비워두면 각 달 기존 값 사용)</div>
+                {[["국민연금 기준소득월액", "pension"], ["건강·고용보험 보수월액", "health"]].map(([label, key]) => (
+                  <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>{label}</span>
+                    <input value={newBase[key]} onChange={e => setNewBase(p => ({ ...p, [key]: e.target.value.replace(/[^0-9]/g, "") }))} placeholder="0"
+                      style={{ width: 110, padding: "7px 10px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700, textAlign: "right", fontFamily: "inherit" }} />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button onClick={runSettlement}
+              style={{ width: "100%", padding: "12px 0", borderRadius: 12, border: "none", background: "#0369a1", color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer", marginBottom: settleResult ? 12 : 0 }}>
+              📐 정산 계산
+            </button>
+
+            {settleResult && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 12, color: T.muted, marginBottom: 8 }}>
+                  대상 기간: {settleResult.months[0]} ~ {settleResult.months[settleResult.months.length - 1]} ({settleResult.months.length}개월)
+                </div>
+                {Object.entries(settleResult.perPerson).map(([name, amt]) => (
+                  <div key={name} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${T.border}` }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: amt >= 0 ? "#dc2626" : "#2563eb" }}>
+                      {amt >= 0 ? "+" : ""}{amt.toLocaleString()}원 {amt >= 0 ? "(추가징수)" : "(환급)"}
+                    </span>
+                  </div>
+                ))}
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 0 4px" }}>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: T.text }}>합계</span>
+                  <span style={{ fontSize: 15, fontWeight: 800, color: settleResult.totalDiff >= 0 ? "#dc2626" : "#2563eb" }}>
+                    {settleResult.totalDiff >= 0 ? "+" : ""}{settleResult.totalDiff.toLocaleString()}원
+                  </span>
+                </div>
+                <button onClick={downloadSettleExcel}
+                  style={{ width: "100%", marginTop: 10, padding: "11px 0", borderRadius: 10, border: "none", background: "#0f766e", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  📥 정산 내역 엑셀 다운로드
+                </button>
+              </div>
+            )}
           </div>
         )}
 
