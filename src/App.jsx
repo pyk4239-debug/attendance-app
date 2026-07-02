@@ -5945,13 +5945,6 @@ function EducationSection({ users, reads, onBack }) {
     setUploading(false);
   };
 
-  const fmtDuration = (startIso, endIso) => {
-    if (!startIso || !endIso) return "";
-    const diff = Math.floor((new Date(endIso) - new Date(startIso)) / 60000);
-    const h = Math.floor(diff / 60), m = diff % 60;
-    return h > 0 ? `${h}시간 ${m}분` : `${m}분`;
-  };
-
   return (
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 40 }}>
       <div style={{ background: "#7c3aed", paddingTop: "calc(16px + env(safe-area-inset-top))", paddingBottom: 14, paddingLeft: 16, paddingRight: 16 }}>
