@@ -6293,6 +6293,7 @@ function InsuranceSection({ users, memberInfo, onBack }) {
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [viewingMonth, setViewingMonth] = useState(null); // null = 현재 입력값 기준
+  const [savedThisMonth, setSavedThisMonth] = useState(false);
 
   const now0 = new Date();
   const monthKey = `${now0.getFullYear()}-${String(now0.getMonth() + 1).padStart(2, "0")}`;
@@ -6301,6 +6302,7 @@ function InsuranceSection({ users, memberInfo, onBack }) {
   useEffect(() => {
     getDoc(doc(db, COL_INSURANCE, monthKey)).then(snap => {
       if (snap.exists()) {
+        setSavedThisMonth(true);
         const d = snap.data();
         if (d.results) setResults(d.results);
         if (d.inputs) {
@@ -6355,6 +6357,9 @@ function InsuranceSection({ users, memberInfo, onBack }) {
   const iStyle = { width: "100%", padding: "9px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, color: T.text, textAlign: "right", boxSizing: "border-box", fontFamily: "inherit", background: "#fff" };
 
   const calculate = () => {
+    if (savedThisMonth) {
+      if (!window.confirm(`${monthKey} 저장된 계산 기록이 이미 있습니다.\n새로 계산한 값으로 덮어쓸까요?`)) return;
+    }
     try {
       const ownerResult = { name: "관리자(사업주)", isOwner: true, pension: num(ownerPension), health: num(ownerHealth), ...calcOne(num(ownerPension), num(ownerHealth), true) };
       const memberResults = memberInputs.filter(m => m.pension || m.health).map(m => ({
@@ -6390,7 +6395,7 @@ function InsuranceSection({ users, memberInfo, onBack }) {
         results: newResults,
         inputs: { ownerPension, ownerHealth, memberInputs, 산재율, 임채율, 전자통보 },
         savedAt: new Date().toISOString(),
-      }).catch(() => {});
+      }).then(() => setSavedThisMonth(true)).catch(() => {});
     } catch(e) {
       alert("계산 오류: " + e.message);
     }
