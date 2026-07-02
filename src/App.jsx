@@ -3294,6 +3294,13 @@ function LeaveRequestItem({ r, statusColor, setDelConfirm }) {
           <button onClick={() => setDelConfirm(r)}
             style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, cursor: "pointer" }}>삭제</button>
         </div>
+      ) : r.status === "반려" ? (
+        // 이미 반려된 건 - 반려완료 표시 + 삭제만 가능
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ flex: 1, padding: "9px 0", borderRadius: 8, background: T.redBg, color: T.red, fontSize: 12, fontWeight: 700, textAlign: "center" }}>✕ 반려완료</div>
+          <button onClick={() => setDelConfirm(r)}
+            style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.muted, fontSize: 12, cursor: "pointer" }}>삭제</button>
+        </div>
       ) : (
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={handleApprove} disabled={!!processing}
