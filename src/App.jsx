@@ -6086,7 +6086,7 @@ function EducationSection({ users, reads, onBack }) {
                             {r ? "✅" : "⏳"} {m.name}
                           </span>
                           <span style={{ fontSize: 11, color: T.muted }}>
-                            {r ? new Date(r.readAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "미완료"}
+                            {r ? new Date(r.readAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "numeric", minute: "2-digit" }) : "미완료"}
                           </span>
                         </div>
                       );
@@ -6203,7 +6203,7 @@ function MemberEducationTab({ user, reads }) {
                     <button onClick={() => handleDownload(edu)}
                       style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", background: dlTime ? "#f0fdf4" : "#eff6ff", borderRadius: 10, border: "none", color: dlTime ? "#16a34a" : "#2563eb", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                       📎 {edu.fileName || "자료 열람 / 다운로드"}
-                      {dlTime && <span style={{ fontSize: 10, marginLeft: 4 }}>✓ {new Date(dlTime).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</span>}
+                      {dlTime && <span style={{ fontSize: 10, marginLeft: 4 }}>✓ {new Date(dlTime).toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" })}</span>}
                     </button>
                     {!myDone && (
                       <div style={{ fontSize: 11, textAlign: "center", marginTop: 6, color: canComplete ? "#16a34a" : T.muted, fontWeight: 600 }}>
@@ -7014,7 +7014,7 @@ function VaultSection({ onBack }) {
     return "📎";
   };
   const formatSize = (b) => b > 1024*1024 ? `${(b/1024/1024).toFixed(1)}MB` : `${Math.round(b/1024)}KB`;
-  const formatDate = (iso) => new Date(iso).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const formatDate = (iso) => new Date(iso).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
   // 공통 파일 목록 UI
   const FileList = ({ files: fList, item }) => (
