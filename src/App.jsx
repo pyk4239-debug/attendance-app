@@ -4660,6 +4660,7 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
             const autoTitle = (key, label) => {
               if (key === "safety") return `${label} ${year}-${quarter}분기`;
               if (key === "harassment") return `${label} ${year}`;
+              if (key === "bullying") return `${label} ${year}`;
               if (key === "disability") return `${label} ${year}`;
               if (key === "privacy") return `${label} ${year}`;
               if (key === "wage") return `${label} ${year}`;
