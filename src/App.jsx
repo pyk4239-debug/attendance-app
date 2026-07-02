@@ -6405,12 +6405,17 @@ function InsuranceSection({ users, memberInfo, onBack }) {
     if (!results) return;
     const { all, total } = results;
     const wb = XLSX.utils.book_new();
-    const now = new Date();
+    // 히스토리 보는 중이면 그 달의 요율/연월 사용, 아니면 현재 값 사용
+    const viewedRecord = viewingMonth ? history.find(h => h.id === viewingMonth) : null;
+    const rate산재 = viewedRecord?.inputs?.산재율 ?? 산재율;
+    const rate임채 = viewedRecord?.inputs?.임채율 ?? 임채율;
+    const [yy, mm] = (viewingMonth || monthKey).split("-");
+    const fLabelYear = Number(yy), fLabelMonth = Number(mm);
     const rows = [];
 
     // 제목
-    rows.push([`${now.getFullYear()}년 ${now.getMonth()+1}월 4대보험료 계산 내역`]);
-    rows.push([`산재 ${산재율}‰  /  임금채권 ${임채율}‰  /  전자통보 감액 ${total.전자통보감액 ? "적용(-200원)" : "미적용"}  /  2026년 기준`]);
+    rows.push([`${fLabelYear}년 ${fLabelMonth}월 4대보험료 계산 내역`]);
+    rows.push([`산재 ${rate산재}‰  /  임금채권 ${rate임채}‰  /  전자통보 감액 ${total.전자통보감액 ? "적용(-200원)" : "미적용"}  /  2026년 기준`]);
     rows.push([]);
 
     // 헤더행: 항목 | 구분 | 관리자 | 이현주 | 김재우 | ... | 합계
@@ -6439,8 +6444,8 @@ function InsuranceSection({ users, memberInfo, onBack }) {
     });
 
     // 산재/임채 (사업주만, 팀원 합산 기준)
-    rows.push([`산재보험 (${산재율}‰)`, "사업주", ...all.map((r, i) => i === 0 ? "-" : ""), `(팀원합산 ${total.팀원합산보수.toLocaleString()}원→${total.산재보험료.toLocaleString()})`]);
-    rows.push([`임금채권 (${임채율}‰)`, "사업주", ...all.map((r, i) => i === 0 ? "-" : ""), `(팀원합산→${total.임금채권료.toLocaleString()})`]);
+    rows.push([`산재보험 (${rate산재}‰)`, "사업주", ...all.map((r, i) => i === 0 ? "-" : ""), `(팀원합산 ${total.팀원합산보수.toLocaleString()}원→${total.산재보험료.toLocaleString()})`]);
+    rows.push([`임금채권 (${rate임채}‰)`, "사업주", ...all.map((r, i) => i === 0 ? "-" : ""), `(팀원합산→${total.임금채권료.toLocaleString()})`]);
 
     rows.push([]);
 
@@ -6468,8 +6473,8 @@ function InsuranceSection({ users, memberInfo, onBack }) {
     const colW = [{ wch: 22 }, { wch: 12 }, ...all.map(() => ({ wch: 13 })), { wch: 20 }];
     ws["!cols"] = colW;
 
-    XLSX.utils.book_append_sheet(wb, ws, `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,"0")} 보험료`);
-    XLSX.writeFile(wb, `4대보험료_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, `${fLabelYear}.${String(fLabelMonth).padStart(2,"0")} 보험료`);
+    XLSX.writeFile(wb, `4대보험료_${fLabelYear}${String(fLabelMonth).padStart(2,"0")}.xlsx`);
   };
 
   return (
