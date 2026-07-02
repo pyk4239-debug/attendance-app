@@ -41,6 +41,7 @@ const COL_EVENTS   = "schedule_events";
 const COL_CONTRACTS = "contracts"; // 하위호환 유지
 const COL_DOCS = "contracts";      // 문서함 (동일 컬렉션 사용)
 const COL_VAULT = "vault";
+const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월별)
 
 // 문서 종류
 const DOC_TYPES = [
@@ -6289,6 +6290,53 @@ function InsuranceSection({ users, memberInfo, onBack }) {
     })
   );
   const [results, setResults] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [viewingMonth, setViewingMonth] = useState(null); // null = 현재 입력값 기준
+
+  const now0 = new Date();
+  const monthKey = `${now0.getFullYear()}-${String(now0.getMonth() + 1).padStart(2, "0")}`;
+
+  // 이번 달 저장본 자동 불러오기 (재접속 시 재계산 없이 바로 표시)
+  useEffect(() => {
+    getDoc(doc(db, COL_INSURANCE, monthKey)).then(snap => {
+      if (snap.exists()) {
+        const d = snap.data();
+        if (d.results) setResults(d.results);
+        if (d.inputs) {
+          setOwnerPension(d.inputs.ownerPension || "");
+          setOwnerHealth(d.inputs.ownerHealth || "");
+          if (d.inputs.memberInputs) setMemberInputs(d.inputs.memberInputs);
+          if (d.inputs.산재율) set산재율(d.inputs.산재율);
+          if (d.inputs.임채율) set임채율(d.inputs.임채율);
+          if (typeof d.inputs.전자통보 === "boolean") set전자통보(d.inputs.전자통보);
+        }
+      }
+    }).catch(() => {});
+  }, []);
+
+  // 히스토리 목록 구독
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, COL_INSURANCE),
+      snap => setHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.id.localeCompare(a.id))),
+      () => setHistory([])
+    );
+    return () => unsub();
+  }, []);
+
+  const viewHistoryMonth = (h) => {
+    setResults(h.results);
+    setViewingMonth(h.id);
+    setShowHistory(false);
+  };
+
+  const backToCurrent = () => {
+    setViewingMonth(null);
+    getDoc(doc(db, COL_INSURANCE, monthKey)).then(snap => {
+      setResults(snap.exists() ? snap.data().results : null);
+    }).catch(() => setResults(null));
+  };
 
   // 관리자 기초데이터 불러오기
   useEffect(() => {
@@ -6334,7 +6382,15 @@ function InsuranceSection({ users, memberInfo, onBack }) {
       };
       total.회사총부담 = total.직원합계_사업주 + total.관리자_사업주 + total.관리자_근로자 - 전자통보감액 + 산재임채합계;
       total.전체보험료 = total.직원합계_근로자 + total.직원합계_사업주 + total.관리자_근로자 + total.관리자_사업주 - 전자통보감액 + 산재임채합계;
-      setResults({ all, total });
+      const newResults = { all, total };
+      setResults(newResults);
+      setViewingMonth(null);
+      // 이번 달 스냅샷 저장 (재접속 시 재계산 불필요 + 히스토리)
+      setDoc(doc(db, COL_INSURANCE, monthKey), {
+        results: newResults,
+        inputs: { ownerPension, ownerHealth, memberInputs, 산재율, 임채율, 전자통보 },
+        savedAt: new Date().toISOString(),
+      }).catch(() => {});
     } catch(e) {
       alert("계산 오류: " + e.message);
     }
@@ -6484,10 +6540,42 @@ function InsuranceSection({ users, memberInfo, onBack }) {
           style={{ display: "block", width: "100%", padding: "14px 0", borderRadius: 14, border: "none", background: results ? "#0369a1" : "#e5e7eb", color: results ? "#fff" : "#9ca3af", fontSize: 14, fontWeight: 800, cursor: results ? "pointer" : "default", marginBottom: 10 }}>
           📥 엑셀 다운로드
         </button>
-        <button onClick={calculate}
-          style={{ display: "block", width: "100%", padding: "14px 0", borderRadius: 14, border: "none", background: "#16a34a", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", marginBottom: 20 }}>
-          💰 계산하기
+        <div style={{ display: "grid", gridTemplateColumns: viewingMonth ? "1fr 1fr" : "1fr", gap: 8, marginBottom: 10 }}>
+          <button onClick={calculate}
+            style={{ display: "block", width: "100%", padding: "14px 0", borderRadius: 14, border: "none", background: "#16a34a", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>
+            💰 계산하기
+          </button>
+          {viewingMonth && (
+            <button onClick={backToCurrent}
+              style={{ display: "block", width: "100%", padding: "14px 0", borderRadius: 14, border: "none", background: "#e5e7eb", color: "#374151", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
+              이번 달로 돌아가기
+            </button>
+          )}
+        </div>
+        <button onClick={() => setShowHistory(p => !p)}
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", padding: "11px 0", borderRadius: 12, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 10 }}>
+          🕘 지난 계산 히스토리 {history.length > 0 && `(${history.length})`} {showHistory ? "▲" : "▼"}
         </button>
+        {showHistory && (
+          <div style={{ background: T.card, borderRadius: 14, border: `1px solid ${T.border}`, marginBottom: 16, overflow: "hidden" }}>
+            {history.length === 0 && (
+              <div style={{ padding: 20, textAlign: "center", color: T.muted, fontSize: 13 }}>저장된 기록이 없습니다</div>
+            )}
+            {history.map(h => (
+              <button key={h.id} onClick={() => viewHistoryMonth(h)}
+                style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderBottom: `1px solid ${T.border}`, background: viewingMonth === h.id ? "#f0fdf4" : "none", border: "none", borderTop: "none", borderLeft: "none", borderRight: "none", cursor: "pointer", textAlign: "left" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{h.id}</span>
+                <span style={{ fontSize: 12, color: "#16a34a", fontWeight: 700 }}>{h.results?.total?.전체보험료?.toLocaleString() || 0}원</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {viewingMonth && (
+          <div style={{ padding: "10px 14px", background: "#fef3c7", borderRadius: 10, marginBottom: 12, fontSize: 12, fontWeight: 700, color: "#92400e", textAlign: "center" }}>
+            📅 {viewingMonth} 저장된 기록을 보고 있습니다
+          </div>
+        )}
 
         {results && (<>
           <div style={{ fontSize: 14, fontWeight: 800, color: T.text, marginBottom: 10 }}>📊 개인별 내역</div>
