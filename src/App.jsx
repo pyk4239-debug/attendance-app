@@ -6162,8 +6162,8 @@ function MemberEducationTab({ user, reads }) {
     const dlTime = downloadTimes[edu.id];
     if (!dlTime) return { canComplete: false, msg: "자료를 먼저 다운로드해주세요" };
     const elapsed = (now - new Date(dlTime)) / 60000; // 분 단위
-    if (elapsed < 30) {
-      const remain = Math.ceil(30 - elapsed);
+    if (elapsed < 60) {
+      const remain = Math.ceil(60 - elapsed);
       return { canComplete: false, msg: `다운로드 후 ${remain}분 후 가능` };
     }
     return { canComplete: true, msg: null };
