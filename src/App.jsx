@@ -736,7 +736,13 @@ function MemberScreen({ user, settings, records, leaves, onSaveRecord, onLogout,
     try { gps = await getGPS(); } catch (e) { }
     let newRec = { ...todayRec };
     if (type === "in") newRec = { ...newRec, in: iso, inGps: gps };
-    else if (type === "out") newRec = { ...newRec, out: iso, outGps: gps };
+    else if (type === "out") {
+      newRec = { ...newRec, out: iso, outGps: gps };
+      // 외출 복귀 없이 바로 퇴근하면, 마지막 외출을 퇴근시간으로 자동 복귀 처리
+      if (outings.length > 0 && !outings[outings.length - 1].in) {
+        newRec.outing = outings.map((o, i) => i === outings.length - 1 ? { ...o, in: iso, inGps: gps } : o);
+      }
+    }
     else if (type === "outing_out") newRec = { ...newRec, outing: [...outings, { out: iso, outGps: gps }] };
     else if (type === "outing_in") newRec = { ...newRec, outing: outings.map((o, i) => i === outings.length - 1 ? { ...o, in: iso, inGps: gps } : o) };
     await onSaveRecord(user.id, today, newRec);
