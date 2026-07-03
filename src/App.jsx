@@ -63,7 +63,7 @@ const COL_DOCS = "contracts";      // 문서함 (동일 컬렉션 사용)
 const COL_VAULT = "vault";
 const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월별)
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
-const APP_BUILD = "build 2026-07-03 stage3"; // 배포 확인용 버전 표시 (로그인 화면 하단)
+const APP_BUILD = "build 2026-07-03 stage3-fix"; // 배포 확인용 버전 표시 (로그인 화면 하단)
 
 // 문서 종류
 const DOC_TYPES = [
@@ -7300,7 +7300,7 @@ function VaultSection({ onBack }) {
 }
 
 // ── 관리자 화면 (라우터) ───────────────────────────────────────
-function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
+function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], notiLog = [], onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
   const [section, setSection] = useState(null);
   const back = () => { setSection(null); window.scrollTo(0,0); };
   if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={s => { setSection(s); window.scrollTo(0,0); }} leaveRequests={leaveRequests} board={board} reads={reads} contracts={contracts} />;
@@ -8553,7 +8553,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
   if (isAdmin) return (
     <AdminScreen user={user} users={users} settings={settings} records={records} leaves={leaves}
       notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} reads={reads}
-      reminders={reminders} scheduleEvents={scheduleEvents} contracts={contracts}
+      reminders={reminders} scheduleEvents={scheduleEvents} contracts={contracts} notiLog={notiLog}
       onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave}
       onSaveUsers={onSaveUsers} onSaveSettings={onSaveSettings}
       onLogout={() => { setUserWithStorage(null); setTab("att"); }} />
