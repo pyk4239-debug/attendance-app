@@ -63,7 +63,7 @@ const COL_DOCS = "contracts";      // 문서함 (동일 컬렉션 사용)
 const COL_VAULT = "vault";
 const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월별)
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
-const APP_BUILD = "build 2026-07-03 stage1"; // 배포 확인용 버전 표시 (로그인 화면 하단)
+const APP_BUILD = "build 2026-07-03 stage2"; // 배포 확인용 버전 표시 (로그인 화면 하단)
 
 // 문서 종류
 const DOC_TYPES = [
@@ -2500,6 +2500,7 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
     { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#b45309" },
     { key: "insurance",  icon: "🏦", label: "4대보험", desc: "보험료 계산 · 납부 요약", color: "#16a34a" },
     { key: "education",  icon: "🎓", label: "교육",    desc: "교육 개설 · 완료 현황",   color: "#7c3aed" },
+    { key: "notilog",    icon: "📬", label: "알림함", desc: "발송된 알림 이력",       color: "#dc2626" },
   ];
 
   return (
@@ -2535,6 +2536,21 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
             </button>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 관리자 알림함 (2단계: 빈 화면만) ────────────────────────────
+function NotiLogSection({ onBack }) {
+  return (
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
+      <div style={{ background: T.adminHeader, padding: "18px 16px 16px" }}>
+        <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3, marginBottom: 4 }}>ADMIN</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>📬 알림함</div>
+      </div>
+      <div style={{ padding: 40, textAlign: "center", color: T.muted, fontSize: 13 }}>
+        (2단계 테스트 중 — 다음 단계에서 실제 알림 목록이 표시됩니다)
       </div>
     </div>
   );
@@ -7270,6 +7286,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "vault") return <><VaultSection onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "insurance") return <><InsuranceSection users={users} memberInfo={memberInfo} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "education") return <><EducationSection users={users} reads={reads} onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "notilog") return <><NotiLogSection onBack={back} /><FloatBack onClick={back} /></>;
   return null;
 }
 
