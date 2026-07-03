@@ -63,7 +63,7 @@ const COL_DOCS = "contracts";      // 문서함 (동일 컬렉션 사용)
 const COL_VAULT = "vault";
 const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월별)
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
-const APP_BUILD = "build 2026-07-03 stage2"; // 배포 확인용 버전 표시 (로그인 화면 하단)
+const APP_BUILD = "build 2026-07-03 stage3"; // 배포 확인용 버전 표시 (로그인 화면 하단)
 
 // 문서 종류
 const DOC_TYPES = [
@@ -504,6 +504,7 @@ function AppLoader() {
   const [contracts, setContracts] = useState([]);
   const [vault, setVault] = useState([]);
   const [educations, setEducations] = useState([]);
+  const [notiLog, setNotiLog] = useState([]);
 
   useEffect(() => {
     let unsubs = [];
@@ -602,6 +603,11 @@ function AppLoader() {
       setReminders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }));
 
+    // 알림 발송 이력 구독 (3단계)
+    unsubs.push(onSnapshot(query(collection(db, COL_NOTI_LOG), orderBy("createdAt", "desc")), snap => {
+      setNotiLog(snap.docs.map(d => ({ id: d.id, ...d.data() })).slice(0, 200));
+    }));
+
     // 일정 이벤트 구독
     unsubs.push(onSnapshot(query(collection(db, COL_EVENTS), orderBy("date", "asc")), snap => {
       setScheduleEvents(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -636,7 +642,7 @@ function AppLoader() {
 
   return <App users={users} settings={settings} records={records} leaves={leaves}
     notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} reads={reads}
-    reminders={reminders} scheduleEvents={scheduleEvents} contracts={contracts} vault={vault}
+    reminders={reminders} scheduleEvents={scheduleEvents} contracts={contracts} vault={vault} notiLog={notiLog}
     onSaveUsers={fbSaveUsers} onSaveSettings={fbSaveSettings}
     onSaveRecord={fbSaveRecord} onSaveLeave={fbSaveLeave} />;
 }
@@ -2541,16 +2547,41 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
   );
 }
 
-// ── 관리자 알림함 (2단계: 빈 화면만) ────────────────────────────
-function NotiLogSection({ onBack }) {
+// ── 관리자 알림함 (3단계: 실제 목록 표시) ────────────────────────
+function NotiLogSection({ notiLog = [], users = [], onBack }) {
+  const nameOf = (targetUserId) => {
+    if (!targetUserId || targetUserId === "all") return "전체";
+    if (targetUserId === "multi") return "여러 명";
+    if (targetUserId === "admin") return "관리자";
+    const u = users.find(u => u.id === targetUserId || u.uid === targetUserId);
+    return u ? u.name : targetUserId;
+  };
+
   return (
-    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 40 }}>
       <div style={{ background: T.adminHeader, padding: "18px 16px 16px" }}>
         <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3, marginBottom: 4 }}>ADMIN</div>
         <div style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>📬 알림함</div>
+        <div style={{ fontSize: 12, color: "#ffffff60", marginTop: 4 }}>발송된 푸시 알림 이력 (최근 200건)</div>
       </div>
-      <div style={{ padding: 40, textAlign: "center", color: T.muted, fontSize: 13 }}>
-        (2단계 테스트 중 — 다음 단계에서 실제 알림 목록이 표시됩니다)
+      <div style={{ padding: 16 }}>
+        {notiLog.length === 0 && (
+          <div style={{ textAlign: "center", padding: "60px 0", color: T.muted, fontSize: 13 }}>발송된 알림이 없습니다</div>
+        )}
+        {notiLog.map(n => (
+          <div key={n.id} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{n.title}</div>
+              <div style={{ fontSize: 11, color: T.muted, whiteSpace: "nowrap" }}>
+                {n.createdAt ? new Date(n.createdAt).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""}
+              </div>
+            </div>
+            <div style={{ fontSize: 13, color: T.muted, marginTop: 4 }}>{n.message}</div>
+            <div style={{ display: "inline-block", marginTop: 8, padding: "2px 10px", borderRadius: 10, background: T.bg, color: T.muted, fontSize: 11, fontWeight: 600 }}>
+              → {nameOf(n.targetUserId)}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -7286,7 +7317,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "vault") return <><VaultSection onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "insurance") return <><InsuranceSection users={users} memberInfo={memberInfo} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "education") return <><EducationSection users={users} reads={reads} onBack={back} /><FloatBack onClick={back} /></>;
-  if (section === "notilog") return <><NotiLogSection onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "notilog") return <><NotiLogSection notiLog={notiLog} users={users} onBack={back} /><FloatBack onClick={back} /></>;
   return null;
 }
 
@@ -8482,7 +8513,7 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips,
 }
 
 // ── 메인 App ───────────────────────────────────────────────────
-function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
+function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], notiLog = [], onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
   const [user, setUser] = useState(null);
   const [userLoaded, setUserLoaded] = useState(false);
   
