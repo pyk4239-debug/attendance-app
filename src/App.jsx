@@ -63,7 +63,8 @@ const COL_DOCS = "contracts";      // 문서함 (동일 컬렉션 사용)
 const COL_VAULT = "vault";
 const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월별)
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
-const APP_BUILD = "build 2026-07-03 stage3-fix"; // 배포 확인용 버전 표시 (로그인 화면 하단)
+const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
+const APP_BUILD = "build 2026-07-03 stage4"; // 배포 확인용 버전 표시 (로그인 화면 하단)
 
 // 문서 종류
 const DOC_TYPES = [
@@ -2484,12 +2485,22 @@ function AdminSeverance({ users, memberInfo, annual, onBack }) {
 }
 
 // ── 관리자 대문 ────────────────────────────────────────────────
-function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], reads = {}, contracts = [] }) {
+function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], reads = {}, contracts = [], notiLog = [] }) {
   const now = new Date();
   const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   const dateStr = kst.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
 
   const pendingSign = contracts.filter(c => c.status === "sent").length;
+
+  const [notiReadAt, setNotiReadAt] = useState(null);
+  useEffect(() => {
+    if (!user?.id) return;
+    const unsub = onSnapshot(doc(db, COL_ADMIN_META, user.id), snap => {
+      setNotiReadAt(snap.exists() ? snap.data().notiReadAt : "1970-01-01");
+    });
+    return () => unsub();
+  }, [user?.id]);
+  const unreadNoti = notiReadAt === null ? 0 : notiLog.filter(n => n.createdAt > notiReadAt).length;
 
   const sections = [
     { key: "attendance", icon: "📋", label: "근태",   desc: "출퇴근 현황 · 월별 기록", color: "#2563eb" },
@@ -2506,7 +2517,7 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
     { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#b45309" },
     { key: "insurance",  icon: "🏦", label: "4대보험", desc: "보험료 계산 · 납부 요약", color: "#16a34a" },
     { key: "education",  icon: "🎓", label: "교육",    desc: "교육 개설 · 완료 현황",   color: "#7c3aed" },
-    { key: "notilog",    icon: "📬", label: "알림함", desc: "발송된 알림 이력",       color: "#dc2626" },
+    { key: "notilog",    icon: "📬", label: "메시지", desc: "발송된 알림 이력",       color: "#dc2626", badge: unreadNoti },
   ];
 
   return (
@@ -2547,8 +2558,13 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
   );
 }
 
-// ── 관리자 알림함 (3단계: 실제 목록 표시) ────────────────────────
-function NotiLogSection({ notiLog = [], users = [], onBack }) {
+// ── 관리자 메시지함 (4단계: 안읽음 추적) ────────────────────────
+function NotiLogSection({ notiLog = [], users = [], admin, onBack }) {
+  useEffect(() => {
+    if (!admin?.id) return;
+    setDoc(doc(db, COL_ADMIN_META, admin.id), { notiReadAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+  }, [admin?.id]);
+
   const nameOf = (targetUserId) => {
     if (!targetUserId || targetUserId === "all") return "전체";
     if (targetUserId === "multi") return "여러 명";
@@ -2561,7 +2577,7 @@ function NotiLogSection({ notiLog = [], users = [], onBack }) {
     <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 40 }}>
       <div style={{ background: T.adminHeader, padding: "18px 16px 16px" }}>
         <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3, marginBottom: 4 }}>ADMIN</div>
-        <div style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>📬 알림함</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>📬 메시지</div>
         <div style={{ fontSize: 12, color: "#ffffff60", marginTop: 4 }}>발송된 푸시 알림 이력 (최근 200건)</div>
       </div>
       <div style={{ padding: 16 }}>
@@ -7303,7 +7319,7 @@ function VaultSection({ onBack }) {
 function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], notiLog = [], onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
   const [section, setSection] = useState(null);
   const back = () => { setSection(null); window.scrollTo(0,0); };
-  if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={s => { setSection(s); window.scrollTo(0,0); }} leaveRequests={leaveRequests} board={board} reads={reads} contracts={contracts} />;
+  if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={s => { setSection(s); window.scrollTo(0,0); }} leaveRequests={leaveRequests} board={board} reads={reads} contracts={contracts} notiLog={notiLog} />;
   if (section === "attendance") return <><AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "wage") return <><AdminWage users={users} records={records} leaves={leaves} settings={settings} memberInfo={memberInfo} annual={annual} leaveRequests={leaveRequests} payslips={payslips} reads={reads} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "members") return <><AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={back} /><FloatBack onClick={back} /></>;
@@ -7317,7 +7333,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "vault") return <><VaultSection onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "insurance") return <><InsuranceSection users={users} memberInfo={memberInfo} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "education") return <><EducationSection users={users} reads={reads} onBack={back} /><FloatBack onClick={back} /></>;
-  if (section === "notilog") return <><NotiLogSection notiLog={notiLog} users={users} onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "notilog") return <><NotiLogSection notiLog={notiLog} users={users} admin={user} onBack={back} /><FloatBack onClick={back} /></>;
   return null;
 }
 
