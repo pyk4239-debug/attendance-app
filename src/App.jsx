@@ -63,6 +63,7 @@ const COL_DOCS = "contracts";      // 문서함 (동일 컬렉션 사용)
 const COL_VAULT = "vault";
 const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월별)
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
+const APP_BUILD = "build 2026-07-03 stage1"; // 배포 확인용 버전 표시 (로그인 화면 하단)
 
 // 문서 종류
 const DOC_TYPES = [
@@ -741,6 +742,7 @@ function LoginScreen({ users, onLogin, onUpdateUsers }) {
           <Btn variant="green" onClick={changePin}>PIN 변경</Btn>
         </>}
       </div>
+      <div style={{ textAlign: "center", padding: "16px 0", fontSize: 11, color: T.muted, opacity: 0.6 }}>{APP_BUILD}</div>
     </div>
   );
 }
