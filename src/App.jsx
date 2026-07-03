@@ -9,6 +9,26 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
+// ── [임시 디버그] 에러 발생 시 화면에 표시 (모바일에서 콘솔 없이 확인용) ──
+if (typeof window !== "undefined") {
+  const showDebugOverlay = (text) => {
+    let el = document.getElementById("__debug_overlay__");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "__debug_overlay__";
+      el.style.cssText = "position:fixed;inset:0;background:#000000f2;color:#4ade80;font:12px/1.5 monospace;padding:16px;z-index:999999;overflow:auto;white-space:pre-wrap;";
+      document.body.appendChild(el);
+    }
+    el.textContent += "\n\n[" + new Date().toLocaleTimeString("ko-KR") + "]\n" + text;
+  };
+  window.addEventListener("error", (e) => {
+    showDebugOverlay((e.message || "Unknown error") + "\n" + (e.error?.stack || ""));
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    showDebugOverlay("Promise rejection: " + (e.reason?.message || e.reason) + "\n" + (e.reason?.stack || ""));
+  });
+}
+
 // 기존 서비스워커 완전 제거
 // ── 테마 (화이트모드) ──────────────────────────────────────────
 const T = {
