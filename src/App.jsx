@@ -5,7 +5,7 @@ import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import {
   doc, onSnapshot, setDoc, getDoc, collection,
-  getDocs, writeBatch, addDoc, deleteDoc, query, orderBy, where
+  getDocs, writeBatch, addDoc, deleteDoc, query, orderBy, where, limit
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
@@ -42,6 +42,8 @@ const COL_CONTRACTS = "contracts"; // 하위호환 유지
 const COL_DOCS = "contracts";      // 문서함 (동일 컬렉션 사용)
 const COL_VAULT = "vault";
 const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월별)
+const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함)
+const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각 등)
 
 // 문서 종류
 const DOC_TYPES = [
@@ -116,6 +118,12 @@ async function sendPush({ title, message, targetUserId = null }) {
       body: JSON.stringify({ title, message, targetUserId }),
     });
   } catch(e) { console.error("Push 발송 실패:", e); }
+  try {
+    await addDoc(collection(db, COL_NOTI_LOG), {
+      title, message, targetUserId: targetUserId || "all",
+      createdAt: new Date().toISOString(),
+    });
+  } catch(e) { console.error("알림 기록 저장 실패:", e); }
 }
 // ── 플로팅 뒤로가기 버튼 ─────────────────────────────────────────
 function FloatBack({ onClick }) {
@@ -476,6 +484,7 @@ function AppLoader() {
   const [contracts, setContracts] = useState([]);
   const [vault, setVault] = useState([]);
   const [educations, setEducations] = useState([]);
+  const [notiLog, setNotiLog] = useState([]);
 
   useEffect(() => {
     let unsubs = [];
@@ -572,6 +581,11 @@ function AppLoader() {
     // 리마인더 구독
     unsubs.push(onSnapshot(query(collection(db, COL_REMINDERS), orderBy("createdAt", "desc")), snap => {
       setReminders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }));
+
+    // 알림 발송 이력 구독 (관리자 알림함, 최근 200건)
+    unsubs.push(onSnapshot(query(collection(db, COL_NOTI_LOG), orderBy("createdAt", "desc"), limit(200)), snap => {
+      setNotiLog(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }));
 
     // 일정 이벤트 구독
@@ -2449,12 +2463,22 @@ function AdminSeverance({ users, memberInfo, annual, onBack }) {
 }
 
 // ── 관리자 대문 ────────────────────────────────────────────────
-function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], reads = {}, contracts = [] }) {
+function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], reads = {}, contracts = [], notiLog = [] }) {
   const now = new Date();
   const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   const dateStr = kst.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
 
   const pendingSign = contracts.filter(c => c.status === "sent").length;
+
+  const [notiReadAt, setNotiReadAt] = useState(null);
+  useEffect(() => {
+    if (!user?.id) return;
+    const unsub = onSnapshot(doc(db, COL_ADMIN_META, user.id), snap => {
+      setNotiReadAt(snap.exists() ? snap.data().notiReadAt : "1970-01-01");
+    });
+    return () => unsub();
+  }, [user?.id]);
+  const unreadNoti = notiReadAt === null ? 0 : notiLog.filter(n => n.createdAt > notiReadAt).length;
 
   const sections = [
     { key: "attendance", icon: "📋", label: "근태",   desc: "출퇴근 현황 · 월별 기록", color: "#2563eb" },
@@ -2471,6 +2495,7 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
     { key: "severance",  icon: "💼", label: "퇴직금", desc: "퇴직금 계산",            color: "#b45309" },
     { key: "insurance",  icon: "🏦", label: "4대보험", desc: "보험료 계산 · 납부 요약", color: "#16a34a" },
     { key: "education",  icon: "🎓", label: "교육",    desc: "교육 개설 · 완료 현황",   color: "#7c3aed" },
+    { key: "notilog",    icon: "📬", label: "알림함", desc: "발송된 알림 이력",       color: "#dc2626", badge: unreadNoti },
   ];
 
   return (
@@ -2511,7 +2536,88 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
   );
 }
 
-// ── 관리자 근태 섹션 ───────────────────────────────────────────
+// ── 관리자 알림함 ──────────────────────────────────────────────
+function NotiLogSection({ notiLog, users, admin, onBack }) {
+  const [filter, setFilter] = useState("all"); // all | admin | member
+
+  useEffect(() => {
+    if (!admin?.id) return;
+    setDoc(doc(db, COL_ADMIN_META, admin.id), { notiReadAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+  }, [admin?.id]);
+
+  const nameOf = (targetUserId) => {
+    if (!targetUserId || targetUserId === "all") return "전체";
+    if (targetUserId === "multi") return "여러 명";
+    if (targetUserId === "admin") return "관리자";
+    const u = users.find(u => u.id === targetUserId || u.uid === targetUserId);
+    return u ? u.name : targetUserId;
+  };
+
+  const filtered = notiLog.filter(n => {
+    if (filter === "all") return true;
+    if (filter === "admin") return n.targetUserId === "admin" || n.targetUserId === "all" || n.targetUserId === "multi";
+    if (filter === "member") return n.targetUserId && n.targetUserId !== "admin" && n.targetUserId !== "all" && n.targetUserId !== "multi";
+    return true;
+  });
+
+  const groupByDate = {};
+  filtered.forEach(n => {
+    const d = (n.createdAt || "").slice(0, 10);
+    if (!groupByDate[d]) groupByDate[d] = [];
+    groupByDate[d].push(n);
+  });
+  const dates = Object.keys(groupByDate).sort((a, b) => b.localeCompare(a));
+
+  return (
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 40 }}>
+      <div style={{ background: T.adminHeader, padding: "18px 16px 16px" }}>
+        <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3, marginBottom: 4 }}>ADMIN</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>📬 알림함</div>
+        <div style={{ fontSize: 12, color: "#ffffff60", marginTop: 4 }}>발송된 푸시 알림 이력 (최근 200건)</div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, padding: "14px 16px 0" }}>
+        {[["all", "전체"], ["admin", "관리자 수신"], ["member", "팀원 수신"]].map(([k, label]) => (
+          <button key={k} onClick={() => setFilter(k)}
+            style={{ padding: "7px 14px", borderRadius: 20, border: `1px solid ${filter === k ? T.adminHeader : T.border}`, background: filter === k ? T.adminHeader : T.card, color: filter === k ? "#fff" : T.text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ padding: "16px" }}>
+        {dates.length === 0 && (
+          <div style={{ textAlign: "center", padding: "60px 0", color: T.muted, fontSize: 13 }}>발송된 알림이 없습니다</div>
+        )}
+        {dates.map(d => (
+          <div key={d} style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 8 }}>
+              {new Date(d).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}
+            </div>
+            {groupByDate[d]
+              .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
+              .map(n => (
+                <div key={n.id} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{n.title}</div>
+                    <div style={{ fontSize: 11, color: T.muted, whiteSpace: "nowrap" }}>
+                      {n.createdAt ? new Date(n.createdAt).toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" }) : ""}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 13, color: T.muted, marginTop: 4 }}>{n.message}</div>
+                  <div style={{ display: "inline-block", marginTop: 8, padding: "2px 10px", borderRadius: 10, background: T.bg, color: T.muted, fontSize: 11, fontWeight: 600 }}>
+                    → {nameOf(n.targetUserId)}
+                  </div>
+                </div>
+              ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
 function AdminAttendance({ users, settings, records, leaves, leaveRequests, onSaveRecord, onSaveLeave, onSaveSettings, onBack }) {
   const [tab, setTab] = useState("today");
   const [showSettings, setShowSettings] = useState(false);
@@ -7228,7 +7334,7 @@ function VaultSection({ onBack }) {
 function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
   const [section, setSection] = useState(null);
   const back = () => { setSection(null); window.scrollTo(0,0); };
-  if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={s => { setSection(s); window.scrollTo(0,0); }} leaveRequests={leaveRequests} board={board} reads={reads} contracts={contracts} />;
+  if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={s => { setSection(s); window.scrollTo(0,0); }} leaveRequests={leaveRequests} board={board} reads={reads} contracts={contracts} notiLog={notiLog} />;
   if (section === "attendance") return <><AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "wage") return <><AdminWage users={users} records={records} leaves={leaves} settings={settings} memberInfo={memberInfo} annual={annual} leaveRequests={leaveRequests} payslips={payslips} reads={reads} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "members") return <><AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={back} /><FloatBack onClick={back} /></>;
@@ -7242,6 +7348,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "vault") return <><VaultSection onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "insurance") return <><InsuranceSection users={users} memberInfo={memberInfo} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "education") return <><EducationSection users={users} reads={reads} onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "notilog") return <><NotiLogSection notiLog={notiLog} users={users} admin={user} onBack={back} /><FloatBack onClick={back} /></>;
   return null;
 }
 
