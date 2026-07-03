@@ -2604,8 +2604,10 @@ function AdminAttendance({ users, settings, records, leaves, leaveRequests, onSa
                         endMin = lh2 * 60 + lm3;
                       }
                       // 휴일이면 출근 알림 안 보임, 퇴근 알림은 출근한 경우만
-                      const showCheckin = !rec.in && nowMin >= startMin && !todayIsHoliday;
-                      const showCheckout = rec.in && !rec.out && nowMin >= endMin;
+                      // 연차(하루 종일)면 출근/퇴근 알림 버튼 자체를 노출하지 않음
+                      const isFullDayLeave = todayLeave && todayLeave.type !== "반차(오전)" && todayLeave.type !== "반차(오후)";
+                      const showCheckin = !isFullDayLeave && !rec.in && nowMin >= startMin && !todayIsHoliday;
+                      const showCheckout = !isFullDayLeave && rec.in && !rec.out && nowMin >= endMin;
                       if (showCheckin) return (
                         <button onClick={() => { if (window.confirm(`${u.name}님께 출근 알림을 보낼까요?`)) sendPush({ title: "🌅 출근 알림", message: `${u.name}님, 출근 기록을 잊지 마세요!`, targetUserId: u.id }); }}
                           style={{ background: "#fef9c3", border: "1px solid #fde68a", color: "#92400e", borderRadius: 8, padding: "4px 10px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>🔔 출근</button>
