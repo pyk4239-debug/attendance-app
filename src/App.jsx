@@ -622,7 +622,7 @@ function AppLoader() {
 
   return <App users={users} settings={settings} records={records} leaves={leaves}
     notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} reads={reads}
-    reminders={reminders} scheduleEvents={scheduleEvents} contracts={contracts} vault={vault}
+    reminders={reminders} scheduleEvents={scheduleEvents} contracts={contracts} vault={vault} notiLog={notiLog}
     onSaveUsers={fbSaveUsers} onSaveSettings={fbSaveSettings}
     onSaveRecord={fbSaveRecord} onSaveLeave={fbSaveLeave} />;
 }
@@ -8544,7 +8544,7 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips,
 }
 
 // ── 메인 App ───────────────────────────────────────────────────
-function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
+function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], notiLog = [], onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
   const [user, setUser] = useState(null);
   const [userLoaded, setUserLoaded] = useState(false);
   
