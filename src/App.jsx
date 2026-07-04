@@ -45,7 +45,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.03-r4";
+const APP_VERSION = "v2026.07.03-r5";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -7851,8 +7851,10 @@ function BoardScreen({ user, users = [], board, reads }) {
       const fileList = [];
       for (const f of files) {
         const ext = (f.name.split(".").pop() || "").toLowerCase();
+        const isImg = f.type?.startsWith("image/");
         const sRef = ref(storage, `board/${Date.now()}_${f.name}`);
-        await uploadBytes(sRef, f, { contentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(f.name)}` });
+        const metadata = isImg ? {} : { contentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(f.name)}` };
+        await uploadBytes(sRef, f, metadata);
         const url = await getDownloadURL(sRef);
         fileList.push({ url, name: f.name, size: f.size, ext, type: f.type });
       }
@@ -7903,9 +7905,26 @@ function BoardScreen({ user, users = [], board, reads }) {
 
   const [downloading, setDownloading] = useState(null);
   const downloadFile = (f) => {
+    // 파일(PDF 등)은 업로드 시 강제 다운로드 헤더가 붙어있어 새 탭 열기만으로 바로 다운로드됨
     setDownloading(f.url);
     window.open(f.url, "_blank");
     setTimeout(() => setDownloading(null), 800);
+  };
+  const downloadImage = async (f) => {
+    // 이미지는 보기 겸용이라 헤더가 없음 → fetch로 받아서 강제 다운로드, 실패하면 그냥 열기
+    setDownloading(f.url);
+    try {
+      const res = await fetch(f.url);
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl; a.download = f.name || "image";
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(objUrl);
+    } catch (e) {
+      window.open(f.url, "_blank");
+    }
+    setDownloading(null);
   };
 
   const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 };
@@ -7973,7 +7992,7 @@ function BoardScreen({ user, users = [], board, reads }) {
                         <a href={f.url} target="_blank" rel="noreferrer">
                           <img src={f.url} alt={f.name} style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 10, border: `1px solid ${T.border}`, display: "block" }} />
                         </a>
-                        <button onClick={() => downloadFile(f)} disabled={downloading === f.url}
+                        <button onClick={() => downloadImage(f)} disabled={downloading === f.url}
                           style={{ position: "absolute", bottom: 4, right: 4, width: 26, height: 26, borderRadius: "50%", border: "none", background: "#00000099", color: "#fff", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                           title="다운로드">{downloading === f.url ? "…" : "⬇"}</button>
                       </div>
