@@ -9,26 +9,6 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
-// ── [임시 디버그] 에러 발생 시 화면에 표시 (단계별 테스트용, 끝나면 제거) ──
-if (typeof window !== "undefined") {
-  const showDebugOverlay = (text) => {
-    let el = document.getElementById("__debug_overlay__");
-    if (!el) {
-      el = document.createElement("div");
-      el.id = "__debug_overlay__";
-      el.style.cssText = "position:fixed;inset:0;background:#000000f2;color:#4ade80;font:12px/1.5 monospace;padding:16px;z-index:999999;overflow:auto;white-space:pre-wrap;";
-      document.body.appendChild(el);
-    }
-    el.textContent += "\n\n[" + new Date().toLocaleTimeString("ko-KR") + "]\n" + text;
-  };
-  window.addEventListener("error", (e) => {
-    showDebugOverlay((e.message || "Unknown error") + "\n" + (e.error?.stack || ""));
-  });
-  window.addEventListener("unhandledrejection", (e) => {
-    showDebugOverlay("Promise rejection: " + (e.reason?.message || e.reason) + "\n" + (e.reason?.stack || ""));
-  });
-}
-
 // 기존 서비스워커 완전 제거
 // ── 테마 (화이트모드) ──────────────────────────────────────────
 const T = {
@@ -64,7 +44,8 @@ const COL_VAULT = "vault";
 const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월별)
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
-const APP_BUILD = "build 2026-07-03 stage4"; // 배포 확인용 버전 표시 (로그인 화면 하단)
+// 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로 올려주세요 (배포 확인용, 로그인 화면·설정 화면 하단에 표시됨)
+const APP_VERSION = "v2026.07.03";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -749,7 +730,7 @@ function LoginScreen({ users, onLogin, onUpdateUsers }) {
           <Btn variant="green" onClick={changePin}>PIN 변경</Btn>
         </>}
       </div>
-      <div style={{ textAlign: "center", padding: "16px 0", fontSize: 11, color: T.muted, opacity: 0.6 }}>{APP_BUILD}</div>
+      <div style={{ textAlign: "center", padding: "16px 0", fontSize: 11, color: T.muted, opacity: 0.6 }}>{APP_VERSION}</div>
     </div>
   );
 }
@@ -2057,6 +2038,7 @@ function SettingsModal({ settings, onSave, onClose }) {
           <Btn variant="ghost" onClick={onClose}>취소</Btn>
           <Btn variant="admin" onClick={() => onSave(s)}>저장</Btn>
         </div>
+        <div style={{ textAlign: "center", padding: "14px 0 0", fontSize: 11, color: T.muted, opacity: 0.6 }}>{APP_VERSION}</div>
       </div>
     </div>
   );
