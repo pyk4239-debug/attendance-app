@@ -45,7 +45,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.03-r2";
+const APP_VERSION = "v2026.07.03-r3";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -7901,6 +7901,24 @@ function BoardScreen({ user, users = [], board, reads }) {
 
   const isImage = (f) => f.type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(f.name || "");
 
+  const [downloading, setDownloading] = useState(null);
+  const downloadFile = async (f) => {
+    setDownloading(f.url);
+    try {
+      const res = await fetch(f.url);
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl; a.download = f.name || "file";
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(objUrl);
+    } catch (e) {
+      alert("다운로드 실패, 새 탭에서 열어볼게요.");
+      window.open(f.url, "_blank");
+    }
+    setDownloading(null);
+  };
+
   const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 };
 
   return (
@@ -7962,14 +7980,19 @@ function BoardScreen({ user, users = [], board, reads }) {
                 {b.files?.length > 0 && (
                   <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {b.files.map((f, i) => isImage(f) ? (
-                      <a key={i} href={f.url} target="_blank" rel="noreferrer">
-                        <img src={f.url} alt={f.name} style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 10, border: `1px solid ${T.border}` }} />
-                      </a>
+                      <div key={i} style={{ position: "relative" }}>
+                        <a href={f.url} target="_blank" rel="noreferrer">
+                          <img src={f.url} alt={f.name} style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 10, border: `1px solid ${T.border}`, display: "block" }} />
+                        </a>
+                        <button onClick={() => downloadFile(f)} disabled={downloading === f.url}
+                          style={{ position: "absolute", bottom: 4, right: 4, width: 26, height: 26, borderRadius: "50%", border: "none", background: "#00000099", color: "#fff", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                          title="다운로드">{downloading === f.url ? "…" : "⬇"}</button>
+                      </div>
                     ) : (
-                      <a key={i} href={f.url} target="_blank" rel="noreferrer"
-                        style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, background: T.bg, border: `1px solid ${T.border}`, color: T.text, fontSize: 12, textDecoration: "none" }}>
-                        📄 {f.name}
-                      </a>
+                      <button key={i} onClick={() => downloadFile(f)} disabled={downloading === f.url}
+                        style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, background: T.bg, border: `1px solid ${T.border}`, color: T.text, fontSize: 12, cursor: "pointer" }}>
+                        📄 {f.name} {downloading === f.url ? "· 다운로드 중…" : "⬇"}
+                      </button>
                     ))}
                   </div>
                 )}
