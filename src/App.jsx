@@ -45,7 +45,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.03-r6";
+const APP_VERSION = "v2026.07.03-r7";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -6548,6 +6548,16 @@ function InsuranceSection({ users, memberInfo, settings, onBack }) {
   const iStyle = { width: "100%", padding: "9px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, color: T.text, textAlign: "right", boxSizing: "border-box", fontFamily: "inherit", background: "#fff" };
 
   const calculate = () => {
+    const defaults = {
+      국민연금: settings?.ratePension ?? 4.75, 건강보험: settings?.rateHealth ?? 3.595,
+      장기요양: settings?.rateLongCare ?? 13.14, "고용보험(실업급여)": settings?.rateEmployment ?? 0.9,
+    };
+    const current = { 국민연금: 연금율, 건강보험: 건강율, 장기요양: 장기요양율, "고용보험(실업급여)": 실업율 };
+    const mismatches = Object.keys(defaults).filter(k => parseFloat(current[k]) !== parseFloat(defaults[k]));
+    if (mismatches.length > 0) {
+      const detail = mismatches.map(k => `- ${k}: ${current[k]}% (설정값 ${defaults[k]}%)`).join("\n");
+      if (!window.confirm(`⚠ 아래 요율이 급여명세서 설정값과 다릅니다.\n${detail}\n\n이대로 계산할까요?`)) return;
+    }
     if (savedThisMonth) {
       if (!window.confirm(`${monthKey} 저장된 계산 기록이 이미 있습니다.\n새로 계산한 값으로 덮어쓸까요?`)) return;
     }
@@ -6693,16 +6703,36 @@ function InsuranceSection({ users, memberInfo, settings, onBack }) {
         {showRates && (
           <div style={{ background: "#ffffff18", borderRadius: 10, padding: "10px 12px", marginBottom: 8 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {[["국민연금", 연금율, set연금율], ["건강보험", 건강율, set건강율], ["장기요양(건강료 대비)", 장기요양율, set장기요양율], ["고용보험(실업급여)", 실업율, set실업율], ["고용보험(고안·직능)", 고안율, set고안율]].map(([label, val, setter]) => (
-                <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 12, color: "#ffffff90", fontWeight: 600 }}>{label}</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <input value={val} onChange={e => setter(e.target.value.replace(/[^0-9.]/g, ""))}
-                      style={{ width: 70, padding: "7px 10px", borderRadius: 8, border: "none", background: "#ffffff25", color: "#fff", fontSize: 14, fontWeight: 800, textAlign: "right", fontFamily: "inherit" }} />
-                    <span style={{ fontSize: 11, color: "#ffffff70" }}>%</span>
+              {[
+                ["국민연금", 연금율, set연금율, settings?.ratePension ?? 4.75],
+                ["건강보험", 건강율, set건강율, settings?.rateHealth ?? 3.595],
+                ["장기요양(건강료 대비)", 장기요양율, set장기요양율, settings?.rateLongCare ?? 13.14],
+                ["고용보험(실업급여)", 실업율, set실업율, settings?.rateEmployment ?? 0.9],
+                ["고용보험(고안·직능)", 고안율, set고안율, 0.25],
+              ].map(([label, val, setter, defaultVal]) => {
+                const isDiff = parseFloat(val) !== parseFloat(defaultVal);
+                return (
+                  <div key={label}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 12, color: "#ffffff90", fontWeight: 600 }}>{label}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {isDiff && (
+                          <button onClick={() => setter(String(defaultVal))}
+                            style={{ border: "none", background: "none", color: "#fde047", fontSize: 11, cursor: "pointer", padding: "2px 4px" }}>
+                            ↺ 기본값
+                          </button>
+                        )}
+                        <input value={val} onChange={e => setter(e.target.value.replace(/[^0-9.]/g, ""))}
+                          style={{ width: 70, padding: "7px 10px", borderRadius: 8, border: isDiff ? "1px solid #fde047" : "none", background: "#ffffff25", color: "#fff", fontSize: 14, fontWeight: 800, textAlign: "right", fontFamily: "inherit" }} />
+                        <span style={{ fontSize: 11, color: "#ffffff70" }}>%</span>
+                      </div>
+                    </div>
+                    {isDiff && (
+                      <div style={{ fontSize: 10.5, color: "#fde047", textAlign: "right", marginTop: 2 }}>⚠ 설정값({defaultVal}%)과 다름</div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
