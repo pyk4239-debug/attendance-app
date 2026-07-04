@@ -45,7 +45,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.03-r1";
+const APP_VERSION = "v2026.07.03-r2";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -7308,7 +7308,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "annual") return <><AnnualScreen user={user} users={users} annual={annual} leaveRequests={leaveRequests} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "severance") return <><AdminSeverance users={users} memberInfo={memberInfo} annual={annual} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "notice") return <AdminSectionWrap title="📢 공지사항" color="#ea580c" onBack={back}><NoticeScreen user={user} users={users} notices={notices} reads={reads} /></AdminSectionWrap>;
-  if (section === "board") return <AdminSectionWrap title="💬 게시판" color="#0891b2" onBack={back}><BoardScreen user={user} board={board} reads={reads} /></AdminSectionWrap>;
+  if (section === "board") return <AdminSectionWrap title="💬 게시판" color="#0891b2" onBack={back}><BoardScreen user={user} users={users} board={board} reads={reads} /></AdminSectionWrap>;
   if (section === "settings") return <><SettingsModal settings={settings} onSave={async s => { await onSaveSettings(s); back(); }} onClose={back} /></>;
   if (section === "schedule") return <AdminSectionWrap title="🗓 일정" color="#7c3aed" onBack={back}><AdminSchedule reminders={reminders} users={users} settings={settings} scheduleEvents={scheduleEvents} /></AdminSectionWrap>;
   if (section === "contract") return <><DocSection users={users} memberInfo={memberInfo} settings={settings} contracts={contracts} onBack={back} /><FloatBack onClick={back} /></>;
@@ -7338,7 +7338,7 @@ function NoticeBoardScreen({ user, users, notices, board, reads }) {
         ))}
       </div>
       {subTab === "notice" && <NoticeScreen user={user} users={users} notices={notices} reads={reads} />}
-      {subTab === "board"  && <BoardScreen  user={user} board={board} reads={reads} />}
+      {subTab === "board"  && <BoardScreen  user={user} users={users} board={board} reads={reads} />}
     </div>
   );
 }
@@ -7825,25 +7825,53 @@ function NoticeScreen({ user, users, notices, reads }) {
     </div>
   );
 }
-function BoardScreen({ user, board, reads }) {
+function BoardScreen({ user, users = [], board, reads }) {
   const isAdmin = user.role === "admin";
+  const members = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
   const [showWrite, setShowWrite] = useState(false);
   const [title, setTitle] = useState(""), [content, setContent] = useState("");
+  const [recipient, setRecipient] = useState("all"); // "all" or userId
+  const [files, setFiles] = useState([]); // 새로 첨부할 File 객체들
+  const [uploading, setUploading] = useState(false);
   const [expanded, setExpanded] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
   const [editTitle, setEditTitle] = useState(""), [editContent, setEditContent] = useState("");
 
+  // 내가 볼 수 있는 글만 필터 (관리자는 전체, 팀원은 전체공지+본인지정+본인작성)
+  const visibleBoard = board.filter(b =>
+    isAdmin || !b.recipient || b.recipient === "all" || b.recipient === user.id || b.userId === user.id
+  );
+
+  const resetForm = () => { setTitle(""); setContent(""); setRecipient("all"); setFiles([]); setShowWrite(false); };
+
   const submit = async () => {
     if (!title.trim() || !content.trim()) return;
-    await addDoc(collection(db, COL_BOARD), {
-      title: title.trim(), content: content.trim(),
-      author: user.name, auto: true, userId: user.id, createdAt: new Date().toISOString()
-    });
-    await sendPush({ title: `💬 게시판: ${title.trim()}`, message: `${user.name}: ${content.trim()}` });
-    setTitle(""); setContent(""); setShowWrite(false);
+    setUploading(true);
+    try {
+      const fileList = [];
+      for (const f of files) {
+        const ext = (f.name.split(".").pop() || "").toLowerCase();
+        const sRef = ref(storage, `board/${Date.now()}_${f.name}`);
+        await uploadBytes(sRef, f);
+        const url = await getDownloadURL(sRef);
+        fileList.push({ url, name: f.name, size: f.size, ext, type: f.type });
+      }
+      await addDoc(collection(db, COL_BOARD), {
+        title: title.trim(), content: content.trim(), recipient,
+        author: user.name, auto: true, userId: user.id, createdAt: new Date().toISOString(),
+        ...(fileList.length > 0 ? { files: fileList } : {}),
+      });
+      const pushTarget = recipient === "all" ? null : recipient;
+      await sendPush({ title: `💬 게시판: ${title.trim()}`, message: `${user.name}: ${content.trim()}`, targetUserId: pushTarget });
+      resetForm();
+    } catch (e) { alert("등록 중 오류: " + e.message); }
+    setUploading(false);
   };
 
-  const del = async (id) => { await deleteDoc(doc(db, COL_BOARD, id)); };
+  const del = async (b) => {
+    if (b.files) { for (const f of b.files) { try { await deleteObject(ref(storage, f.url)); } catch {} } }
+    await deleteDoc(doc(db, COL_BOARD, b.id));
+  };
 
   const startEdit = (b) => { setEditTarget(b.id); setEditTitle(b.title); setEditContent(b.content); };
   const cancelEdit = () => { setEditTarget(null); setEditTitle(""); setEditContent(""); };
@@ -7865,6 +7893,14 @@ function BoardScreen({ user, board, reads }) {
 
   const isUnread = (b) => !reads[`${user.id}_board_${b.id}`] && b.userId !== user.id;
 
+  const recipientLabel = (r) => {
+    if (!r || r === "all") return null;
+    const m = members.find(u => u.id === r);
+    return m ? <Badge label={`${m.name}에게`} color="blue" /> : null;
+  };
+
+  const isImage = (f) => f.type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(f.name || "");
+
   const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 };
 
   return (
@@ -7876,25 +7912,45 @@ function BoardScreen({ user, board, reads }) {
 
       {showWrite && (
         <div style={{ background: T.card, borderRadius: 14, padding: 16, marginBottom: 16, border: `1px solid ${T.border}` }}>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600 }}>받는 사람</div>
+            <select value={recipient} onChange={e => setRecipient(e.target.value)} style={{ ...iStyle, marginBottom: 0 }}>
+              <option value="all">모두</option>
+              {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          </div>
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="제목" style={iStyle} />
           <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="내용" rows={4}
             style={{ ...iStyle, resize: "none", lineHeight: 1.6 }} />
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600 }}>사진 · 파일 첨부</div>
+            <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xlsx,.hwp,.zip"
+              onChange={e => setFiles(Array.from(e.target.files || []))}
+              style={{ width: "100%", fontSize: 12, color: T.text }} />
+            {files.length > 0 && (
+              <div style={{ marginTop: 6, fontSize: 12, color: T.muted }}>
+                {files.map(f => f.name).join(", ")} ({files.length}개)
+              </div>
+            )}
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Btn variant="ghost" onClick={() => setShowWrite(false)}>취소</Btn>
-            <Btn variant="primary" onClick={submit}>등록</Btn>
+            <Btn variant="ghost" onClick={resetForm}>취소</Btn>
+            <Btn variant="primary" onClick={submit} disabled={uploading}>{uploading ? "등록 중..." : "등록"}</Btn>
           </div>
         </div>
       )}
 
-      {board.length === 0
+      {visibleBoard.length === 0
         ? <div style={{ textAlign: "center", color: T.muted, padding: 40 }}>게시글이 없어요</div>
-        : board.map(b => (
+        : visibleBoard.map(b => (
           <div key={b.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${isUnread(b) ? T.blue : T.border}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }} onClick={() => toggleExpanded(b.id)}>
               <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, flexWrap: "wrap" }}>
                   {isUnread(b) && <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.blue, flexShrink: 0 }} />}
                   <div style={{ fontWeight: isUnread(b) ? 800 : 700, fontSize: 14, color: T.text }}>{b.title}</div>
+                  {b.files?.length > 0 && <span style={{ fontSize: 12 }}>📎</span>}
+                  {isAdmin && recipientLabel(b.recipient)}
                 </div>
                 <div style={{ fontSize: 11, color: T.muted }}>{b.author} · {b.createdAt?.slice(0,10)}</div>
               </div>
@@ -7903,6 +7959,20 @@ function BoardScreen({ user, board, reads }) {
             {expanded === b.id && (
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
                 <div style={{ fontSize: 14, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{b.content}</div>
+                {b.files?.length > 0 && (
+                  <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {b.files.map((f, i) => isImage(f) ? (
+                      <a key={i} href={f.url} target="_blank" rel="noreferrer">
+                        <img src={f.url} alt={f.name} style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 10, border: `1px solid ${T.border}` }} />
+                      </a>
+                    ) : (
+                      <a key={i} href={f.url} target="_blank" rel="noreferrer"
+                        style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, background: T.bg, border: `1px solid ${T.border}`, color: T.text, fontSize: 12, textDecoration: "none" }}>
+                        📄 {f.name}
+                      </a>
+                    ))}
+                  </div>
+                )}
                 {(isAdmin || b.userId === user.id) && (
                   editTarget === b.id ? (
                     <div style={{ marginTop: 10 }}>
@@ -7918,7 +7988,7 @@ function BoardScreen({ user, board, reads }) {
                   ) : (
                     <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                       {b.userId === user.id && <button onClick={() => startEdit(b)} style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>수정</button>}
-                      <button onClick={() => { if (window.confirm(`"${b.title}" 게시글을 삭제할까요?`)) del(b.id); }} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>삭제</button>
+                      <button onClick={() => { if (window.confirm(`"${b.title}" 게시글을 삭제할까요?`)) del(b); }} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>삭제</button>
                     </div>
                   )
                 )}
@@ -8581,7 +8651,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
             <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>💬 게시판</div>
           </div>
-          <BoardScreen user={user} board={board} reads={reads} />
+          <BoardScreen user={user} users={users} board={board} reads={reads} />
         </>
       )}
       {tab === "more" && (
