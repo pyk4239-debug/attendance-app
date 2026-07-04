@@ -44,8 +44,8 @@ const COL_VAULT = "vault";
 const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월별)
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
-// 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로 올려주세요 (배포 확인용, 로그인 화면·설정 화면 하단에 표시됨)
-const APP_VERSION = "v2026.07.03";
+// 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
+const APP_VERSION = "v2026.07.03-r1";
 
 // 문서 종류
 const DOC_TYPES = [
