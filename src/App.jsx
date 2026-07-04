@@ -45,7 +45,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.03-r3";
+const APP_VERSION = "v2026.07.03-r4";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -7852,7 +7852,7 @@ function BoardScreen({ user, users = [], board, reads }) {
       for (const f of files) {
         const ext = (f.name.split(".").pop() || "").toLowerCase();
         const sRef = ref(storage, `board/${Date.now()}_${f.name}`);
-        await uploadBytes(sRef, f);
+        await uploadBytes(sRef, f, { contentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(f.name)}` });
         const url = await getDownloadURL(sRef);
         fileList.push({ url, name: f.name, size: f.size, ext, type: f.type });
       }
@@ -7902,21 +7902,10 @@ function BoardScreen({ user, users = [], board, reads }) {
   const isImage = (f) => f.type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(f.name || "");
 
   const [downloading, setDownloading] = useState(null);
-  const downloadFile = async (f) => {
+  const downloadFile = (f) => {
     setDownloading(f.url);
-    try {
-      const res = await fetch(f.url);
-      const blob = await res.blob();
-      const objUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = objUrl; a.download = f.name || "file";
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(objUrl);
-    } catch (e) {
-      alert("다운로드 실패, 새 탭에서 열어볼게요.");
-      window.open(f.url, "_blank");
-    }
-    setDownloading(null);
+    window.open(f.url, "_blank");
+    setTimeout(() => setDownloading(null), 800);
   };
 
   const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 };
