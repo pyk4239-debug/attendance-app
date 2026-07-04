@@ -45,7 +45,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.03-r5";
+const APP_VERSION = "v2026.07.03-r6";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -6333,14 +6333,15 @@ function MemberEducationTab({ user, reads }) {
 }
 
 // ── 4대보험료 계산기 ────────────────────────────────────────────
-function InsuranceSection({ users, memberInfo, onBack }) {
+function InsuranceSection({ users, memberInfo, settings, onBack }) {
   const activeMembers = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
 
-  const [연금율, set연금율] = useState("4.75");
-  const [건강율, set건강율] = useState("3.595");
-  const [장기요양율, set장기요양율] = useState("13.14");
-  const [실업율, set실업율] = useState("0.9");
-  const [고안율, set고안율] = useState("0.25");
+  // 요율은 급여명세서 설정(Settings)과 연동된 기본값으로 시작 — 저장된 이번 달 스냅샷이 있으면 아래 useEffect에서 덮어씀
+  const [연금율, set연금율] = useState(String(settings?.ratePension ?? 4.75));
+  const [건강율, set건강율] = useState(String(settings?.rateHealth ?? 3.595));
+  const [장기요양율, set장기요양율] = useState(String(settings?.rateLongCare ?? 13.14));
+  const [실업율, set실업율] = useState(String(settings?.rateEmployment ?? 0.9));
+  const [고안율, set고안율] = useState("0.25"); // 고용안정·직업능력개발(사업주 전용) — 급여명세서 설정엔 없어 계산기 자체 값 사용
 
   function calcOne(pension, health, isOwner = false, ratesOverride = null) {
     const r = ratesOverride || { pension: parseFloat(연금율) || 0, health: parseFloat(건강율) || 0, ltc: parseFloat(장기요양율) || 0, unemployment: parseFloat(실업율) || 0, gian: parseFloat(고안율) || 0 };
@@ -6686,7 +6687,7 @@ function InsuranceSection({ users, memberInfo, onBack }) {
         </div>
         <button onClick={() => setShowRates(p => !p)}
           style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "8px 12px", background: "#ffffff18", borderRadius: 10, border: "none", cursor: "pointer", marginBottom: 8 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>⚙️ 기준 요율 (연초 개정 시 수정)</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>⚙️ 기준 요율 (기본값: 급여명세서 설정값)</span>
           <span style={{ fontSize: 11, color: "#ffffff90" }}>{showRates ? "▲" : "▼"}</span>
         </button>
         {showRates && (
@@ -7313,7 +7314,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "schedule") return <AdminSectionWrap title="🗓 일정" color="#7c3aed" onBack={back}><AdminSchedule reminders={reminders} users={users} settings={settings} scheduleEvents={scheduleEvents} /></AdminSectionWrap>;
   if (section === "contract") return <><DocSection users={users} memberInfo={memberInfo} settings={settings} contracts={contracts} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "vault") return <><VaultSection onBack={back} /><FloatBack onClick={back} /></>;
-  if (section === "insurance") return <><InsuranceSection users={users} memberInfo={memberInfo} onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "insurance") return <><InsuranceSection users={users} memberInfo={memberInfo} settings={settings} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "education") return <><EducationSection users={users} reads={reads} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "notilog") return <><NotiLogSection notiLog={notiLog} users={users} admin={user} onBack={back} /><FloatBack onClick={back} /></>;
   return null;
