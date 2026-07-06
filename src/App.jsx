@@ -65,7 +65,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.03-r12";
+const APP_VERSION = "v2026.07.03-r13";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -2576,13 +2576,9 @@ function NotiLogSection({ notiLog = [], users = [], admin, onBack }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Noto Sans KR',sans-serif", paddingBottom: 40 }}>
-      <div style={{ background: T.adminHeader, padding: "18px 16px 16px" }}>
-        <div style={{ fontSize: 11, color: "#ffffff40", letterSpacing: 3, marginBottom: 4 }}>ADMIN</div>
-        <div style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>📬 메시지</div>
-        <div style={{ fontSize: 12, color: "#ffffff60", marginTop: 4 }}>발송된 푸시 알림 이력 (최근 200건)</div>
-      </div>
-      <div style={{ padding: 16 }}>
+    <div>
+      <div style={{ padding: "0 16px 8px", fontSize: 12, color: T.muted }}>발송된 푸시 알림 이력 (최근 200건)</div>
+      <div style={{ padding: "0 16px 40px" }}>
         {notiLog.length === 0 && (
           <div style={{ textAlign: "center", padding: "60px 0", color: T.muted, fontSize: 13 }}>발송된 알림이 없습니다</div>
         )}
@@ -7368,7 +7364,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "vault") return <><VaultSection onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "insurance") return <><InsuranceSection users={users} memberInfo={memberInfo} settings={settings} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "education") return <><EducationSection users={users} reads={reads} onBack={back} /><FloatBack onClick={back} /></>;
-  if (section === "notilog") return <><NotiLogSection notiLog={notiLog} users={users} admin={user} onBack={back} /><FloatBack onClick={back} /></>;
+  if (section === "notilog") return <AdminSectionWrap title="📬 메시지" color="#dc2626" onBack={back}><NotiLogSection notiLog={notiLog} users={users} admin={user} /></AdminSectionWrap>;
   return null;
 }
 
