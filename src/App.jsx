@@ -45,7 +45,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.03-r10";
+const APP_VERSION = "v2026.07.03-r11";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -7885,8 +7885,9 @@ function BoardScreen({ user, users = [], board, reads }) {
       for (const f of files) {
         const ext = (f.name.split(".").pop() || "").toLowerCase();
         const isImg = f.type?.startsWith("image/");
+        const isPdf = f.type === "application/pdf" || ext === "pdf";
         const sRef = ref(storage, `board/${Date.now()}_${f.name}`);
-        const metadata = isImg ? {} : { contentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(f.name)}` };
+        const metadata = (isImg || isPdf) ? {} : { contentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(f.name)}` };
         await uploadBytes(sRef, f, metadata);
         const url = await getDownloadURL(sRef);
         fileList.push({ url, name: f.name, size: f.size, ext, type: f.type });
@@ -7943,8 +7944,8 @@ function BoardScreen({ user, users = [], board, reads }) {
     window.open(f.url, "_blank");
     setTimeout(() => setDownloading(null), 800);
   };
-  const downloadImage = async (f) => {
-    // 이미지는 보기 겸용이라 헤더가 없음 → fetch로 받아서 강제 다운로드, 실패하면 그냥 열기
+  const downloadViewable = async (f) => {
+    // 이미지·PDF는 보기 겸용이라 다운로드 헤더가 없음 → fetch로 받아서 강제 다운로드, 실패하면 그냥 열기
     setDownloading(f.url);
     try {
       const res = await fetch(f.url);
@@ -8020,21 +8021,36 @@ function BoardScreen({ user, users = [], board, reads }) {
                 <div style={{ fontSize: 14, color: T.text, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{b.content}</div>
                 {b.files?.length > 0 && (
                   <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {b.files.map((f, i) => isImage(f) ? (
-                      <div key={i} style={{ position: "relative" }}>
-                        <a href={f.url} target="_blank" rel="noreferrer">
-                          <img src={f.url} alt={f.name} style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 10, border: `1px solid ${T.border}`, display: "block" }} />
-                        </a>
-                        <button onClick={() => downloadImage(f)} disabled={downloading === f.url}
-                          style={{ position: "absolute", bottom: 4, right: 4, width: 26, height: 26, borderRadius: "50%", border: "none", background: "#00000099", color: "#fff", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-                          title="다운로드">{downloading === f.url ? "…" : "⬇"}</button>
-                      </div>
-                    ) : (
-                      <button key={i} onClick={() => downloadFile(f)} disabled={downloading === f.url}
-                        style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, background: T.bg, border: `1px solid ${T.border}`, color: T.text, fontSize: 12, cursor: "pointer" }}>
-                        📄 {f.name} {downloading === f.url ? "· 다운로드 중…" : "⬇"}
-                      </button>
-                    ))}
+                    {b.files.map((f, i) => {
+                      const isPdf = f.type === "application/pdf" || /\.pdf$/i.test(f.name || "");
+                      if (isImage(f)) return (
+                        <div key={i} style={{ position: "relative" }}>
+                          <a href={f.url} target="_blank" rel="noreferrer">
+                            <img src={f.url} alt={f.name} style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 10, border: `1px solid ${T.border}`, display: "block" }} />
+                          </a>
+                          <button onClick={() => downloadViewable(f)} disabled={downloading === f.url}
+                            style={{ position: "absolute", bottom: 4, right: 4, width: 26, height: 26, borderRadius: "50%", border: "none", background: "#00000099", color: "#fff", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                            title="다운로드">{downloading === f.url ? "…" : "⬇"}</button>
+                        </div>
+                      );
+                      if (isPdf) return (
+                        <div key={i} style={{ display: "flex", alignItems: "stretch", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.border}` }}>
+                          <a href={f.url} target="_blank" rel="noreferrer"
+                            style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", background: T.bg, color: T.text, fontSize: 12, textDecoration: "none" }}>
+                            📕 {f.name} · 열람
+                          </a>
+                          <button onClick={() => downloadViewable(f)} disabled={downloading === f.url}
+                            style={{ border: "none", borderLeft: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 13, padding: "0 12px", cursor: "pointer" }}
+                            title="다운로드">{downloading === f.url ? "…" : "⬇"}</button>
+                        </div>
+                      );
+                      return (
+                        <button key={i} onClick={() => downloadFile(f)} disabled={downloading === f.url}
+                          style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, background: T.bg, border: `1px solid ${T.border}`, color: T.text, fontSize: 12, cursor: "pointer" }}>
+                          📄 {f.name} {downloading === f.url ? "· 다운로드 중…" : "⬇"}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
                 {(isAdmin || b.userId === user.id) && (
