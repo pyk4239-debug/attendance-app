@@ -45,7 +45,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.03-r7";
+const APP_VERSION = "v2026.07.03-r8";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -8339,6 +8339,7 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
   const [reqNote, setReqNote] = useState("");
   const [reqMsg, setReqMsg] = useState("");
   const [reqHours, setReqHours] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
 
   const myAnnual = annual[user.id] || { total: 0, used: 0 };
   const myRemain = (myAnnual.total || 0) - (myAnnual.used || 0);
@@ -8355,16 +8356,23 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
   };
 
   const submitRequest = async () => {
+    if (submitting) return; // 중복 클릭/지연으로 인한 중복 신청 방지
     if (!reqDate) { setReqMsg("날짜를 선택해주세요"); return; }
-    await addDoc(collection(db, COL_LEAVE_REQ), {
-      userId: user.id, userName: user.name,
-      date: reqDate, type: reqType, note: reqNote,
-      ...(reqType === "시간연차" ? { hours: reqHours } : {}),
-      status: "대기", createdAt: new Date().toISOString()
-    });
-    await sendPush({ title: "📅 연차 신청", message: `${user.name}님이 ${reqDate} ${reqType}을 신청했습니다.`, targetUserId: "admin" });
-    setReqMsg("신청 완료! ✓"); setReqDate(""); setReqNote("");
-    setTimeout(() => { setReqMsg(""); setShowReqForm(false); }, 2000);
+    setSubmitting(true);
+    try {
+      await addDoc(collection(db, COL_LEAVE_REQ), {
+        userId: user.id, userName: user.name,
+        date: reqDate, type: reqType, note: reqNote,
+        ...(reqType === "시간연차" ? { hours: reqHours } : {}),
+        status: "대기", createdAt: new Date().toISOString()
+      });
+      await sendPush({ title: "📅 연차 신청", message: `${user.name}님이 ${reqDate} ${reqType}을 신청했습니다.`, targetUserId: "admin" });
+      setReqMsg("신청 완료! ✓"); setReqDate(""); setReqNote("");
+      setTimeout(() => { setReqMsg(""); setShowReqForm(false); }, 2000);
+    } catch (e) {
+      setReqMsg("신청 중 오류가 발생했습니다");
+    }
+    setSubmitting(false);
   };
 
   const [delConfirm, setDelConfirm] = useState(null);
@@ -8443,7 +8451,7 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
                 {reqMsg && <div style={{ fontSize: 12, color: reqMsg.includes("✓") ? T.green : T.red, marginBottom: 8, fontWeight: 600 }}>{reqMsg}</div>}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <Btn variant="ghost" onClick={() => setShowReqForm(false)}>취소</Btn>
-                  <Btn variant="green" onClick={submitRequest}>신청</Btn>
+                  <Btn variant="green" onClick={submitRequest} disabled={submitting}>{submitting ? "신청 중..." : "신청"}</Btn>
                 </div>
               </>
             )}
