@@ -45,7 +45,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.03-r9";
+const APP_VERSION = "v2026.07.03-r10";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -4480,6 +4480,7 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
         author: "관리자",
         createdAt: new Date().toISOString(), auto: true,
       });
+      await sendPush({ title: `📄 ${docTitle} 서명 요청`, message: `${docTitle}이(가) 발송되었습니다. 문서함에서 확인해주세요.`, targetUserId: contract.userId });
       alert(`${contract.userName}님께 ${docLabel} 서명 요청을 보냈습니다.`);
     } catch(e) { alert("발송 실패: " + e.message); }
   };
@@ -8572,12 +8573,6 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
               <Btn variant="ghost" onClick={() => setDelConfirm(null)}>취소</Btn>
               <Btn variant="red" onClick={async () => {
                 await delReq(delConfirm);
-                await addDoc(collection(db, COL_NOTICES), {
-                  title: "📅 연차 신청 삭제 안내",
-                  content: `${delConfirm.date} ${delConfirm.type} 신청이 삭제되었습니다.\n문의사항은 관리자에게 연락해주세요.`,
-                  recipient: delConfirm.userId, author: "관리자",
-                  createdAt: new Date().toISOString(), auto: true
-                });
               }}>삭제 + 공지</Btn>
             </div>
           </div>
