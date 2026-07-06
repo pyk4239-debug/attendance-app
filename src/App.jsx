@@ -45,7 +45,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.03-r8";
+const APP_VERSION = "v2026.07.03-r9";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -3322,6 +3322,7 @@ function LeaveRequestItem({ r, statusColor, setDelConfirm }) {
       title, content, recipient: r.userId,
       author: "관리자", createdAt: new Date().toISOString(), auto: true
     });
+    await sendPush({ title, message: content, targetUserId: r.userId });
   };
 
   const updateAnnualUsed = async (delta) => {
@@ -8387,6 +8388,10 @@ function AnnualScreen({ user, users, annual, leaveRequests, onBack }) {
       const newUsed = Math.max(0, Number(current.used || 0) + delta);
       tasks.push(setDoc(annualRef, { ...current, used: newUsed }));
     }
+    const title = "📅 연차 신청 삭제 안내";
+    const content = `${r.date} ${r.type} 신청 기록이 관리자에 의해 삭제되었습니다.`;
+    tasks.push(addDoc(collection(db, COL_NOTICES), { title, content, recipient: r.userId, author: "관리자", createdAt: new Date().toISOString(), auto: true }));
+    tasks.push(sendPush({ title, message: content, targetUserId: r.userId }));
     await Promise.all(tasks);
     setDelConfirm(null);
   };
