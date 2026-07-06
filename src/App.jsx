@@ -9,6 +9,26 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
+// ── [임시 디버그] 에러 발생 시 화면에 표시 (진단용, 확인되면 제거) ──
+if (typeof window !== "undefined") {
+  const showDebugOverlay = (text) => {
+    let el = document.getElementById("__debug_overlay__");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "__debug_overlay__";
+      el.style.cssText = "position:fixed;inset:0;background:#000000f2;color:#4ade80;font:12px/1.5 monospace;padding:16px;z-index:999999;overflow:auto;white-space:pre-wrap;";
+      document.body.appendChild(el);
+    }
+    el.textContent += "\n\n[" + new Date().toLocaleTimeString("ko-KR") + "]\n" + text;
+  };
+  window.addEventListener("error", (e) => {
+    showDebugOverlay((e.message || "Unknown error") + "\n" + (e.error?.stack || ""));
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    showDebugOverlay("Promise rejection: " + (e.reason?.message || e.reason) + "\n" + (e.reason?.stack || ""));
+  });
+}
+
 // 기존 서비스워커 완전 제거
 // ── 테마 (화이트모드) ──────────────────────────────────────────
 const T = {
@@ -45,7 +65,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.03-r11";
+const APP_VERSION = "v2026.07.03-r12";
 
 // 문서 종류
 const DOC_TYPES = [
