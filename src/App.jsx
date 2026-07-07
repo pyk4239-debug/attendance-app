@@ -65,7 +65,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.03-r13";
+const APP_VERSION = "v2026.07.06-r1";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -3010,11 +3010,12 @@ function AdminWage({ users, records, leaves, settings, memberInfo, annual, leave
 
   // 임금대장 CSV
   const downloadLedger = () => {
-    const header = ["이름", "지급일", "출근", "연장", "휴일", "기본급", "연장수당", "휴일수당", "상여금", "이월분", "기타소득", "소득합계", "소득세", "주민세", "국민연금", "건강보험", "고용보험", "장기요양", "차감", "기타공제", "공제합계", "실지급액"];
+    const [ledgerYear, ledgerMonth] = selectedMonth.split("-");
+    const header = ["년", "월", "이름", "지급일", "출근", "연장", "휴일", "기본급", "연장수당", "휴일수당", "상여금", "이월분", "기타소득", "소득합계", "소득세", "주민세", "국민연금", "건강보험", "고용보험", "장기요양", "차감", "기타공제", "공제합계", "실지급액"];
     const rows = members.map(u => {
       const s = savedWages[`${u.id}_${selectedMonth}`];
-      if (!s) return [u.name, getPayDate(selectedMonth, settings?.holidays ?? [], settings?.payDay ?? 15), ...Array(20).fill("-")];
-      return [u.name, s.payDate, s.monthStats?.days||0, fmtMinutes(s.monthStats?.otMin||0), s.monthStats?.holiday||0,
+      if (!s) return [ledgerYear, ledgerMonth, u.name, getPayDate(selectedMonth, settings?.holidays ?? [], settings?.payDay ?? 15), ...Array(20).fill("-")];
+      return [ledgerYear, ledgerMonth, u.name, s.payDate, s.monthStats?.days||0, fmtMinutes(s.monthStats?.otMin||0), s.monthStats?.holiday||0,
         s.monthlyBase||0, s.otPay||0, s.holidayPay||0, s.bonus||0, s.carryOver||0, s.otherIncome||0, s.totalIncome||0,
         s.incomeTax||0, s.residentTax||0, s.nationalPension||0, s.health||0, s.employment||0, s.longCare||0,
         s.deductPay||0, s.otherDeduct||0, s.totalDeduct||0, s.netPay||0];
