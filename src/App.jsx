@@ -65,7 +65,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.06-r1";
+const APP_VERSION = "v2026.07.06-r2";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -1688,7 +1688,7 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
         <div style={{ flex: 1, textAlign: "center", fontSize: 16, fontWeight: 800, color: T.text }}>{monthLabel(selectedMonth)}</div>
         <button onClick={nextMonth} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 16px", fontSize: 16, cursor: "pointer", fontWeight: 700, color: isCurrentMonth ? T.muted : T.text, opacity: isCurrentMonth ? 0.3 : 1 }}>›</button>
       </div>
-      {/* 전체 직원 CSV 다운로드 */}
+      {/* 전체 직원 엑셀 다운로드 (이름순 + 날짜순 시트) */}
       <button onClick={() => {
         const header = ["이름", "날짜", "요일", "출근", "퇴근", "지각", "지각시간", "조퇴", "조퇴시간", "잔업", "잔업시간", "외출횟수", "외출시간", "연차/반차", "메모"];
         const rows = [];
@@ -1712,9 +1712,19 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
               leave?leave.type:"", rec.note||""]);
           });
         });
-        downloadCSV(`전체직원_${monthLabel(selectedMonth)}_근태.csv`, [header, ...rows]);
+
+        const rowsByDate = [...rows].sort((a, b) => a[1].localeCompare(b[1]) || a[0].localeCompare(b[0]));
+
+        const wb = XLSX.utils.book_new();
+        const ws1 = XLSX.utils.aoa_to_sheet([header, ...rows]);
+        const ws2 = XLSX.utils.aoa_to_sheet([header, ...rowsByDate]);
+        const colWidths = [{wch:10},{wch:11},{wch:6},{wch:8},{wch:8},{wch:6},{wch:8},{wch:6},{wch:8},{wch:6},{wch:8},{wch:8},{wch:16},{wch:12},{wch:16}];
+        ws1["!cols"] = colWidths; ws2["!cols"] = colWidths;
+        XLSX.utils.book_append_sheet(wb, ws1, "이름순");
+        XLSX.utils.book_append_sheet(wb, ws2, "날짜순");
+        XLSX.writeFile(wb, `전체직원_${monthLabel(selectedMonth)}_근태.xlsx`);
       }} style={{ width: "100%", padding: "11px 0", borderRadius: 12, border: "none", background: T.green, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 14 }}>
-        ⬇ 전체 직원 CSV 다운로드
+        ⬇ 전체 직원 엑셀 다운로드
       </button>
       {members.map(u => {
         const days = Object.entries(records[u.id] || {}).filter(([d]) => d.startsWith(selectedMonth));
