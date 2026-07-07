@@ -65,7 +65,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.06-r4";
+const APP_VERSION = "v2026.07.06-r5";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -1542,8 +1542,8 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
       const header = ["날짜", "요일", "출근", "퇴근", "지각", "지각시간", "조퇴", "조퇴시간", "잔업", "잔업시간", "외출횟수", "외출시간", "연차/반차", "메모"];
       const rows = days.map(([date, rec]) => {
         const dow = new Date(date).toLocaleDateString("ko-KR", { weekday: "short" });
-        const lm = calcLateMin(rec.in, settings.workStart), em = calcEarlyOutMin(rec.out, settings.workEnd), om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
         const leave = userLeaves[date];
+        const lm = calcLateMinWithLeave(rec.in, settings.workStart, leave, settings), em = calcEarlyOutMinWithLeave(rec.out, settings.workEnd, rec.in, settings.workStart, leave, settings), om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
         const outings = rec.outing || []; const outingStr = outings.map(o => formatTime(o.out) + "~" + formatTime(o.in)).join(" | "); return [date, dow, formatTime(rec.in), formatTime(rec.out), lm > 0 ? "O" : "", lm > 0 ? fmtMinutes(lm) : "", em > 0 ? "O" : "", em > 0 ? fmtMinutes(em) : "", om >= 30 ? "O" : "", om >= 30 ? fmtMinutes(roundTo30(om)) : "", outings.length > 0 ? outings.length + "회" : "", outingStr, leave ? leave.type : "", rec.note || ""];
       });
       downloadCSV(`${drillUser.name}_${monthLabel(selectedMonth)}_근태.csv`, [header, ...rows]);
@@ -1700,10 +1700,10 @@ function MonthTab({ records, leaves, members, settings, leaveRequests, onSaveRec
           allDates.forEach(date => {
             const rec = (records[u.id] || {})[date] || {};
             const dow = new Date(date).toLocaleDateString("ko-KR", { weekday: "short" });
-            const lm = calcLateMin(rec.in, settings.workStart);
-            const em = calcEarlyOutMin(rec.out, settings.workEnd);
-            const om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
             const leave = userLeaves[date];
+            const lm = calcLateMinWithLeave(rec.in, settings.workStart, leave, settings);
+            const em = calcEarlyOutMinWithLeave(rec.out, settings.workEnd, rec.in, settings.workStart, leave, settings);
+            const om = calcTotalOvertimeMin(rec.in, rec.out, settings.workStart, settings.workEnd);
             const finalLate = rec.lateConfirm !== undefined && rec.lateConfirm !== null ? rec.lateConfirm : lm > 0;
             const finalEarly = rec.earlyConfirm !== undefined && rec.earlyConfirm !== null ? rec.earlyConfirm : em > 0;
             const finalOt = rec.overtimeConfirm !== undefined && rec.overtimeConfirm !== null ? rec.overtimeConfirm : om >= 30;
