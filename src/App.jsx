@@ -65,7 +65,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.06-r5";
+const APP_VERSION = "v2026.07.08-r1";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -4401,7 +4401,7 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
       const docLabel = DOC_TYPES.find(d => d.key === (contract.docType || "contract"))?.label || "문서";
       const docName = (!contract.docType || contract.docType === "contract")
         ? `근로계약서_${contract.contractStart || ""}`
-        : `${contract.docTitle || docLabel}_${contract.createdAt?.slice(0,10) || ""}`;
+        : `${contract.docTitle || docLabel}_${contract.createdAt ? new Date(contract.createdAt).toLocaleDateString("sv-SE") : ""}`;
       const fileName = `${contract.userName}_${docName}.pdf`;
       pdf.save(fileName);
       // ✅ 다운로드 완료 즉시 버튼 정상화
@@ -5589,7 +5589,7 @@ function ContractViewScreen({ user, contracts }) {
                               let imgW = pageW - margin * 2, imgH = imgW / ratio;
                               if (imgH > pageH - margin * 2) { imgH = pageH - margin * 2; imgW = imgH * ratio; }
                               pdf.addImage(imgData, "PNG", (pageW - imgW) / 2, margin, imgW, imgH);
-                              pdf.save(`${user.name}_${latest.docTitle || "문서"}_${latest.createdAt?.slice(0,10) || ""}.pdf`);
+                              pdf.save(`${user.name}_${latest.docTitle || "문서"}_${latest.createdAt ? new Date(latest.createdAt).toLocaleDateString("sv-SE") : ""}.pdf`);
                             } catch(e) { alert("PDF 생성 실패: " + e.message); }
                           }}
                             style={{ display: "block", width: "100%", marginTop: 8, padding: "8px 0", borderRadius: 10, border: "none", background: "#16a34a", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
@@ -7612,7 +7612,7 @@ function NoticeScreen({ user, users, notices, reads }) {
                   {n.requireReply && <Badge label="💬 회신요청" color="blue" />}
                 </div>
                 <div style={{ fontSize: 11, color: T.muted }}>
-                  {n.author} · {n.createdAt?.slice(0,10)}
+                  {n.author} · {n.createdAt ? new Date(n.createdAt).toLocaleDateString("ko-KR") : ""}
                   {n.requireConfirm && isAdmin && targetMembers.length > 0 && (
                     <span style={{ marginLeft: 8, fontWeight: 700, color: confirmedIds.length === targetMembers.length ? "#16a34a" : "#d97706" }}>
                       ✅ {confirmedIds.length}/{targetMembers.length}명 확인
@@ -8046,7 +8046,7 @@ function BoardScreen({ user, users = [], board, reads }) {
                   {b.files?.length > 0 && <span style={{ fontSize: 12 }}>📎</span>}
                   {isAdmin && recipientLabel(b.recipient)}
                 </div>
-                <div style={{ fontSize: 11, color: T.muted }}>{b.author} · {b.createdAt?.slice(0,10)}</div>
+                <div style={{ fontSize: 11, color: T.muted }}>{b.author} · {b.createdAt ? new Date(b.createdAt).toLocaleDateString("ko-KR") : ""}</div>
               </div>
               <span style={{ color: T.muted, fontSize: 14 }}>{expanded === b.id ? "▲" : "▼"}</span>
             </div>
@@ -8262,7 +8262,7 @@ function PayslipScreen({ user, users, payslips, reads }) {
                     </div>
                   </div>
                   <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
-                    {p.createdAt?.slice(0,10)} 발급 · 지급일 {w?.payDate || "-"}
+                    {p.createdAt ? new Date(p.createdAt).toLocaleDateString("ko-KR") : ""} 발급 · 지급일 {w?.payDate || "-"}
                     {w && <span style={{ marginLeft: 8, fontWeight: 700, color: "#16a34a" }}>실지급 {Number(w.netPay||0).toLocaleString()}원</span>}
                   </div>
                 </div>
