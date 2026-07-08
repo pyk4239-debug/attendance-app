@@ -65,7 +65,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.08-r7";
+const APP_VERSION = "v2026.07.08-r8";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -8178,7 +8178,7 @@ function BoardScreen({ user, users = [], board, reads }) {
                     })}
                   </div>
                 )}
-                {(isAdmin || b.userId === user.id) && (
+                {(b.userId === user.id) && (
                   editTarget === b.id ? (
                     <div style={{ marginTop: 10 }}>
                       <input value={editTitle} onChange={e => setEditTitle(e.target.value)}
