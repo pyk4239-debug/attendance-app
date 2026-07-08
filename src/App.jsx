@@ -65,7 +65,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.08-r2";
+const APP_VERSION = "v2026.07.08-r3";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -100,6 +100,8 @@ const CONFIRM_TEMPLATES = [
     content: `본인은 아래 개인정보 보호교육을 이수하였음을 확인합니다.\n\n교육 일시: 년  월  일\n교육 내용: 개인정보 보호법에 따른 개인정보 보호교육\n교육 시간: 시간\n\n위 교육을 성실히 이수하였으며 그 내용을 숙지하였습니다.` },
   { key: "rule", label: "취업규칙 교부 확인서",
     content: `본인은 취업규칙을 교부받았으며 그 내용을 충분히 읽고 이해하였음을 확인합니다.\n\n교부 일시: 년  월  일` },
+  { key: "termclause", label: "해고사유 조항 변경 확인서",
+    content: `본인은 기존 근로계약서의 해고사유 조항이 아래와 같이 변경됨을 확인하고 동의합니다.\n\n[변경 후 조항]\n회사는 다음 각 호의 사유가 있는 경우 근로기준법 제23조에 따라 근로자를 해고할 수 있다.\n\n1. 정당한 업무명령을 반복적으로 위반하였을 때\n2. 무단결근이 계속하여 3일 이상 발생하거나, 1개월 이내 지각·조퇴가 3회 이상인 경우\n3. 발주처로부터 근로자(을)의 중대한 귀책사유로 인한 교체 요청이 있고, 그 사실이 객관적으로 입증된 경우\n4. 발주처와의 도급계약이 종료되어 회사의 사업을 더 이상 지속하기 어려운 경우로서, 근로기준법 제23조에 따른 정당한 해고사유에 해당하는 때\n5. 위 해지 사유에 해당하는 경우, 근로기준법에 따라 해고예고를 하거나 해고예고수당을 지급한다.\n\n근로자(을)는 본 회사가 원청(발주처)로부터 도급을 받아 수행하는 하도급 회사임을 충분히 이해하고 입사하였으며, 발주처와의 도급계약 종료 또는 축소 시 회사의 사업 지속이 어려워질 수 있음을 인지하고 본 계약을 체결한다.\n\n이 확인서는 기존 근로계약서의 해고사유 조항을 본 확인서로 갈음합니다.` },
   { key: "custom", label: "직접 입력", content: "" },
 ];
 
@@ -4795,6 +4797,7 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
               if (key === "privacy") return `${label} ${year}`;
               if (key === "wage") return `${label} ${year}`;
               if (key === "rule") return `${label} ${year}`;
+              if (key === "termclause") return `${label} ${year}`;
               return label;
             };
             return (
