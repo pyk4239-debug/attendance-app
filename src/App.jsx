@@ -65,7 +65,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.08-r4";
+const APP_VERSION = "v2026.07.08-r5";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -7940,6 +7940,11 @@ function NoticeScreen({ user, users, notices, reads }) {
 function BoardScreen({ user, users = [], board, reads }) {
   const isAdmin = user.role === "admin";
   const members = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
+  // 글쓰기 화면에서 고를 수 있는 수신인 목록: 본인 제외, 팀원이 쓸 때는 "관리자"도 선택 가능
+  const recipientOptions = [
+    ...(!isAdmin ? [{ id: "admin", name: "관리자" }] : []),
+    ...members.filter(m => m.id !== user.id),
+  ];
   const [showWrite, setShowWrite] = useState(false);
   const [title, setTitle] = useState(""), [content, setContent] = useState("");
   const [recipient, setRecipient] = useState("all"); // "all" or "multi"
@@ -8020,7 +8025,7 @@ function BoardScreen({ user, users = [], board, reads }) {
   const recipientLabel = (b) => {
     if (!b.recipient || b.recipient === "all") return null;
     if (b.recipients && b.recipients.length) {
-      const names = b.recipients.map(id => members.find(u => u.id === id)?.name).filter(Boolean);
+      const names = b.recipients.map(id => id === "admin" ? "관리자" : members.find(u => u.id === id)?.name).filter(Boolean);
       if (names.length === 0) return null;
       return <Badge label={`${names.join(", ")}에게`} color="blue" />;
     }
@@ -8075,7 +8080,7 @@ function BoardScreen({ user, users = [], board, reads }) {
             </div>
             {recipient === "multi" && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {members.map(m => (
+                {recipientOptions.map(m => (
                   <button key={m.id} onClick={() => toggleRecipient(m.id)}
                     style={{ padding: "6px 12px", borderRadius: 20, border: `2px solid ${recipients.includes(m.id) ? "#0369a1" : T.border}`, background: recipients.includes(m.id) ? "#e0f2fe" : T.bg, color: recipients.includes(m.id) ? "#0369a1" : T.muted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                     {recipients.includes(m.id) ? "✓ " : ""}{m.name}
