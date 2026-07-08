@@ -65,7 +65,7 @@ const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월�
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.08-r3";
+const APP_VERSION = "v2026.07.08-r4";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -7420,7 +7420,9 @@ function NoticeScreen({ user, users, notices, reads }) {
   const [editTarget, setEditTarget] = useState(null);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [recipient, setRecipient] = useState("all"); // "all" or userId
+  const [recipient, setRecipient] = useState("all"); // "all" or "multi"
+  const [recipients, setRecipients] = useState([]); // userId[] when recipient==="multi"
+  const toggleRecipient = (id) => setRecipients(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [expanded, setExpanded] = useState(null);
@@ -7435,7 +7437,7 @@ function NoticeScreen({ user, users, notices, reads }) {
 
   // 내가 볼 수 있는 공지 필터
   const visibleNotices = notices.filter(n =>
-    n.recipient === "all" || n.recipient === user.id || user.role === "admin"
+    n.recipient === "all" || n.recipient === user.id || (n.recipients || []).includes(user.id) || user.role === "admin"
   );
 
   // 관리자: 직접작성 vs 자동생성 분리
@@ -7444,7 +7446,7 @@ function NoticeScreen({ user, users, notices, reads }) {
   const autoNotices = visibleNotices.filter(n => isAutoNotice(n));
   const displayNotices = isAdmin ? (noticeTab === "manual" ? manualNotices : autoNotices) : visibleNotices;
 
-  const resetForm = () => { setTitle(""); setContent(""); setRecipient("all"); setFile(null); setShowWrite(false); setEditTarget(null); setRequireConfirm(false); setRequireReply(false); setReplyType("both"); };
+  const resetForm = () => { setTitle(""); setContent(""); setRecipient("all"); setRecipients([]); setFile(null); setShowWrite(false); setEditTarget(null); setRequireConfirm(false); setRequireReply(false); setReplyType("both"); };
 
   const markRead = async (id) => {
     const key = `${user.id}_notice_${id}`;
@@ -7460,6 +7462,7 @@ function NoticeScreen({ user, users, notices, reads }) {
 
   const submit = async () => {
     if (!title.trim() || !content.trim()) return;
+    if (recipient === "multi" && recipients.length === 0) { alert("수신인을 선택하세요."); return; }
     setUploading(true);
     let fileUrl = null, fileName = null;
     if (file) {
@@ -7470,10 +7473,16 @@ function NoticeScreen({ user, users, notices, reads }) {
       fileName = file.name;
     }
     const data = { title: title.trim(), content: content.trim(), recipient, author: user.name, createdAt: new Date().toISOString(), requireConfirm, requireReply, replyType };
+    if (recipient === "multi") data.recipients = recipients;
     if (fileUrl) { data.fileUrl = fileUrl; data.fileName = fileName; }
     await addDoc(collection(db, COL_NOTICES), data);
-    const pushTarget = recipient === "all" ? null : recipient;
-    await sendPush({ title: `📢 공지: ${title.trim()}`, message: content.trim(), targetUserId: pushTarget });
+    if (recipient === "all") {
+      await sendPush({ title: `📢 공지: ${title.trim()}`, message: content.trim(), targetUserId: null });
+    } else {
+      for (const id of recipients) {
+        await sendPush({ title: `📢 공지: ${title.trim()}`, message: content.trim(), targetUserId: id });
+      }
+    }
     resetForm(); setUploading(false);
   };
 
@@ -7489,6 +7498,7 @@ function NoticeScreen({ user, users, notices, reads }) {
       fileName = file.name;
     }
     const data = { title: title.trim(), content: content.trim(), recipient, fileUrl, fileName };
+    if (recipient === "multi") data.recipients = recipients; else data.recipients = [];
     await setDoc(doc(db, COL_NOTICES, editTarget.id), data, { merge: true });
     resetForm(); setUploading(false);
   };
@@ -7500,14 +7510,22 @@ function NoticeScreen({ user, users, notices, reads }) {
 
   const openEdit = (n) => {
     setEditTarget(n); setTitle(n.title); setContent(n.content);
-    setRecipient(n.recipient || "all"); setFile(null);
+    const legacySingle = n.recipient && n.recipient !== "all" && n.recipient !== "multi" ? [n.recipient] : [];
+    setRecipient(n.recipient === "all" ? "all" : "multi");
+    setRecipients(n.recipients && n.recipients.length ? n.recipients : legacySingle);
+    setFile(null);
   };
 
   const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 };
 
-  const recipientLabel = (r) => {
-    if (r === "all" || !r) return null;
-    const m = members.find(u => u.id === r);
+  const recipientLabel = (n) => {
+    if (!n.recipient || n.recipient === "all") return null;
+    if (n.recipients && n.recipients.length) {
+      const names = n.recipients.map(id => members.find(u => u.id === id)?.name).filter(Boolean);
+      if (names.length === 0) return null;
+      return <Badge label={`${names.join(", ")}에게`} color="blue" />;
+    }
+    const m = members.find(u => u.id === n.recipient);
     return m ? <Badge label={`${m.name}에게`} color="blue" /> : null;
   };
 
@@ -7537,11 +7555,23 @@ function NoticeScreen({ user, users, notices, reads }) {
           <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 10 }}>{editTarget ? "공지 수정" : "새 공지"}</div>
           {/* 수신인 */}
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600 }}>수신인</div>
-            <select value={recipient} onChange={e => setRecipient(e.target.value)} style={{ ...iStyle, marginBottom: 0 }}>
-              <option value="all">모두</option>
-              {members.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>수신인</span>
+              <div>
+                <button onClick={() => { setRecipient("all"); setRecipients([]); }} style={{ fontSize: 11, fontWeight: 700, color: recipient === "all" ? "#0369a1" : T.muted, background: "none", border: "none", cursor: "pointer", marginRight: 10 }}>모두</button>
+                <button onClick={() => setRecipient("multi")} style={{ fontSize: 11, fontWeight: 700, color: recipient === "multi" ? "#0369a1" : T.muted, background: "none", border: "none", cursor: "pointer" }}>여러 명 선택</button>
+              </div>
+            </div>
+            {recipient === "multi" && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {members.map(m => (
+                  <button key={m.id} onClick={() => toggleRecipient(m.id)}
+                    style={{ padding: "6px 12px", borderRadius: 20, border: `2px solid ${recipients.includes(m.id) ? "#0369a1" : T.border}`, background: recipients.includes(m.id) ? "#e0f2fe" : T.bg, color: recipients.includes(m.id) ? "#0369a1" : T.muted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                    {recipients.includes(m.id) ? "✓ " : ""}{m.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="제목" style={iStyle} />
           <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="내용" rows={4}
@@ -7594,7 +7624,7 @@ function NoticeScreen({ user, users, notices, reads }) {
           // 확인 현황 계산
           const targetMembers = n.recipient === "all"
             ? members
-            : members.filter(m => m.id === n.recipient);
+            : (n.recipients && n.recipients.length ? members.filter(m => n.recipients.includes(m.id)) : members.filter(m => m.id === n.recipient));
           const confirmedIds = targetMembers.filter(m => reads[`${m.id}_confirm_${n.id}`]).map(m => m.id);
           const unconfirmedMembers = targetMembers.filter(m => !reads[`${m.id}_confirm_${n.id}`]);
           const myConfirmed = reads[`${user.id}_confirm_${n.id}`];
@@ -7609,7 +7639,7 @@ function NoticeScreen({ user, users, notices, reads }) {
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
                   {isUnread(n) && <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.blue, flexShrink: 0 }} />}
                   <div style={{ fontWeight: isUnread(n) ? 800 : 700, fontSize: 14, color: T.text }}>{n.title}</div>
-                  {recipientLabel(n.recipient)}
+                  {recipientLabel(n)}
                   {n.fileName && <Badge label="📎" color="gray" />}
                   {n.requireConfirm && <Badge label="📋 확인요청" color="yellow" />}
                   {n.requireReply && <Badge label="💬 회신요청" color="blue" />}
@@ -7786,7 +7816,7 @@ function NoticeScreen({ user, users, notices, reads }) {
                   <div>
                     {/* 독촉 알림 버튼 — 작성 공지에만 */}
                     {!editTarget && !n.auto && (() => {
-                      const targets = n.recipient === "all" ? members : members.filter(m => m.id === n.recipient);
+                      const targets = n.recipient === "all" ? members : (n.recipients && n.recipients.length ? members.filter(m => n.recipients.includes(m.id)) : members.filter(m => m.id === n.recipient));
                       if (targets.length === 0) return null;
                       if (n.nudgeDone) return (
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#f0fdf4", borderRadius: 10, border: "1px solid #86efac", marginBottom: 8 }}>
@@ -7817,11 +7847,23 @@ function NoticeScreen({ user, users, notices, reads }) {
                           style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", marginBottom: 8 }} placeholder="제목" />
                         <textarea value={content} onChange={e => setContent(e.target.value)}
                           rows={4} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", resize: "none", lineHeight: 1.6, fontFamily: "inherit", marginBottom: 8 }} placeholder="내용" />
-                        <select value={recipient} onChange={e => setRecipient(e.target.value)}
-                          style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", marginBottom: 8 }}>
-                          <option value="all">전체</option>
-                          {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                        </select>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                          <span style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>수신인</span>
+                          <div>
+                            <button onClick={() => { setRecipient("all"); setRecipients([]); }} style={{ fontSize: 11, fontWeight: 700, color: recipient === "all" ? "#0369a1" : T.muted, background: "none", border: "none", cursor: "pointer", marginRight: 10 }}>모두</button>
+                            <button onClick={() => setRecipient("multi")} style={{ fontSize: 11, fontWeight: 700, color: recipient === "multi" ? "#0369a1" : T.muted, background: "none", border: "none", cursor: "pointer" }}>여러 명 선택</button>
+                          </div>
+                        </div>
+                        {recipient === "multi" && (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                            {members.map(m => (
+                              <button key={m.id} onClick={() => toggleRecipient(m.id)}
+                                style={{ padding: "6px 12px", borderRadius: 20, border: `2px solid ${recipients.includes(m.id) ? "#0369a1" : T.border}`, background: recipients.includes(m.id) ? "#e0f2fe" : T.bg, color: recipients.includes(m.id) ? "#0369a1" : T.muted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                                {recipients.includes(m.id) ? "✓ " : ""}{m.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         <div style={{ display: "flex", gap: 8 }}>
                           <Btn variant="ghost" onClick={() => setEditTarget(null)}>취소</Btn>
                           <Btn variant="admin" onClick={update}>수정 완료</Btn>
@@ -7900,7 +7942,9 @@ function BoardScreen({ user, users = [], board, reads }) {
   const members = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
   const [showWrite, setShowWrite] = useState(false);
   const [title, setTitle] = useState(""), [content, setContent] = useState("");
-  const [recipient, setRecipient] = useState("all"); // "all" or userId
+  const [recipient, setRecipient] = useState("all"); // "all" or "multi"
+  const [recipients, setRecipients] = useState([]); // userId[] when recipient==="multi"
+  const toggleRecipient = (id) => setRecipients(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
   const [files, setFiles] = useState([]); // 새로 첨부할 File 객체들
   const [uploading, setUploading] = useState(false);
   const [expanded, setExpanded] = useState(null);
@@ -7909,13 +7953,14 @@ function BoardScreen({ user, users = [], board, reads }) {
 
   // 내가 볼 수 있는 글만 필터 (관리자는 전체, 팀원은 전체공지+본인지정+본인작성)
   const visibleBoard = board.filter(b =>
-    isAdmin || !b.recipient || b.recipient === "all" || b.recipient === user.id || b.userId === user.id
+    isAdmin || !b.recipient || b.recipient === "all" || b.recipient === user.id || (b.recipients || []).includes(user.id) || b.userId === user.id
   );
 
-  const resetForm = () => { setTitle(""); setContent(""); setRecipient("all"); setFiles([]); setShowWrite(false); };
+  const resetForm = () => { setTitle(""); setContent(""); setRecipient("all"); setRecipients([]); setFiles([]); setShowWrite(false); };
 
   const submit = async () => {
     if (!title.trim() || !content.trim()) return;
+    if (recipient === "multi" && recipients.length === 0) { alert("수신인을 선택하세요."); return; }
     setUploading(true);
     try {
       const fileList = [];
@@ -7931,11 +7976,17 @@ function BoardScreen({ user, users = [], board, reads }) {
       }
       await addDoc(collection(db, COL_BOARD), {
         title: title.trim(), content: content.trim(), recipient,
+        ...(recipient === "multi" ? { recipients } : {}),
         author: user.name, auto: true, userId: user.id, createdAt: new Date().toISOString(),
         ...(fileList.length > 0 ? { files: fileList } : {}),
       });
-      const pushTarget = recipient === "all" ? null : recipient;
-      await sendPush({ title: `💬 게시판: ${title.trim()}`, message: `${user.name}: ${content.trim()}`, targetUserId: pushTarget });
+      if (recipient === "all") {
+        await sendPush({ title: `💬 게시판: ${title.trim()}`, message: `${user.name}: ${content.trim()}`, targetUserId: null });
+      } else {
+        for (const id of recipients) {
+          await sendPush({ title: `💬 게시판: ${title.trim()}`, message: `${user.name}: ${content.trim()}`, targetUserId: id });
+        }
+      }
       resetForm();
     } catch (e) { alert("등록 중 오류: " + e.message); }
     setUploading(false);
@@ -7966,9 +8017,14 @@ function BoardScreen({ user, users = [], board, reads }) {
 
   const isUnread = (b) => !reads[`${user.id}_board_${b.id}`] && b.userId !== user.id;
 
-  const recipientLabel = (r) => {
-    if (!r || r === "all") return null;
-    const m = members.find(u => u.id === r);
+  const recipientLabel = (b) => {
+    if (!b.recipient || b.recipient === "all") return null;
+    if (b.recipients && b.recipients.length) {
+      const names = b.recipients.map(id => members.find(u => u.id === id)?.name).filter(Boolean);
+      if (names.length === 0) return null;
+      return <Badge label={`${names.join(", ")}에게`} color="blue" />;
+    }
+    const m = members.find(u => u.id === b.recipient);
     return m ? <Badge label={`${m.name}에게`} color="blue" /> : null;
   };
 
@@ -8010,11 +8066,23 @@ function BoardScreen({ user, users = [], board, reads }) {
       {showWrite && (
         <div style={{ background: T.card, borderRadius: 14, padding: 16, marginBottom: 16, border: `1px solid ${T.border}` }}>
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600 }}>받는 사람</div>
-            <select value={recipient} onChange={e => setRecipient(e.target.value)} style={{ ...iStyle, marginBottom: 0 }}>
-              <option value="all">모두</option>
-              {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>받는 사람</span>
+              <div>
+                <button onClick={() => { setRecipient("all"); setRecipients([]); }} style={{ fontSize: 11, fontWeight: 700, color: recipient === "all" ? "#0369a1" : T.muted, background: "none", border: "none", cursor: "pointer", marginRight: 10 }}>모두</button>
+                <button onClick={() => setRecipient("multi")} style={{ fontSize: 11, fontWeight: 700, color: recipient === "multi" ? "#0369a1" : T.muted, background: "none", border: "none", cursor: "pointer" }}>여러 명 선택</button>
+              </div>
+            </div>
+            {recipient === "multi" && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {members.map(m => (
+                  <button key={m.id} onClick={() => toggleRecipient(m.id)}
+                    style={{ padding: "6px 12px", borderRadius: 20, border: `2px solid ${recipients.includes(m.id) ? "#0369a1" : T.border}`, background: recipients.includes(m.id) ? "#e0f2fe" : T.bg, color: recipients.includes(m.id) ? "#0369a1" : T.muted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                    {recipients.includes(m.id) ? "✓ " : ""}{m.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="제목" style={iStyle} />
           <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="내용" rows={4}
@@ -8047,7 +8115,7 @@ function BoardScreen({ user, users = [], board, reads }) {
                   {isUnread(b) && <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.blue, flexShrink: 0 }} />}
                   <div style={{ fontWeight: isUnread(b) ? 800 : 700, fontSize: 14, color: T.text }}>{b.title}</div>
                   {b.files?.length > 0 && <span style={{ fontSize: 12 }}>📎</span>}
-                  {isAdmin && recipientLabel(b.recipient)}
+                  {isAdmin && recipientLabel(b)}
                 </div>
                 <div style={{ fontSize: 11, color: T.muted }}>{b.author} · {b.createdAt ? new Date(b.createdAt).toLocaleDateString("ko-KR") : ""}</div>
               </div>
@@ -8665,8 +8733,8 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips,
   const unreadCount = (items, type) => {
     if (isAdmin || !user || !reads) return 0;
     return items.filter(item => !reads[`${user.id}_${type}_${item.id}`] &&
-      (type !== "notice" || item.recipient === "all" || item.recipient === user.id) &&
-      (type !== "board" || item.userId !== user.id)
+      (type !== "notice" || item.recipient === "all" || item.recipient === user.id || (item.recipients || []).includes(user.id)) &&
+      (type !== "board" || (item.userId !== user.id && (!item.recipient || item.recipient === "all" || item.recipient === user.id || (item.recipients || []).includes(user.id))))
     ).length;
   };
 
@@ -8735,7 +8803,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
   const isAdmin = user.role === "admin";
 
   const moreUnread = {
-    board: isAdmin ? 0 : board.filter(item => !reads?.[`${user.id}_board_${item.id}`] && item.userId !== user.id).length,
+    board: isAdmin ? 0 : board.filter(item => !reads?.[`${user.id}_board_${item.id}`] && item.userId !== user.id && (!item.recipient || item.recipient === "all" || item.recipient === user.id || (item.recipients || []).includes(user.id))).length,
     payslip: isAdmin ? 0 : payslips.filter(p => p.userId === user.id && !reads?.[`${user.id}_payslip_${p.id}`]).length,
     contract: contracts.filter(c => c.userId === user.id && c.status === "sent").length,
   };
