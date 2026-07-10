@@ -62,10 +62,12 @@ const COL_CONTRACTS = "contracts"; // 하위호환 유지
 const COL_DOCS = "contracts";      // 문서함 (동일 컬렉션 사용)
 const COL_VAULT = "vault";
 const COL_INSURANCE = "insurance_calc"; // 4대보험료 계산 스냅샷 (월별)
+const COL_RISK_ASSESS = "risk_assessments"; // 위험성평가 (개설 단위)
+const COL_RISK_SUBMIT = "risk_submissions"; // 위험성평가 팀원 제출(참여) 내역
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.08-r8";
+const APP_VERSION = "v2026.07.09-r1";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -509,6 +511,8 @@ function AppLoader() {
   const [vault, setVault] = useState([]);
   const [educations, setEducations] = useState([]);
   const [notiLog, setNotiLog] = useState([]);
+  const [riskAssessments, setRiskAssessments] = useState([]);
+  const [riskSubmissions, setRiskSubmissions] = useState([]);
 
   useEffect(() => {
     let unsubs = [];
@@ -612,6 +616,14 @@ function AppLoader() {
       setNotiLog(snap.docs.map(d => ({ id: d.id, ...d.data() })).slice(0, 200));
     }));
 
+    // 위험성평가 구독
+    unsubs.push(onSnapshot(query(collection(db, COL_RISK_ASSESS), orderBy("createdAt", "desc")), snap => {
+      setRiskAssessments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }));
+    unsubs.push(onSnapshot(query(collection(db, COL_RISK_SUBMIT), orderBy("createdAt", "desc")), snap => {
+      setRiskSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }));
+
     // 일정 이벤트 구독
     unsubs.push(onSnapshot(query(collection(db, COL_EVENTS), orderBy("date", "asc")), snap => {
       setScheduleEvents(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -647,6 +659,7 @@ function AppLoader() {
   return <App users={users} settings={settings} records={records} leaves={leaves}
     notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} reads={reads}
     reminders={reminders} scheduleEvents={scheduleEvents} contracts={contracts} vault={vault} notiLog={notiLog}
+    riskAssessments={riskAssessments} riskSubmissions={riskSubmissions}
     onSaveUsers={fbSaveUsers} onSaveSettings={fbSaveSettings}
     onSaveRecord={fbSaveRecord} onSaveLeave={fbSaveLeave} />;
 }
@@ -2506,7 +2519,7 @@ function AdminSeverance({ users, memberInfo, annual, onBack }) {
 }
 
 // ── 관리자 대문 ────────────────────────────────────────────────
-function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], reads = {}, contracts = [], notiLog = [] }) {
+function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], reads = {}, contracts = [], notiLog = [], riskAssessments = [] }) {
   const now = new Date();
   const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   const dateStr = kst.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
@@ -2539,6 +2552,7 @@ function AdminHome({ user, onLogout, onSection, leaveRequests = [], board = [], 
     { key: "insurance",  icon: "🏦", label: "4대보험", desc: "보험료 계산 · 납부 요약", color: "#16a34a" },
     { key: "education",  icon: "🎓", label: "교육",    desc: "교육 개설 · 완료 현황",   color: "#7c3aed" },
     { key: "notilog",    icon: "📬", label: "메시지", desc: "발송된 알림 이력",       color: "#dc2626", badge: unreadNoti },
+    { key: "risk",       icon: "🔍", label: "위험성평가", desc: "정기·수시 평가 개설/결과", color: "#0891b2", badge: riskAssessments.filter(a => a.status !== "완료").length },
   ];
 
   return (
@@ -2616,6 +2630,206 @@ function NotiLogSection({ notiLog = [], users = [], admin, onBack }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+// ── 위험성평가 (관리자: 개설/결과관리, 팀원: 참여/확인) ───────────────
+function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmissions = [], onBack }) {
+  const isAdmin = user.role === "admin";
+  const members = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
+
+  const [showNew, setShowNew] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newType, setNewType] = useState("정기");
+  const [detailId, setDetailId] = useState(null);
+  const [summaryText, setSummaryText] = useState("");
+  const [myInput, setMyInput] = useState("");
+
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const quarter = Math.floor(kst.getMonth() / 3) + 1;
+  const defaultTitle = `${kst.getFullYear()}년 ${quarter}분기 정기 위험성평가`;
+
+  const submissionsFor = (assessId) => riskSubmissions.filter(s => s.assessmentId === assessId);
+  const mySubmission = (assessId) => riskSubmissions.find(s => s.assessmentId === assessId && s.userId === user.id);
+
+  const createAssessment = async () => {
+    const title = (newTitle.trim() || defaultTitle);
+    await addDoc(collection(db, COL_RISK_ASSESS), {
+      title, type: newType, status: "진행중", createdAt: new Date().toISOString(), author: user.name,
+    });
+    await sendPush({ title: `🔍 위험성평가 참여 요청`, message: `"${title}" — 작업 중 위험하다고 느낀 점을 제출해주세요.`, targetUserId: null });
+    setNewTitle(""); setNewType("정기"); setShowNew(false);
+  };
+
+  const submitMine = async (assessId) => {
+    if (!myInput.trim()) return;
+    await setDoc(doc(db, COL_RISK_SUBMIT, `${assessId}_${user.id}`), {
+      assessmentId: assessId, userId: user.id, userName: user.name,
+      content: myInput.trim(), createdAt: new Date().toISOString(),
+    });
+    setMyInput("");
+  };
+
+  const publishResult = async (assess) => {
+    if (!summaryText.trim()) { alert("종합의견 및 개선대책을 입력해주세요."); return; }
+    await setDoc(doc(db, COL_RISK_ASSESS, assess.id), {
+      ...assess, status: "완료", resultSummary: summaryText.trim(), closedAt: new Date().toISOString(),
+    });
+    await addDoc(collection(db, COL_NOTICES), {
+      title: `📋 위험성평가 결과 공유: ${assess.title}`,
+      content: `제출해주신 의견을 반영한 결과를 공유합니다.\n\n${summaryText.trim()}`,
+      recipient: "all", author: "관리자", createdAt: new Date().toISOString(), auto: true,
+    });
+    await sendPush({ title: `📋 위험성평가 결과 공유`, message: `"${assess.title}" 결과가 공유되었습니다. 공지를 확인해주세요.`, targetUserId: null });
+    setDetailId(null); setSummaryText("");
+  };
+
+  const markConfirmed = async (assessId) => {
+    const key = `${user.id}_riskresult_${assessId}`;
+    await setDoc(doc(db, COL_READS, key), { userId: user.id, type: "riskresult", docId: assessId, readAt: new Date().toISOString() });
+  };
+
+  const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 };
+
+  // ── 관리자: 상세(제출현황+결과작성) 화면 ──
+  if (isAdmin && detailId) {
+    const assess = riskAssessments.find(a => a.id === detailId);
+    if (!assess) return null;
+    const subs = submissionsFor(assess.id);
+    return (
+      <div style={{ padding: 16 }}>
+        <button onClick={() => setDetailId(null)} style={{ background: "none", border: "none", color: T.muted, fontSize: 13, cursor: "pointer", marginBottom: 10 }}>‹ 목록으로</button>
+        <div style={{ fontSize: 17, fontWeight: 800, color: T.text, marginBottom: 4 }}>{assess.title}</div>
+        <div style={{ fontSize: 12, color: T.muted, marginBottom: 16 }}>{assess.type} · {assess.status} · 제출 {subs.length}건</div>
+
+        <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 8 }}>팀원 제출 내역 (근로자 참여)</div>
+        {subs.length === 0
+          ? <div style={{ color: T.muted, fontSize: 13, padding: "20px 0" }}>아직 제출된 의견이 없습니다</div>
+          : subs.map(s => (
+            <div key={s.id} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 14px", marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{s.userName}</span>
+                <span style={{ fontSize: 11, color: T.muted }}>{new Date(s.createdAt).toLocaleDateString("ko-KR")}</span>
+              </div>
+              <div style={{ fontSize: 13, color: T.text, marginTop: 4 }}>{s.content}</div>
+            </div>
+          ))
+        }
+
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${T.border}` }}>
+          {assess.status === "완료" ? (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 8 }}>공유된 결과</div>
+              <div style={{ background: T.bg, borderRadius: 10, padding: 14, fontSize: 13, color: T.text, whiteSpace: "pre-wrap" }}>{assess.resultSummary}</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 8 }}>종합의견 및 개선대책 작성</div>
+              <textarea value={summaryText} onChange={e => setSummaryText(e.target.value)} rows={6}
+                placeholder="제출된 의견을 종합하여 위험성 판단 결과와 개선대책을 정리해주세요."
+                style={{ ...iStyle, resize: "none", lineHeight: 1.6 }} />
+              <Btn variant="admin" onClick={() => publishResult(assess)}>결과 공유 완료 (전체 공지)</Btn>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── 관리자: 목록 화면 ──
+  if (isAdmin) {
+    return (
+      <div style={{ padding: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>🔍 위험성평가</div>
+          {!showNew && <button onClick={() => setShowNew(true)} style={{ background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ 새로 개설</button>}
+        </div>
+
+        {showNew && (
+          <div style={{ background: T.card, borderRadius: 14, padding: 16, marginBottom: 16, border: `1px solid ${T.border}` }}>
+            <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder={defaultTitle} style={iStyle} />
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              {["정기", "수시"].map(t => (
+                <button key={t} onClick={() => setNewType(t)}
+                  style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `2px solid ${newType === t ? T.adminHeader : T.border}`, background: newType === t ? T.bg : "#fff", color: newType === t ? T.adminHeader : T.muted, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{t}평가</button>
+              ))}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <Btn variant="ghost" onClick={() => setShowNew(false)}>취소</Btn>
+              <Btn variant="admin" onClick={createAssessment}>개설 (전체 알림)</Btn>
+            </div>
+          </div>
+        )}
+
+        {riskAssessments.length === 0
+          ? <div style={{ textAlign: "center", color: T.muted, padding: 40 }}>개설된 위험성평가가 없어요</div>
+          : riskAssessments.map(a => (
+            <div key={a.id} onClick={() => setDetailId(a.id)} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}`, cursor: "pointer" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{a.title}</div>
+                <Badge label={a.status} color={a.status === "완료" ? "green" : "yellow"} />
+              </div>
+              <div style={{ fontSize: 11, color: T.muted, marginTop: 4 }}>{a.type} · 제출 {submissionsFor(a.id).length}건 · {a.createdAt?.slice(0, 10)}</div>
+            </div>
+          ))
+        }
+      </div>
+    );
+  }
+
+  // ── 팀원 화면 ──
+  const ongoing = riskAssessments.filter(a => a.status !== "완료");
+  const done = riskAssessments.filter(a => a.status === "완료");
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 4 }}>🔍 위험성평가</div>
+      <div style={{ fontSize: 12, color: T.muted, marginBottom: 16 }}>작업 중 위험하다고 느낀 점을 자유롭게 적어주세요.</div>
+
+      {ongoing.length === 0 && done.length === 0 && (
+        <div style={{ textAlign: "center", color: T.muted, padding: 40 }}>진행 중인 위험성평가가 없어요</div>
+      )}
+
+      {ongoing.map(a => {
+        const mine = mySubmission(a.id);
+        return (
+          <div key={a.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{a.title}</div>
+              <Badge label={a.type} color="blue" />
+            </div>
+            {mine ? (
+              <div style={{ background: T.bg, borderRadius: 10, padding: 12, fontSize: 13, color: T.text }}>
+                ✓ 제출 완료: {mine.content}
+              </div>
+            ) : (
+              <>
+                <textarea value={myInput} onChange={e => setMyInput(e.target.value)} rows={3}
+                  placeholder="예: 통로가 좁아서 지게차와 부딪힐 뻔했어요"
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, boxSizing: "border-box", resize: "none", fontFamily: "inherit", marginBottom: 8 }} />
+                <Btn variant="primary" onClick={() => submitMine(a.id)}>제출하기</Btn>
+              </>
+            )}
+          </div>
+        );
+      })}
+
+      {done.length > 0 && (
+        <>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.muted, margin: "16px 0 8px" }}>완료된 평가</div>
+          {done.map(a => {
+            const confirmed = false; // reads는 상위에서 props로 안 내려와 매번 재확인 유도(단순화)
+            return (
+              <div key={a.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}` }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 6 }}>{a.title}</div>
+                <div style={{ fontSize: 13, color: T.text, whiteSpace: "pre-wrap", marginBottom: 10 }}>{a.resultSummary}</div>
+                <button onClick={() => markConfirmed(a.id)} style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>확인했습니다</button>
+              </div>
+            );
+          })}
+        </>
+      )}
     </div>
   );
 }
@@ -7368,10 +7582,10 @@ function VaultSection({ onBack }) {
 }
 
 // ── 관리자 화면 (라우터) ───────────────────────────────────────
-function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], notiLog = [], onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
+function AdminScreen({ user, users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], notiLog = [], riskAssessments = [], riskSubmissions = [], onSaveRecord, onSaveLeave, onSaveUsers, onSaveSettings, onLogout }) {
   const [section, setSection] = useState(null);
   const back = () => { setSection(null); window.scrollTo(0,0); };
-  if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={s => { setSection(s); window.scrollTo(0,0); }} leaveRequests={leaveRequests} board={board} reads={reads} contracts={contracts} notiLog={notiLog} />;
+  if (!section) return <AdminHome user={user} onLogout={onLogout} onSection={s => { setSection(s); window.scrollTo(0,0); }} leaveRequests={leaveRequests} board={board} reads={reads} contracts={contracts} notiLog={notiLog} riskAssessments={riskAssessments} />;
   if (section === "attendance") return <><AdminAttendance users={users} settings={settings} records={records} leaves={leaves} leaveRequests={leaveRequests} onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave} onSaveSettings={onSaveSettings} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "wage") return <><AdminWage users={users} records={records} leaves={leaves} settings={settings} memberInfo={memberInfo} annual={annual} leaveRequests={leaveRequests} payslips={payslips} reads={reads} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "members") return <><AdminMembers users={users} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} onSaveUsers={onSaveUsers} onBack={back} /><FloatBack onClick={back} /></>;
@@ -7386,6 +7600,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "insurance") return <><InsuranceSection users={users} memberInfo={memberInfo} settings={settings} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "education") return <><EducationSection users={users} reads={reads} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "notilog") return <AdminSectionWrap title="📬 메시지" color="#dc2626" onBack={back}><NotiLogSection notiLog={notiLog} users={users} admin={user} /></AdminSectionWrap>;
+  if (section === "risk") return <AdminSectionWrap title="🔍 위험성평가" color="#0891b2" onBack={back}><RiskAssessSection user={user} users={users} riskAssessments={riskAssessments} riskSubmissions={riskSubmissions} /></AdminSectionWrap>;
   return null;
 }
 
@@ -8792,7 +9007,7 @@ function TabBar({ tab, setTab, isAdmin, leaveRequests, notices, board, payslips,
 }
 
 // ── 메인 App ───────────────────────────────────────────────────
-function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], notiLog = [], onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
+function App({ users, settings, records, leaves, notices, board, payslips, annual, leaveRequests, memberInfo, reads, reminders = [], scheduleEvents = [], contracts = [], notiLog = [], riskAssessments = [], riskSubmissions = [], onSaveUsers, onSaveSettings, onSaveRecord, onSaveLeave }) {
   const [user, setUser] = useState(null);
   const [userLoaded, setUserLoaded] = useState(false);
   
@@ -8833,6 +9048,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
     <AdminScreen user={user} users={users} settings={settings} records={records} leaves={leaves}
       notices={notices} board={board} payslips={payslips} annual={annual} leaveRequests={leaveRequests} memberInfo={memberInfo} reads={reads}
       reminders={reminders} scheduleEvents={scheduleEvents} contracts={contracts} notiLog={notiLog}
+      riskAssessments={riskAssessments} riskSubmissions={riskSubmissions}
       onSaveRecord={onSaveRecord} onSaveLeave={onSaveLeave}
       onSaveUsers={onSaveUsers} onSaveSettings={onSaveSettings}
       onLogout={() => { setUserWithStorage(null); setTab("att"); }} />
@@ -8877,6 +9093,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
             { key: "contract",  icon: "📄", label: "문서함",     badge: moreUnread.contract },
             { key: "schedule",  icon: "🗓", label: "일정",       badge: 0 },
             { key: "education", icon: "🎓", label: "교육",       badge: 0 },
+            { key: "risk",      icon: "🔍", label: "위험성평가", badge: 0 },
           ]} />
         </>
       )}
@@ -8920,6 +9137,15 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
       )}
       {tab === "education" && (
         <MemberEducationTab user={user} reads={reads} />
+      )}
+      {tab === "risk" && (
+        <>
+          <div style={{ background: T.headerBg, paddingTop: "calc(18px + env(safe-area-inset-top))", paddingBottom: "14px", paddingLeft: "16px", paddingRight: "16px" }}>
+            <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>🔍 위험성평가</div>
+          </div>
+          <RiskAssessSection user={user} users={users} riskAssessments={riskAssessments} riskSubmissions={riskSubmissions} />
+        </>
       )}
       <TabBar tab={tab} setTab={t => { setTab(t); window.scrollTo(0, 0); }} isAdmin={isAdmin} leaveRequests={leaveRequests} notices={notices} board={board} payslips={payslips} user={user} reads={reads} contracts={contracts} />
     </div>
