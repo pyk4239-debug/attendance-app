@@ -67,7 +67,7 @@ const COL_RISK_SUBMIT = "risk_submissions"; // 위험성평가 팀원 제출(참
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.09-r3";
+const APP_VERSION = "v2026.07.09-r4";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -2725,6 +2725,8 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
       assessmentId: assessId, userId: user.id, userName: user.name,
       content: myInput.trim(), createdAt: new Date().toISOString(),
     });
+    const assess = riskAssessments.find(a => a.id === assessId);
+    await sendPush({ title: `🔍 위험성평가 의견 제출`, message: `${user.name}님이 "${assess?.title || ""}"에 의견을 제출했습니다.`, targetUserId: "admin" });
     setMyInput("");
   };
 
@@ -2868,8 +2870,7 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
   if (isAdmin) {
     return (
       <div style={{ padding: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>🔍 위험성평가</div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
           {!showNew && <button onClick={openNew} style={{ background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ 새로 개설</button>}
         </div>
 
@@ -2909,7 +2910,6 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
 
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 4 }}>🔍 위험성평가</div>
       <div style={{ fontSize: 12, color: T.muted, marginBottom: 16 }}>작업 중 위험하다고 느낀 점을 자유롭게 적어주세요.</div>
 
       {ongoing.length === 0 && done.length === 0 && (
@@ -2924,10 +2924,11 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
               <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{a.title}</div>
               <Badge label={a.type} color="blue" />
             </div>
-            {a.topic && <div style={{ fontSize: 12, color: T.muted, marginBottom: 8 }}>주제: {a.topic}</div>}
+            {a.topic && <div style={{ fontSize: 12, color: T.muted, marginBottom: 4 }}>주제: {a.topic}</div>}
+            <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>개설일 {fmtDate(a.createdAt)}</div>
             {mine ? (
               <div style={{ background: T.bg, borderRadius: 10, padding: 12, fontSize: 13, color: T.text }}>
-                ✓ 제출 완료: {mine.content}
+                ✓ 제출 완료 ({fmtDate(mine.createdAt)}): {mine.content}
               </div>
             ) : (
               <>
@@ -2947,7 +2948,8 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
           {done.map(a => (
             <div key={a.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}` }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 6 }}>{a.title}</div>
-              {a.topic && <div style={{ fontSize: 12, color: T.muted, marginBottom: 6 }}>주제: {a.topic}</div>}
+              {a.topic && <div style={{ fontSize: 12, color: T.muted, marginBottom: 4 }}>주제: {a.topic}</div>}
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>개설일 {fmtDate(a.createdAt)} · 결과공유 {fmtDate(a.closedAt)}</div>
               <div style={{ fontSize: 13, color: T.text, whiteSpace: "pre-wrap", marginBottom: 10 }}>{a.resultSummary}</div>
               <button onClick={() => markConfirmed(a.id)} style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>확인했습니다</button>
             </div>
