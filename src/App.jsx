@@ -67,7 +67,7 @@ const COL_RISK_SUBMIT = "risk_submissions"; // 위험성평가 팀원 제출(참
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.09-r1";
+const APP_VERSION = "v2026.07.09-r2";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -2637,10 +2637,17 @@ function NotiLogSection({ notiLog = [], users = [], admin, onBack }) {
 function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmissions = [], onBack }) {
   const isAdmin = user.role === "admin";
   const members = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
+  const recipientOptions = members.filter(m => m.id !== user.id);
 
   const [showNew, setShowNew] = useState(false);
+  const [editingId, setEditingId] = useState(null); // 수정 중인 평가 id (개설 폼 재사용)
   const [newTitle, setNewTitle] = useState("");
+  const [newTopic, setNewTopic] = useState("");
   const [newType, setNewType] = useState("정기");
+  const [recipient, setRecipient] = useState("all"); // "all" or "multi"
+  const [recipients, setRecipients] = useState([]);
+  const toggleRecipient = (id) => setRecipients(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+
   const [detailId, setDetailId] = useState(null);
   const [summaryText, setSummaryText] = useState("");
   const [myInput, setMyInput] = useState("");
@@ -2649,17 +2656,67 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
   const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   const quarter = Math.floor(kst.getMonth() / 3) + 1;
   const defaultTitle = `${kst.getFullYear()}년 ${quarter}분기 정기 위험성평가`;
+  const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString("ko-KR") : "";
 
   const submissionsFor = (assessId) => riskSubmissions.filter(s => s.assessmentId === assessId);
   const mySubmission = (assessId) => riskSubmissions.find(s => s.assessmentId === assessId && s.userId === user.id);
 
-  const createAssessment = async () => {
-    const title = (newTitle.trim() || defaultTitle);
-    await addDoc(collection(db, COL_RISK_ASSESS), {
-      title, type: newType, status: "진행중", createdAt: new Date().toISOString(), author: user.name,
-    });
-    await sendPush({ title: `🔍 위험성평가 참여 요청`, message: `"${title}" — 작업 중 위험하다고 느낀 점을 제출해주세요.`, targetUserId: null });
-    setNewTitle(""); setNewType("정기"); setShowNew(false);
+  const recipientLabel = (a) => {
+    if (!a.recipient || a.recipient === "all") return "전체";
+    if (a.recipients && a.recipients.length) {
+      const names = a.recipients.map(id => members.find(u => u.id === id)?.name).filter(Boolean);
+      return names.length ? names.join(", ") : "-";
+    }
+    return "-";
+  };
+
+  const resetForm = () => {
+    setNewTitle(""); setNewTopic(""); setNewType("정기");
+    setRecipient("all"); setRecipients([]);
+    setShowNew(false); setEditingId(null);
+  };
+
+  const openNew = () => { resetForm(); setShowNew(true); };
+  const openEdit = (a) => {
+    setEditingId(a.id);
+    setNewTitle(a.title || ""); setNewTopic(a.topic || ""); setNewType(a.type || "정기");
+    setRecipient(a.recipient === "multi" ? "multi" : "all");
+    setRecipients(a.recipients || []);
+    setShowNew(true);
+  };
+
+  const saveAssessment = async () => {
+    if (recipient === "multi" && recipients.length === 0) { alert("수신인을 선택하세요."); return; }
+    const title = newTitle.trim() || defaultTitle;
+    const base = {
+      title, topic: newTopic.trim(), type: newType, recipient,
+      recipients: recipient === "multi" ? recipients : [],
+    };
+    if (editingId) {
+      const existing = riskAssessments.find(a => a.id === editingId);
+      await setDoc(doc(db, COL_RISK_ASSESS, editingId), { ...existing, ...base });
+    } else {
+      await addDoc(collection(db, COL_RISK_ASSESS), {
+        ...base, status: "진행중", createdAt: new Date().toISOString(), author: user.name,
+      });
+      const msg = `"${title}" — 작업 중 위험하다고 느낀 점을 제출해주세요.`;
+      if (recipient === "all") {
+        await sendPush({ title: `🔍 위험성평가 참여 요청`, message: msg, targetUserId: null });
+      } else {
+        for (const id of recipients) {
+          await sendPush({ title: `🔍 위험성평가 참여 요청`, message: msg, targetUserId: id });
+        }
+      }
+    }
+    resetForm();
+  };
+
+  const deleteAssessment = async (a) => {
+    if (!window.confirm(`"${a.title}" 위험성평가를 삭제할까요?\n제출된 의견도 함께 삭제됩니다.`)) return;
+    const subs = submissionsFor(a.id);
+    await Promise.all(subs.map(s => deleteDoc(doc(db, COL_RISK_SUBMIT, s.id))));
+    await deleteDoc(doc(db, COL_RISK_ASSESS, a.id));
+    if (detailId === a.id) setDetailId(null);
   };
 
   const submitMine = async (assessId) => {
@@ -2679,9 +2736,18 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
     await addDoc(collection(db, COL_NOTICES), {
       title: `📋 위험성평가 결과 공유: ${assess.title}`,
       content: `제출해주신 의견을 반영한 결과를 공유합니다.\n\n${summaryText.trim()}`,
-      recipient: "all", author: "관리자", createdAt: new Date().toISOString(), auto: true,
+      recipient: assess.recipient || "all",
+      ...(assess.recipients && assess.recipients.length ? { recipients: assess.recipients } : {}),
+      author: "관리자", createdAt: new Date().toISOString(), auto: true,
     });
-    await sendPush({ title: `📋 위험성평가 결과 공유`, message: `"${assess.title}" 결과가 공유되었습니다. 공지를 확인해주세요.`, targetUserId: null });
+    const msg = `"${assess.title}" 결과가 공유되었습니다. 공지를 확인해주세요.`;
+    if (!assess.recipient || assess.recipient === "all") {
+      await sendPush({ title: `📋 위험성평가 결과 공유`, message: msg, targetUserId: null });
+    } else {
+      for (const id of (assess.recipients || [])) {
+        await sendPush({ title: `📋 위험성평가 결과 공유`, message: msg, targetUserId: id });
+      }
+    }
     setDetailId(null); setSummaryText("");
   };
 
@@ -2692,6 +2758,47 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
 
   const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 };
 
+  // ── 개설/수정 폼 (공용) ──
+  const renderForm = () => (
+    <div style={{ background: T.card, borderRadius: 14, padding: 16, marginBottom: 16, border: `1px solid ${T.border}` }}>
+      <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600 }}>제목</div>
+      <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder={defaultTitle} style={iStyle} />
+      <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600 }}>주제</div>
+      <input value={newTopic} onChange={e => setNewTopic(e.target.value)} placeholder="예: 지게차 작업구역 통로 안전" style={iStyle} />
+
+      <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600 }}>종류</div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        {["정기", "수시"].map(t => (
+          <button key={t} onClick={() => setNewType(t)}
+            style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `2px solid ${newType === t ? T.adminHeader : T.border}`, background: newType === t ? T.bg : "#fff", color: newType === t ? T.adminHeader : T.muted, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{t}평가</button>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+        <span style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>수신인</span>
+        <div>
+          <button onClick={() => { setRecipient("all"); setRecipients([]); }} style={{ fontSize: 11, fontWeight: 700, color: recipient === "all" ? "#0369a1" : T.muted, background: "none", border: "none", cursor: "pointer", marginRight: 10 }}>모두</button>
+          <button onClick={() => setRecipient("multi")} style={{ fontSize: 11, fontWeight: 700, color: recipient === "multi" ? "#0369a1" : T.muted, background: "none", border: "none", cursor: "pointer" }}>1명/여러 명 선택</button>
+        </div>
+      </div>
+      {recipient === "multi" && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+          {recipientOptions.map(m => (
+            <button key={m.id} onClick={() => toggleRecipient(m.id)}
+              style={{ padding: "6px 12px", borderRadius: 20, border: `2px solid ${recipients.includes(m.id) ? "#0369a1" : T.border}`, background: recipients.includes(m.id) ? "#e0f2fe" : T.bg, color: recipients.includes(m.id) ? "#0369a1" : T.muted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              {recipients.includes(m.id) ? "✓ " : ""}{m.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+        <Btn variant="ghost" onClick={resetForm}>취소</Btn>
+        <Btn variant="admin" onClick={saveAssessment}>{editingId ? "수정 완료" : "개설 (알림 발송)"}</Btn>
+      </div>
+    </div>
+  );
+
   // ── 관리자: 상세(제출현황+결과작성) 화면 ──
   if (isAdmin && detailId) {
     const assess = riskAssessments.find(a => a.id === detailId);
@@ -2701,7 +2808,10 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
       <div style={{ padding: 16 }}>
         <button onClick={() => setDetailId(null)} style={{ background: "none", border: "none", color: T.muted, fontSize: 13, cursor: "pointer", marginBottom: 10 }}>‹ 목록으로</button>
         <div style={{ fontSize: 17, fontWeight: 800, color: T.text, marginBottom: 4 }}>{assess.title}</div>
-        <div style={{ fontSize: 12, color: T.muted, marginBottom: 16 }}>{assess.type} · {assess.status} · 제출 {subs.length}건</div>
+        {assess.topic && <div style={{ fontSize: 13, color: T.text, marginBottom: 4 }}>주제: {assess.topic}</div>}
+        <div style={{ fontSize: 12, color: T.muted, marginBottom: 16 }}>
+          {assess.type} · {assess.status} · 수신: {recipientLabel(assess)} · 개설일 {fmtDate(assess.createdAt)} · 제출 {subs.length}건
+        </div>
 
         <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 8 }}>팀원 제출 내역 (근로자 참여)</div>
         {subs.length === 0
@@ -2710,7 +2820,7 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
             <div key={s.id} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 14px", marginBottom: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{s.userName}</span>
-                <span style={{ fontSize: 11, color: T.muted }}>{new Date(s.createdAt).toLocaleDateString("ko-KR")}</span>
+                <span style={{ fontSize: 11, color: T.muted }}>{fmtDate(s.createdAt)}</span>
               </div>
               <div style={{ fontSize: 13, color: T.text, marginTop: 4 }}>{s.content}</div>
             </div>
@@ -2729,10 +2839,16 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
               <textarea value={summaryText} onChange={e => setSummaryText(e.target.value)} rows={6}
                 placeholder="제출된 의견을 종합하여 위험성 판단 결과와 개선대책을 정리해주세요."
                 style={{ ...iStyle, resize: "none", lineHeight: 1.6 }} />
-              <Btn variant="admin" onClick={() => publishResult(assess)}>결과 공유 완료 (전체 공지)</Btn>
+              <Btn variant="admin" onClick={() => publishResult(assess)}>결과 공유 완료 (알림 발송)</Btn>
             </>
           )}
         </div>
+
+        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+          <button onClick={() => openEdit(assess)} style={{ flex: 1, background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 10, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>수정</button>
+          <button onClick={() => deleteAssessment(assess)} style={{ flex: 1, background: T.redBg, border: "none", color: T.red, borderRadius: 10, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>삭제</button>
+        </div>
+        {showNew && renderForm()}
       </div>
     );
   }
@@ -2743,34 +2859,29 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
       <div style={{ padding: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>🔍 위험성평가</div>
-          {!showNew && <button onClick={() => setShowNew(true)} style={{ background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ 새로 개설</button>}
+          {!showNew && <button onClick={openNew} style={{ background: T.adminHeader, border: "none", color: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ 새로 개설</button>}
         </div>
 
-        {showNew && (
-          <div style={{ background: T.card, borderRadius: 14, padding: 16, marginBottom: 16, border: `1px solid ${T.border}` }}>
-            <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder={defaultTitle} style={iStyle} />
-            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-              {["정기", "수시"].map(t => (
-                <button key={t} onClick={() => setNewType(t)}
-                  style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `2px solid ${newType === t ? T.adminHeader : T.border}`, background: newType === t ? T.bg : "#fff", color: newType === t ? T.adminHeader : T.muted, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{t}평가</button>
-              ))}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <Btn variant="ghost" onClick={() => setShowNew(false)}>취소</Btn>
-              <Btn variant="admin" onClick={createAssessment}>개설 (전체 알림)</Btn>
-            </div>
-          </div>
-        )}
+        {showNew && renderForm()}
 
         {riskAssessments.length === 0
           ? <div style={{ textAlign: "center", color: T.muted, padding: 40 }}>개설된 위험성평가가 없어요</div>
           : riskAssessments.map(a => (
-            <div key={a.id} onClick={() => setDetailId(a.id)} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}`, cursor: "pointer" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{a.title}</div>
-                <Badge label={a.status} color={a.status === "완료" ? "green" : "yellow"} />
+            <div key={a.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}` }}>
+              <div onClick={() => setDetailId(a.id)} style={{ cursor: "pointer" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{a.title}</div>
+                  <Badge label={a.status} color={a.status === "완료" ? "green" : "yellow"} />
+                </div>
+                {a.topic && <div style={{ fontSize: 12, color: T.text, marginTop: 3 }}>주제: {a.topic}</div>}
+                <div style={{ fontSize: 11, color: T.muted, marginTop: 4 }}>
+                  {a.type} · 수신 {recipientLabel(a)} · 개설일 {fmtDate(a.createdAt)} · 제출 {submissionsFor(a.id).length}건
+                </div>
               </div>
-              <div style={{ fontSize: 11, color: T.muted, marginTop: 4 }}>{a.type} · 제출 {submissionsFor(a.id).length}건 · {a.createdAt?.slice(0, 10)}</div>
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button onClick={() => openEdit(a)} style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>수정</button>
+                <button onClick={() => deleteAssessment(a)} style={{ background: T.redBg, border: "none", color: T.red, borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>삭제</button>
+              </div>
             </div>
           ))
         }
@@ -2779,8 +2890,11 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
   }
 
   // ── 팀원 화면 ──
-  const ongoing = riskAssessments.filter(a => a.status !== "완료");
-  const done = riskAssessments.filter(a => a.status === "완료");
+  const visibleAssessments = riskAssessments.filter(a =>
+    !a.recipient || a.recipient === "all" || (a.recipients || []).includes(user.id)
+  );
+  const ongoing = visibleAssessments.filter(a => a.status !== "완료");
+  const done = visibleAssessments.filter(a => a.status === "완료");
 
   return (
     <div style={{ padding: 16 }}>
@@ -2795,10 +2909,11 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
         const mine = mySubmission(a.id);
         return (
           <div key={a.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}` }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{a.title}</div>
               <Badge label={a.type} color="blue" />
             </div>
+            {a.topic && <div style={{ fontSize: 12, color: T.muted, marginBottom: 8 }}>주제: {a.topic}</div>}
             {mine ? (
               <div style={{ background: T.bg, borderRadius: 10, padding: 12, fontSize: 13, color: T.text }}>
                 ✓ 제출 완료: {mine.content}
@@ -2818,16 +2933,14 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
       {done.length > 0 && (
         <>
           <div style={{ fontSize: 13, fontWeight: 700, color: T.muted, margin: "16px 0 8px" }}>완료된 평가</div>
-          {done.map(a => {
-            const confirmed = false; // reads는 상위에서 props로 안 내려와 매번 재확인 유도(단순화)
-            return (
-              <div key={a.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}` }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 6 }}>{a.title}</div>
-                <div style={{ fontSize: 13, color: T.text, whiteSpace: "pre-wrap", marginBottom: 10 }}>{a.resultSummary}</div>
-                <button onClick={() => markConfirmed(a.id)} style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>확인했습니다</button>
-              </div>
-            );
-          })}
+          {done.map(a => (
+            <div key={a.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 6 }}>{a.title}</div>
+              {a.topic && <div style={{ fontSize: 12, color: T.muted, marginBottom: 6 }}>주제: {a.topic}</div>}
+              <div style={{ fontSize: 13, color: T.text, whiteSpace: "pre-wrap", marginBottom: 10 }}>{a.resultSummary}</div>
+              <button onClick={() => markConfirmed(a.id)} style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>확인했습니다</button>
+            </div>
+          ))}
         </>
       )}
     </div>
