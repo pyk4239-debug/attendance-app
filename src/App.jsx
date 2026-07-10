@@ -67,7 +67,7 @@ const COL_RISK_SUBMIT = "risk_submissions"; // 위험성평가 팀원 제출(참
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.09-r6";
+const APP_VERSION = "v2026.07.09-r7";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -2756,6 +2756,8 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
   const markConfirmed = async (assessId) => {
     const key = `${user.id}_riskresult_${assessId}`;
     await setDoc(doc(db, COL_READS, key), { userId: user.id, type: "riskresult", docId: assessId, readAt: new Date().toISOString() });
+    const assess = riskAssessments.find(a => a.id === assessId);
+    await sendPush({ title: `🔍 위험성평가 결과 확인`, message: `${user.name}님이 "${assess?.title || ""}" 결과를 확인했습니다.`, targetUserId: "admin" });
   };
 
   const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 };
@@ -2763,6 +2765,10 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
   // ── 개설/수정 폼 (공용) ──
   const renderForm = () => (
     <div style={{ background: T.card, borderRadius: 14, padding: 16, marginBottom: 16, border: `1px solid ${T.border}` }}>
+      <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 10, padding: "10px 12px", marginBottom: 14, fontSize: 12, color: "#0369a1", lineHeight: 1.5 }}>
+        📖 법적 근거: 산업안전보건법 제36조(위험성평가의 실시), 같은 법 시행규칙 제37조(방법·절차·시기)<br/>
+        사업주는 유해·위험요인을 파악·평가하고, 그 과정에 근로자를 참여시키며, 결과와 조치사항을 기록·보존해야 합니다.
+      </div>
       <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600 }}>제목</div>
       <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder={defaultTitle} style={iStyle} />
       <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600 }}>주제</div>
