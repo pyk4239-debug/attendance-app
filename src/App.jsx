@@ -67,7 +67,7 @@ const COL_RISK_SUBMIT = "risk_submissions"; // 위험성평가 팀원 제출(참
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.09-r5";
+const APP_VERSION = "v2026.07.09-r6";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -2972,7 +2972,10 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
               {confirmed ? (
                 <div style={{ display: "inline-block", background: T.greenBg, color: T.green, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700 }}>✓ 확인완료 ({fmtDate(confirmed.readAt)})</div>
               ) : (
-                <button onClick={() => markConfirmed(a.id)} style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>확인했습니다</button>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button onClick={() => markConfirmed(a.id)} style={{ background: "#2563eb", border: "none", color: "#fff", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>확인했습니다</button>
+                  <span style={{ fontSize: 12, color: T.muted }}>← 위 내용을 확인하셨다면 눌러주세요</span>
+                </div>
               )}
             </div>
           );})}
