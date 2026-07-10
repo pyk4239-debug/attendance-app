@@ -67,7 +67,7 @@ const COL_RISK_SUBMIT = "risk_submissions"; // 위험성평가 팀원 제출(참
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.09-r2";
+const APP_VERSION = "v2026.07.09-r3";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -2804,6 +2804,18 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
     const assess = riskAssessments.find(a => a.id === detailId);
     if (!assess) return null;
     const subs = submissionsFor(assess.id);
+    const isEditingThis = showNew && editingId === assess.id;
+
+    if (isEditingThis) {
+      return (
+        <div style={{ padding: 16 }}>
+          <button onClick={() => setDetailId(null)} style={{ background: "none", border: "none", color: T.muted, fontSize: 13, cursor: "pointer", marginBottom: 10 }}>‹ 목록으로</button>
+          <div style={{ fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 12 }}>위험성평가 수정</div>
+          {renderForm()}
+        </div>
+      );
+    }
+
     return (
       <div style={{ padding: 16 }}>
         <button onClick={() => setDetailId(null)} style={{ background: "none", border: "none", color: T.muted, fontSize: 13, cursor: "pointer", marginBottom: 10 }}>‹ 목록으로</button>
@@ -2848,7 +2860,6 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
           <button onClick={() => openEdit(assess)} style={{ flex: 1, background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 10, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>수정</button>
           <button onClick={() => deleteAssessment(assess)} style={{ flex: 1, background: T.redBg, border: "none", color: T.red, borderRadius: 10, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>삭제</button>
         </div>
-        {showNew && renderForm()}
       </div>
     );
   }
