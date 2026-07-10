@@ -67,7 +67,7 @@ const COL_RISK_SUBMIT = "risk_submissions"; // 위험성평가 팀원 제출(참
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.09-r4";
+const APP_VERSION = "v2026.07.09-r5";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -2634,7 +2634,7 @@ function NotiLogSection({ notiLog = [], users = [], admin, onBack }) {
   );
 }
 // ── 위험성평가 (관리자: 개설/결과관리, 팀원: 참여/확인) ───────────────
-function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmissions = [], onBack }) {
+function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmissions = [], reads = {}, onBack }) {
   const isAdmin = user.role === "admin";
   const members = users.filter(u => u.role === "member" && (!u.status || u.status === "active"));
   const recipientOptions = members.filter(m => m.id !== user.id);
@@ -2846,6 +2846,22 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
             <>
               <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 8 }}>공유된 결과</div>
               <div style={{ background: T.bg, borderRadius: 10, padding: 14, fontSize: 13, color: T.text, whiteSpace: "pre-wrap" }}>{assess.resultSummary}</div>
+
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: "16px 0 8px" }}>확인 현황</div>
+              {(() => {
+                const targets = (!assess.recipient || assess.recipient === "all")
+                  ? members
+                  : members.filter(m => (assess.recipients || []).includes(m.id));
+                return targets.map(m => {
+                  const confirmed = reads[`${m.id}_riskresult_${assess.id}`];
+                  return (
+                    <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${T.border}` }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: confirmed ? "#16a34a" : "#b91c1c" }}>{confirmed ? "✅" : "⏳"} {m.name}</span>
+                      <span style={{ fontSize: 11, color: T.muted }}>{confirmed ? fmtDate(confirmed.readAt) : "미확인"}</span>
+                    </div>
+                  );
+                });
+              })()}
             </>
           ) : (
             <>
@@ -2945,15 +2961,21 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
       {done.length > 0 && (
         <>
           <div style={{ fontSize: 13, fontWeight: 700, color: T.muted, margin: "16px 0 8px" }}>완료된 평가</div>
-          {done.map(a => (
+          {done.map(a => {
+            const confirmed = reads[`${user.id}_riskresult_${a.id}`];
+            return (
             <div key={a.id} style={{ background: T.card, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${T.border}` }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 6 }}>{a.title}</div>
               {a.topic && <div style={{ fontSize: 12, color: T.muted, marginBottom: 4 }}>주제: {a.topic}</div>}
               <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>개설일 {fmtDate(a.createdAt)} · 결과공유 {fmtDate(a.closedAt)}</div>
               <div style={{ fontSize: 13, color: T.text, whiteSpace: "pre-wrap", marginBottom: 10 }}>{a.resultSummary}</div>
-              <button onClick={() => markConfirmed(a.id)} style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>확인했습니다</button>
+              {confirmed ? (
+                <div style={{ display: "inline-block", background: T.greenBg, color: T.green, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700 }}>✓ 확인완료 ({fmtDate(confirmed.readAt)})</div>
+              ) : (
+                <button onClick={() => markConfirmed(a.id)} style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>확인했습니다</button>
+              )}
             </div>
-          ))}
+          );})}
         </>
       )}
     </div>
@@ -7726,7 +7748,7 @@ function AdminScreen({ user, users, settings, records, leaves, notices, board, p
   if (section === "insurance") return <><InsuranceSection users={users} memberInfo={memberInfo} settings={settings} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "education") return <><EducationSection users={users} reads={reads} onBack={back} /><FloatBack onClick={back} /></>;
   if (section === "notilog") return <AdminSectionWrap title="📬 메시지" color="#dc2626" onBack={back}><NotiLogSection notiLog={notiLog} users={users} admin={user} /></AdminSectionWrap>;
-  if (section === "risk") return <AdminSectionWrap title="🔍 위험성평가" color="#0891b2" onBack={back}><RiskAssessSection user={user} users={users} riskAssessments={riskAssessments} riskSubmissions={riskSubmissions} /></AdminSectionWrap>;
+  if (section === "risk") return <AdminSectionWrap title="🔍 위험성평가" color="#0891b2" onBack={back}><RiskAssessSection user={user} users={users} riskAssessments={riskAssessments} riskSubmissions={riskSubmissions} reads={reads} /></AdminSectionWrap>;
   return null;
 }
 
@@ -9270,7 +9292,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
             <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>🔍 위험성평가</div>
           </div>
-          <RiskAssessSection user={user} users={users} riskAssessments={riskAssessments} riskSubmissions={riskSubmissions} />
+          <RiskAssessSection user={user} users={users} riskAssessments={riskAssessments} riskSubmissions={riskSubmissions} reads={reads} />
         </>
       )}
       <TabBar tab={tab} setTab={t => { setTab(t); window.scrollTo(0, 0); }} isAdmin={isAdmin} leaveRequests={leaveRequests} notices={notices} board={board} payslips={payslips} user={user} reads={reads} contracts={contracts} />
