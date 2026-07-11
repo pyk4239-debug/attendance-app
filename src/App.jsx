@@ -67,7 +67,7 @@ const COL_RISK_SUBMIT = "risk_submissions"; // 위험성평가 팀원 제출(참
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.09-r7";
+const APP_VERSION = "v2026.07.09-r8";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -517,6 +517,9 @@ function AppLoader() {
   useEffect(() => {
     let unsubs = [];
 
+    // 안전장치: 어떤 이유로든 구독이 안 붙으면 6초 뒤 강제로 화면을 띄움 (무한 로딩 방지)
+    const readyFailsafe = setTimeout(() => setReady(true), 6000);
+
     // 유저
     unsubs.push(onSnapshot(collection(db, COL_USERS), snap => {
       if (snap.empty) return; // 빈 snapshot이면 절대 건드리지 않음
@@ -524,6 +527,7 @@ function AppLoader() {
       const admin = all.filter(u => u.role === "admin");
       const members = all.filter(u => u.role === "member").sort((a,b) => (a.createdAt||"").localeCompare(b.createdAt||""));
       setUsers([...admin, ...members]);
+      setReady(true); // 로그인에 실제로 필요한 핵심 데이터 기준으로 준비 완료 처리
     }));
 
     // 설정
@@ -603,7 +607,6 @@ function AppLoader() {
       const r = {};
       snap.docs.forEach(d => { r[d.id] = d.data(); });
       setReads(r);
-      setReady(true);
     }));
 
     // 리마인더 구독
@@ -643,7 +646,7 @@ function AppLoader() {
       snap => { setEducations(snap.docs.map(d => ({ id: d.id, ...d.data() }))); },
       () => { setEducations([]); }
     ));
-    return () => unsubs.forEach(u => u());
+    return () => { clearTimeout(readyFailsafe); unsubs.forEach(u => u()); };
   }, []);
 
   if (!ready) return (
