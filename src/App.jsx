@@ -67,7 +67,7 @@ const COL_RISK_SUBMIT = "risk_submissions"; // 위험성평가 팀원 제출(참
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.09-r8";
+const APP_VERSION = "v2026.07.09-r9";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -102,8 +102,17 @@ const CONFIRM_TEMPLATES = [
     content: `본인은 아래 개인정보 보호교육을 이수하였음을 확인합니다.\n\n교육 일시: 년  월  일\n교육 내용: 개인정보 보호법에 따른 개인정보 보호교육\n교육 시간: 시간\n\n위 교육을 성실히 이수하였으며 그 내용을 숙지하였습니다.` },
   { key: "rule", label: "취업규칙 교부 확인서",
     content: `본인은 취업규칙을 교부받았으며 그 내용을 충분히 읽고 이해하였음을 확인합니다.\n\n교부 일시: 년  월  일` },
-  { key: "termclause", label: "해고사유 조항 변경 확인서",
-    content: `본인은 기존 근로계약서의 해고사유 조항이 아래와 같이 변경됨을 확인하고 동의합니다.\n\n[변경 후 조항]\n회사는 다음 각 호의 사유가 있는 경우 근로기준법 제23조에 따라 근로자를 해고할 수 있다.\n\n1. 정당한 업무명령을 반복적으로 위반하였을 때\n2. 무단결근이 계속하여 3일 이상 발생하거나, 1개월 이내 지각·조퇴가 3회 이상인 경우\n3. 발주처로부터 근로자(을)의 중대한 귀책사유로 인한 교체 요청이 있고, 그 사실이 객관적으로 입증된 경우\n4. 발주처와의 도급계약이 종료되어 회사의 사업을 더 이상 지속하기 어려운 경우로서, 근로기준법 제23조에 따른 정당한 해고사유에 해당하는 때\n5. 위 해지 사유에 해당하는 경우, 근로기준법에 따라 해고예고를 하거나 해고예고수당을 지급한다.\n\n근로자(을)는 본 회사가 원청(발주처)로부터 도급을 받아 수행하는 하도급 회사임을 충분히 이해하고 입사하였으며, 발주처와의 도급계약 종료 또는 축소 시 회사의 사업 지속이 어려워질 수 있음을 인지하고 본 계약을 체결한다.\n\n이 확인서는 기존 근로계약서의 해고사유 조항을 본 확인서로 갈음합니다.` },
+  { key: "custom", label: "직접 입력", content: "" },
+];
+
+// 기타 문서 템플릿 (자주 안 쓰지만 필요한 인사서류)
+const OTHER_TEMPLATES = [
+  { key: "dismissal", label: "해고통지서",
+    content: `본 통지서는 근로기준법 제27조에 따라 해고사유와 해고시기를 서면으로 통지하기 위해 작성되었습니다.\n\n■ 해고 시기: 년 월 일자\n\n■ 해고 사유:\n(구체적인 사실관계와 사유를 기재해주세요)\n\n\n위 사유로 상기 일자부로 근로계약을 해지함을 통지합니다.` },
+  { key: "retire_cert", label: "퇴직증명서",
+    content: `근로기준법 제39조에 따라 아래와 같이 재직 및 퇴직 사실을 증명합니다.\n\n■ 재직기간: 년 월 일 ~ 년 월 일\n■ 담당업무:\n■ 퇴직사유:\n\n위와 같이 재직하였음을 증명합니다.` },
+  { key: "separation_confirm", label: "이직확인서(사업장 기록용)",
+    content: `※ 본 문서는 고용보험 이직확인서 발급 내용을 사업장 내부 기록용으로 보관하기 위한 사본입니다. 실제 이직확인서는 고용보험시스템(ei.go.kr)을 통해 별도로 신고해야 효력이 있습니다.\n\n■ 이직일:\n■ 이직사유(구체적으로):\n■ 평균임금 산정기간·임금총액: (필요 시 별도 첨부)\n\n위 내용으로 고용보험 이직확인서를 신고하였음을 기록합니다.` },
   { key: "custom", label: "직접 입력", content: "" },
 ];
 
@@ -2089,6 +2098,19 @@ function SettingsModal({ settings, onSave, onClose }) {
           <div style={{ fontSize: 10, color: T.muted, marginTop: 8 }}>* 장기요양은 건강보험료 대비 %</div>
         </div>
 
+        <div style={{ background: T.card, borderRadius: 14, padding: 14, marginBottom: 16, border: `1px solid ${T.border}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>📝 사직서 제출 메뉴</div>
+              <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>평소엔 숨김, 필요할 때만 켜서 팀원이 제출하게 함</div>
+            </div>
+            <button onClick={() => setS(p => ({ ...p, resignationEnabled: !p.resignationEnabled }))}
+              style={{ width: 46, height: 26, borderRadius: 13, border: "none", background: s.resignationEnabled ? "#16a34a" : "#d1d5db", position: "relative", cursor: "pointer", flexShrink: 0 }}>
+              <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#fff", position: "absolute", top: 3, left: s.resignationEnabled ? 23 : 3, transition: "left 0.15s" }} />
+            </button>
+          </div>
+        </div>
+
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Btn variant="ghost" onClick={onClose}>취소</Btn>
           <Btn variant="admin" onClick={() => onSave(s)}>저장</Btn>
@@ -2990,6 +3012,59 @@ function RiskAssessSection({ user, users = [], riskAssessments = [], riskSubmiss
           );})}
         </>
       )}
+    </div>
+  );
+}
+
+// ── 사직서 제출 (팀원 전용, 관리자가 활성화했을 때만 노출) ───────────
+function ResignationScreen({ user, onBack }) {
+  const [date, setDate] = useState("");
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const iStyle = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.border}`, background: "#fff", color: T.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 };
+
+  const submit = async () => {
+    if (!date) { alert("퇴사 예정일을 선택해주세요."); return; }
+    if (!reason.trim()) { alert("사유를 입력해주세요."); return; }
+    setSubmitting(true);
+    const content = `사직서\n\n성명: ${user.name}\n퇴사 예정일: ${date}\n\n사유:\n${reason.trim()}\n\n위와 같은 사유로 사직을 신청합니다.`;
+    try {
+      await addDoc(collection(db, COL_CONTRACTS), {
+        userId: user.id, userName: user.name, docType: "other", docTitle: "사직서",
+        docContent: content, status: "submitted", submittedByMember: true,
+        createdAt: new Date().toISOString(),
+      });
+      await sendPush({ title: "📝 사직서 제출", message: `${user.name}님이 사직서를 제출했습니다. (퇴사예정일: ${date})`, targetUserId: "admin" });
+      setDone(true);
+    } catch (e) { alert("제출 중 오류: " + e.message); }
+    setSubmitting(false);
+  };
+
+  if (done) {
+    return (
+      <div style={{ padding: 16, textAlign: "center", paddingTop: 60 }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 6 }}>사직서가 제출되었습니다</div>
+        <div style={{ fontSize: 13, color: T.muted }}>관리자에게 알림이 전달되었습니다.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 4 }}>📝 사직서 제출</div>
+      <div style={{ fontSize: 12, color: T.muted, marginBottom: 16 }}>퇴사 예정일과 사유를 작성하여 제출합니다.</div>
+
+      <div style={{ background: T.card, borderRadius: 14, padding: 16, border: `1px solid ${T.border}` }}>
+        <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600 }}>퇴사 예정일</div>
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} style={iStyle} />
+        <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600 }}>사유</div>
+        <textarea value={reason} onChange={e => setReason(e.target.value)} rows={5} placeholder="사직 사유를 작성해주세요"
+          style={{ ...iStyle, resize: "none", lineHeight: 1.6 }} />
+        <Btn variant="primary" onClick={submit} disabled={submitting}>{submitting ? "제출 중..." : "제출하기"}</Btn>
+      </div>
     </div>
   );
 }
@@ -5208,17 +5283,28 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
 
           {/* 기타 문서 폼 */}
           {form.docType === "other" && (
-            <div style={{ background: T.card, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 10 }}>📄 문서 내용</div>
-              <div style={{ marginBottom: 12, padding: "8px 12px", background: T.bg, borderRadius: 10 }}>
-                <span style={{ fontSize: 12, color: T.muted }}>대상: </span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{form.userName}</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ background: T.card, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#16a34a", marginBottom: 10 }}>📋 템플릿 선택</div>
+                {OTHER_TEMPLATES.map(t => (
+                  <button key={t.key} onClick={() => setForm(p => ({ ...p, docTitle: t.label === "직접 입력" ? "" : t.label, docContent: t.content }))}
+                    style={{ display: "block", width: "100%", padding: "10px 12px", marginBottom: 8, borderRadius: 10, border: `1px solid ${form.docTitle === t.label ? "#16a34a" : T.border}`, background: form.docTitle === t.label ? "#f0fdf4" : T.bg, color: T.text, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+                    {form.docTitle === t.label ? "✅ " : ""}{t.label}
+                  </button>
+                ))}
               </div>
-              <ContractField form={form} setForm={setForm} label="제목" fkey="docTitle" placeholder="문서 제목" />
-              <div style={{ marginBottom: 12 }}>
-                <ContractLabel>내용</ContractLabel>
-                <textarea value={form.docContent || ""} onChange={e => setForm(p => ({ ...p, docContent: e.target.value }))}
-                  placeholder="내용을 자유롭게 입력하세요" style={{ ...CONTRACT_ISTYLE, minHeight: 200, resize: "vertical" }} />
+              <div style={{ background: T.card, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 10 }}>📄 문서 내용</div>
+                <div style={{ marginBottom: 12, padding: "8px 12px", background: T.bg, borderRadius: 10 }}>
+                  <span style={{ fontSize: 12, color: T.muted }}>대상: </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{form.userName}</span>
+                </div>
+                <ContractField form={form} setForm={setForm} label="제목" fkey="docTitle" placeholder="문서 제목" />
+                <div style={{ marginBottom: 12 }}>
+                  <ContractLabel>내용</ContractLabel>
+                  <textarea value={form.docContent || ""} onChange={e => setForm(p => ({ ...p, docContent: e.target.value }))}
+                    placeholder="내용을 자유롭게 입력하세요" style={{ ...CONTRACT_ISTYLE, minHeight: 200, resize: "vertical" }} />
+                </div>
               </div>
             </div>
           )}
@@ -9254,6 +9340,7 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
             { key: "schedule",  icon: "🗓", label: "일정",       badge: 0 },
             { key: "education", icon: "🎓", label: "교육",       badge: 0 },
             { key: "risk",      icon: "🔍", label: "위험성평가", badge: 0 },
+            ...(settings?.resignationEnabled ? [{ key: "resignation", icon: "📝", label: "사직서 제출", badge: 0 }] : []),
           ]} />
         </>
       )}
@@ -9305,6 +9392,15 @@ function App({ users, settings, records, leaves, notices, board, payslips, annua
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>🔍 위험성평가</div>
           </div>
           <RiskAssessSection user={user} users={users} riskAssessments={riskAssessments} riskSubmissions={riskSubmissions} reads={reads} />
+        </>
+      )}
+      {tab === "resignation" && settings?.resignationEnabled && (
+        <>
+          <div style={{ background: T.headerBg, paddingTop: "calc(18px + env(safe-area-inset-top))", paddingBottom: "14px", paddingLeft: "16px", paddingRight: "16px" }}>
+            <div style={{ fontSize: 11, color: "#ffffff50", letterSpacing: 3 }}>ATTENDANCE</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>📝 사직서 제출</div>
+          </div>
+          <ResignationScreen user={user} />
         </>
       )}
       <TabBar tab={tab} setTab={t => { setTab(t); window.scrollTo(0, 0); }} isAdmin={isAdmin} leaveRequests={leaveRequests} notices={notices} board={board} payslips={payslips} user={user} reads={reads} contracts={contracts} />
