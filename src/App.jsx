@@ -67,7 +67,7 @@ const COL_RISK_SUBMIT = "risk_submissions"; // 위험성평가 팀원 제출(참
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.09-r10";
+const APP_VERSION = "v2026.07.09-r11";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -5289,7 +5289,28 @@ function DocSection({ users, memberInfo, settings, contracts, onBack }) {
               <div style={{ background: T.card, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: "#16a34a", marginBottom: 10 }}>📋 템플릿 선택</div>
                 {OTHER_TEMPLATES.map(t => (
-                  <button key={t.key} onClick={() => setForm(p => ({ ...p, docTitle: t.label === "직접 입력" ? "" : t.label, docContent: t.content }))}
+                  <button key={t.key} onClick={() => {
+                    if (t.key === "employment_cert") {
+                      const joinDateStr = memberInfo[form.userId]?.joinDate;
+                      if (!joinDateStr) {
+                        alert("이 팀원의 입사일이 등록되어 있지 않습니다. 팀원 기초정보에서 입사일을 먼저 입력해주세요.");
+                        return;
+                      }
+                      const start = new Date(joinDateStr);
+                      const today = new Date();
+                      let years = today.getFullYear() - start.getFullYear();
+                      let months = today.getMonth() - start.getMonth();
+                      let days = today.getDate() - start.getDate();
+                      if (days < 0) { months--; days += new Date(today.getFullYear(), today.getMonth(), 0).getDate(); }
+                      if (months < 0) { years--; months += 12; }
+                      const totalDays = Math.floor((today - start) / (1000 * 60 * 60 * 24));
+                      const fmtDot = (d) => new Date(d).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
+                      const content = `근로기준법 제39조에 따라 아래와 같이 재직 사실을 증명합니다.\n\n■ 재직기간: ${fmtDot(joinDateStr)} ~ 현재까지 (${years}년 ${months}개월, ${totalDays}일)\n■ 직위/담당업무:\n■ 용도: (관공서·은행 제출용 등)\n\n위 사람은 현재 당사에 재직 중임을 증명합니다.\n\n발행일: ${fmtDot(today)}`;
+                      setForm(p => ({ ...p, docTitle: "재직증명서", docContent: content }));
+                      return;
+                    }
+                    setForm(p => ({ ...p, docTitle: t.label === "직접 입력" ? "" : t.label, docContent: t.content }));
+                  }}
                     style={{ display: "block", width: "100%", padding: "10px 12px", marginBottom: 8, borderRadius: 10, border: `1px solid ${form.docTitle === t.label ? "#16a34a" : T.border}`, background: form.docTitle === t.label ? "#f0fdf4" : T.bg, color: T.text, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
                     {form.docTitle === t.label ? "✅ " : ""}{t.label}
                   </button>
