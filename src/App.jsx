@@ -68,7 +68,7 @@ const COL_RISK_SUBMIT = "risk_submissions"; // 위험성평가 팀원 제출(참
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.09-r12";
+const APP_VERSION = "v2026.07.09-r13";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -3952,6 +3952,27 @@ function AdminMembers({ users, annual, leaveRequests, memberInfo = {}, onSaveUse
       </div>
 
       <div style={{ padding: 16 }}>
+        <button onClick={() => {
+          const header = ["성명", "성별", "생년월일", "주소", "연락처", "최종학력/경력", "종사업무", "고용일자", "고용형태(고용종류)", "승급·전직·감봉 이력", "퇴직/사망 시기 및 사유"];
+          const allMembers = [...activeMembers, ...retiredMembers];
+          const rows = allMembers.map(u => {
+            const info = memberInfo[u.id] || {};
+            return [u.name, "", "", "", "", "", info.jobType || "", info.joinDate || "", info.employType || "", "", u.status === "retired" ? (u.retiredAt ? new Date(u.retiredAt).toLocaleDateString("ko-KR") : "퇴직") : ""];
+          });
+          const wb = XLSX.utils.book_new();
+          const ws = XLSX.utils.aoa_to_sheet([
+            ["근로자 명부 (근로기준법 제41조·시행규칙 제16조)"],
+            [`발행일: ${new Date().toLocaleDateString("ko-KR")}`],
+            [],
+            header,
+            ...rows,
+          ]);
+          ws["!cols"] = [{wch:10},{wch:6},{wch:12},{wch:20},{wch:14},{wch:16},{wch:12},{wch:12},{wch:14},{wch:20},{wch:20}];
+          XLSX.utils.book_append_sheet(wb, ws, "근로자명부");
+          XLSX.writeFile(wb, `근로자명부_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }} style={{ width: "100%", padding: "11px 0", borderRadius: 12, border: "none", background: "#7c3aed", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 14 }}>
+          ⬇ 근로자명부 다운로드
+        </button>
         {/* 재직중 탭 */}
         {tab === "active" && activeMembers.map(u => {
           const pending = leaveRequests.filter(r => r.userId === u.id && r.status === "대기").length;
