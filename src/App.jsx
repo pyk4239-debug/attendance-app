@@ -5,12 +5,13 @@ import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import {
   doc, onSnapshot, setDoc, getDoc, collection,
-  getDocs, writeBatch, addDoc, deleteDoc, query, orderBy, where
+  getDocs, writeBatch, addDoc, deleteDoc, query, orderBy, where, limit
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
 // ── [임시 디버그] 에러 발생 시 화면에 표시 (진단용, 확인되면 제거) ──
-if (typeof window !== "undefined") {
+if (typeof window !== "undefined" && !window.__debugOverlayInstalled__) {
+  window.__debugOverlayInstalled__ = true; // 핫 리로드 등으로 이 모듈이 재실행돼도 중복 등록 방지
   const showDebugOverlay = (text) => {
     let el = document.getElementById("__debug_overlay__");
     if (!el) {
@@ -67,7 +68,7 @@ const COL_RISK_SUBMIT = "risk_submissions"; // 위험성평가 팀원 제출(참
 const COL_NOTI_LOG = "noti_log"; // 발송된 알림 이력 (관리자 알림함, 1단계)
 const COL_ADMIN_META = "admin_meta"; // 관리자별 메타(알림함 마지막 읽은 시각)
 // 앱 버전 — 기능 추가/수정 시마다 날짜를 오늘 날짜로, 같은 날 여러 번 바뀌면 뒤 리비전(r1,r2...) 올려주세요
-const APP_VERSION = "v2026.07.09-r11";
+const APP_VERSION = "v2026.07.09-r12";
 
 // 문서 종류
 const DOC_TYPES = [
@@ -626,8 +627,8 @@ function AppLoader() {
     }));
 
     // 알림 발송 이력 구독 (3단계)
-    unsubs.push(onSnapshot(query(collection(db, COL_NOTI_LOG), orderBy("createdAt", "desc")), snap => {
-      setNotiLog(snap.docs.map(d => ({ id: d.id, ...d.data() })).slice(0, 200));
+    unsubs.push(onSnapshot(query(collection(db, COL_NOTI_LOG), orderBy("createdAt", "desc"), limit(200)), snap => {
+      setNotiLog(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }));
 
     // 위험성평가 구독
