@@ -2,8 +2,14 @@
 
 html, body, #root {
   height: 100%;
-  /* Android PWA 상태바 영역을 헤더색으로 채움 */
+  /* Android/iOS PWA 상태바 영역을 헤더색으로 채움 */
   background-color: #1e3a5f;
+}
+
+/* 노치/상태바 안전영역만큼 명시적으로 여백을 확보 — 이 여백엔 #root의 배경색(남색)이 그대로 비침 */
+#root {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-top: constant(safe-area-inset-top, 0px); /* 구형 iOS 대응 */
 }
 
 /* 실제 앱 컨텐츠는 흰/회색 배경 */
